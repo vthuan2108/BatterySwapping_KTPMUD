@@ -1,0 +1,122 @@
+<Window x:Class="BatterySwapping.App.Views.Dialogs.BatteryMaintenanceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Kiểm Định &amp; Bảo Trì Thay Thế Pin (Kỹ Thuật Viên)" 
+        Height="620" Width="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource LightBgBrush}" FontFamily="Segoe UI">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tiêu đề -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="KIỂM ĐỊNH &amp; BẢO TRÌ THAY THẾ PIN" FontSize="17" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+            <TextBlock Text="Nghiệp vụ kỹ thuật viên trạm: Đánh giá BMS, bảo dưỡng làm mát hoặc thay thế pin chai" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Nội dung chi tiết -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Thẻ thông số kỹ thuật BMS -->
+                <Border Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,10">
+                            <TextBlock Text="Mã định danh Pin" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblMaPin" Text="PIN-001" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,10">
+                            <TextBlock Text="Loại Pin" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblLoaiPin" Text="Lithium LFP 72V-30Ah" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,10">
+                            <TextBlock Text="Dung lượng (SoC)" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblSoC" Text="98.5%" FontSize="14" FontWeight="Bold" Foreground="#10B981"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,10">
+                            <TextBlock Text="Sức khỏe pin (SoH)" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblSoH" Text="99.0%" FontSize="14" FontWeight="Bold" Foreground="#0284C7"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,10">
+                            <TextBlock Text="Nhiệt độ cảm biến" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblNhietDo" Text="28.5 °C" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,10">
+                            <TextBlock Text="Số chu kỳ sạc" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblSoLanSac" Text="45 lần" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="Điện áp &amp; Dòng điện" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblDienApDongDien" Text="72.5 V • 0.0 A" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="3" Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Text="Trạng thái hiện tại" FontSize="11" Foreground="#64748B"/>
+                            <TextBlock x:Name="lblTrangThai" Text="DaDay" FontSize="13" FontWeight="Bold" Foreground="#059669"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Kết luận chẩn đoán kỹ thuật -->
+                <Border x:Name="borderDiagnostic" CornerRadius="8" Padding="14,12" Background="#EFF6FF" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock x:Name="lblDiagnosticTitle" Text="ĐÁNH GIÁ CHẨN ĐOÁN KỸ THUẬT" FontWeight="Bold" FontSize="12" Foreground="#1D4ED8"/>
+                        <TextBlock x:Name="lblDiagnosticDesc" Text="Pin hoạt động bình thường, thông số điện áp và nhiệt độ trong dải an toàn." FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Thao tác kỹ thuật viên -->
+                <Border Style="{StaticResource CardBorderStyle}" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="THỰC HIỆN NGHIỆP VỤ KỸ THUẬT" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Ghi chú thao tác bảo trì" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBox x:Name="txtNote" Style="{StaticResource ModernTextBoxStyle}" Text="Kiểm tra BMS định kỳ, làm mát và thử tải hoàn tất." Margin="0,0,0,12"/>
+
+                        <!-- Lựa chọn hành động bảo dưỡng -->
+                        <Button x:Name="btnMaintain" Content="🛠️ Hoàn tất Bảo Dưỡng / Reset Lỗi Quá Nhiệt" Style="{StaticResource PrimaryButtonStyle}" Click="BtnMaintain_Click" Margin="0,0,0,12"/>
+
+                        <Separator Background="#E2E8F0" Margin="0,0,0,12"/>
+
+                        <!-- Thay thế pin chai / hỏng -->
+                        <TextBlock Text="Hoặc Thay Thế Viên Pin Khác Vào Khay Tủ:" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtNewPinId" Grid.Column="0" Style="{StaticResource ModernTextBoxStyle}" Text="PIN-015" Margin="0,0,8,0"/>
+                            <Button Grid.Column="1" Content="🔄 Thay Pin Mới (100%)" Style="{StaticResource OutlineButtonStyle}" Click="BtnReplace_Click" FontWeight="Bold"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Nút Đóng -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Đóng cửa sổ" Style="{StaticResource OutlineButtonStyle}" Width="110" Click="BtnClose_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,276 @@
+<UserControl x:Class="BatterySwapping.App.Views.Kiosk.KioskSwappingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Segoe UI">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid Background="#0B0F19">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- THANH TOPBAR THÔNG TIN KHÁCH HÀNG & TRẠM ĐỔI PIN -->
+        <Border Grid.Row="0" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,0,0,1" Padding="24,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Trạm & Trạng thái -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,30,0">
+                    <Border Width="38" Height="38" CornerRadius="19" Background="#065F46" Margin="0,0,12,0">
+                        <TextBlock Text="⚡" FontSize="20" Foreground="#34D399" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="TRẠM ĐỔI PIN THÔNG MINH BSS" FontSize="15" FontWeight="Bold" Foreground="White"/>
+                        <TextBlock Text="Trạm ĐH Bách Khoa Hà Nội • TRAM-BK01" FontSize="11" Foreground="#9CA3AF"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Thông tin khách hàng & số dư -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <Border Background="#1F2937" CornerRadius="8" Padding="14,6" Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="👤 Tài xế: " Foreground="#9CA3AF" FontSize="13"/>
+                            <TextBlock x:Name="lblCustomerName" Text="Nguyễn Văn An" Foreground="White" FontWeight="Bold" FontSize="13" Margin="0,0,14,0"/>
+                            <TextBlock Text="Biển số: " Foreground="#9CA3AF" FontSize="13"/>
+                            <TextBlock x:Name="lblPlate" Text="29A1-12345" Foreground="#38BDF8" FontWeight="Bold" FontSize="13"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="#064E3B" CornerRadius="8" Padding="14,6">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Ví điện tử: " Foreground="#A7F3D0" FontSize="13"/>
+                            <TextBlock x:Name="lblBalance" Text="150.000 đ" Foreground="#34D399" FontWeight="Bold" FontSize="14"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Nút Hủy -->
+                <Button Grid.Column="2" Content="✕ HỦY ĐỔI PIN" Style="{StaticResource DangerButtonStyle}" 
+                        Background="#374151" Foreground="#F87171" FontSize="12" Padding="14,8" Click="BtnCancel_Click"/>
+            </Grid>
+        </Border>
+
+        <!-- THANH TIẾN TRÌNH 6 BƯỚC (WORKFLOW STEPPER) -->
+        <Border Grid.Row="1" Background="#161E2E" BorderBrush="#1F2937" BorderThickness="0,0,0,1" Padding="20,10">
+            <UniformGrid Columns="6">
+                <Border x:Name="step1" BorderBrush="#10B981" BorderThickness="0,0,0,3" Padding="6">
+                    <TextBlock Text="1. Xác thực ví" FontWeight="Bold" Foreground="#34D399" HorizontalAlignment="Center" FontSize="12"/>
+                </Border>
+                <Border x:Name="step2" BorderBrush="#374151" BorderThickness="0,0,0,3" Padding="6">
+                    <TextBlock Text="2. Mở khay cắm pin" FontWeight="SemiBold" Foreground="#9CA3AF" HorizontalAlignment="Center" FontSize="12"/>
+                </Border>
+                <Border x:Name="step3" BorderBrush="#374151" BorderThickness="0,0,0,3" Padding="6">
+                    <TextBlock Text="3. Đọc dữ liệu BMS" FontWeight="SemiBold" Foreground="#9CA3AF" HorizontalAlignment="Center" FontSize="12"/>
+                </Border>
+                <Border x:Name="step4" BorderBrush="#374151" BorderThickness="0,0,0,3" Padding="6">
+                    <TextBlock Text="4. Chọn pin tối ưu" FontWeight="SemiBold" Foreground="#9CA3AF" HorizontalAlignment="Center" FontSize="12"/>
+                </Border>
+                <Border x:Name="step5" BorderBrush="#374151" BorderThickness="0,0,0,3" Padding="6">
+                    <TextBlock Text="5. Nhả pin mới" FontWeight="SemiBold" Foreground="#9CA3AF" HorizontalAlignment="Center" FontSize="12"/>
+                </Border>
+                <Border x:Name="step6" BorderBrush="#374151" BorderThickness="0,0,0,3" Padding="6">
+                    <TextBlock Text="6. Quyết toán ví" FontWeight="SemiBold" Foreground="#9CA3AF" HorizontalAlignment="Center" FontSize="12"/>
+                </Border>
+            </UniformGrid>
+        </Border>
+
+        <!-- NỘI DUNG CHÍNH: 2 CỘT (CỘT TRÁI: MÔ HÌNH TỦ ĐỔI PIN VẬT LÝ • CỘT PHẢI: MÀN HÌNH KIOSK CẢM ỨNG) -->
+        <Grid Grid.Row="2" Margin="24,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="500"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ================= CỘT TRÁI: TỦ ĐỔI PIN THỰC TẾ (PHYSICAL CABINET TOWER) ================= -->
+            <Border Grid.Column="0" Background="#111827" BorderBrush="#1F2937" BorderThickness="2" CornerRadius="16" Padding="16" Margin="0,0,18,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header Trạm Tủ Pin -->
+                    <Border Grid.Row="0" Background="#1F2937" CornerRadius="10" Padding="12,10" Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="🏢 TỦ ĐỔI PIN VẬT LÝ (HARDWARE TOWER)" FontSize="13" FontWeight="Bold" Foreground="#38BDF8"/>
+                                <TextBlock Text="Mô phỏng cơ cấu đóng/mở khóa cơ điện tử và cảm biến BMS" FontSize="10" Foreground="#9CA3AF"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" Background="#064E3B" CornerRadius="6" Padding="8,4" VerticalAlignment="Center">
+                                <TextBlock Text="● HARDWARE ONLINE" FontSize="10" FontWeight="Bold" Foreground="#34D399"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- MA TRẬN 8 NGĂN HỘC TỦ (2 CỘT x 4 HÀNG) MÔ PHỎNG CHÂN THỰC -->
+                    <ItemsControl Grid.Row="1" x:Name="icKioskCabinetSlots">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" Rows="4"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="4" CornerRadius="10" BorderThickness="2" BorderBrush="{Binding MauVienHoc}" Background="{Binding NenKhoangTu}">
+                                    <Grid Margin="10,6">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Hàng 1: Số hiệu hộc tủ & Đèn LED trạng thái -->
+                                        <Grid Grid.Row="0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding TenHocTu}" FontWeight="Bold" FontSize="12" Foreground="White"/>
+                                                <Border Width="8" Height="8" CornerRadius="4" Background="{Binding MauTrangThai}" Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                            <Border HorizontalAlignment="Right" Background="{Binding MauTrangThaiCua}" CornerRadius="4" Padding="6,2">
+                                                <TextBlock Text="{Binding TrangThaiCuaText}" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <!-- Hàng 2: Khối Pin mô phỏng bên trong hộc tủ -->
+                                        <Border Grid.Row="1" Margin="0,6" Background="#161E2E" CornerRadius="6" Padding="8,6" BorderBrush="#374151" BorderThickness="1">
+                                            <Grid>
+                                                <!-- Khi hộc CÓ PIN -->
+                                                <StackPanel VerticalAlignment="Center" Visibility="{Binding CoPin, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="🔋 " FontSize="14"/>
+                                                        <TextBlock Text="{Binding MaPinHienTai}" FontWeight="Bold" FontSize="12" Foreground="#38BDF8"/>
+                                                        <TextBlock Text="{Binding SoC, StringFormat=' ({0:N0}%)'}" FontWeight="Bold" FontSize="12" Foreground="{Binding MauTrangThai}"/>
+                                                    </StackPanel>
+                                                    <ProgressBar Value="{Binding SoC}" Minimum="0" Maximum="100" Height="5" Margin="0,4,0,0" Foreground="{Binding MauTrangThai}"/>
+                                                </StackPanel>
+
+                                                <!-- Khi hộc TRỐNG (Cửa mở để cắm pin) -->
+                                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                    <StackPanel.Style>
+                                                        <Style TargetType="StackPanel">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CoPin}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </StackPanel.Style>
+                                                    <TextBlock Text="[ KHOANG TRỐNG ]" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" HorizontalAlignment="Center"/>
+                                                    <TextBlock Text="Sẵn sàng nhận pin" FontSize="9" Foreground="#6B7280" HorizontalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Hàng 3: Chỉ số Telemetry nhanh -->
+                                        <Grid Grid.Row="2">
+                                            <TextBlock Text="{Binding NhietDo, StringFormat='Nhiệt: {0:F1}°C'}" FontSize="10" Foreground="#F59E0B"/>
+                                            <TextBlock HorizontalAlignment="Right" Text="{Binding MoTaTrangThai}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding MauTrangThai}"/>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Chân Tủ Đổi Pin (Pedestal / Vents) -->
+                    <Border Grid.Row="2" Background="#161E2E" CornerRadius="8" Padding="12,6" Margin="0,10,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock Text="⚡ HỆ THỐNG LÀM MÁT CHỐNG CHÁY NỔ BMS TÍCH HỢP" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ================= CỘT PHẢI: MÀN HÌNH KIOSK CẢM ỨNG (TOUCHSCREEN TERMINAL) ================= -->
+            <Border Grid.Column="1" Background="#161E2E" BorderBrush="#1F2937" BorderThickness="2" CornerRadius="16" Padding="30">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Tiêu đề Màn hình cảm ứng Kiosk -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📱 MÀN HÌNH HƯỚNG DẪN CẢM ỨNG TẠI TRẠM" FontSize="16" FontWeight="Bold" Foreground="#F3F4F6"/>
+                            <Border Background="#1E3A8A" CornerRadius="4" Padding="6,2" Margin="10,0,0,0">
+                                <TextBlock Text="TOUCH TERMINAL" FontSize="10" FontWeight="Bold" Foreground="#93C5FD"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="Vui lòng quan sát trạng thái cửa hộc tủ bên trái và làm theo hướng dẫn bên dưới" FontSize="12" Foreground="#9CA3AF" Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <!-- Khung Hướng dẫn hành động trọng tâm của Bước hiện tại -->
+                    <Border Grid.Row="1" Background="#0F172A" BorderBrush="#334155" BorderThickness="1" CornerRadius="14" Padding="28" VerticalAlignment="Center">
+                        <StackPanel HorizontalAlignment="Center">
+                            <!-- Icon lớn theo bước -->
+                            <Border x:Name="boxIcon" Width="80" Height="80" CornerRadius="40" Background="#064E3B" HorizontalAlignment="Center" Margin="0,0,0,16">
+                                <TextBlock x:Name="txtStepIcon" Text="🔓" FontSize="40" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+
+                            <!-- Tiêu đề bước -->
+                            <TextBlock x:Name="txtStepTitle" Text="CỬA KHAY TỦ ĐANG MỞ..." FontSize="22" FontWeight="Bold" Foreground="#34D399" HorizontalAlignment="Center"/>
+
+                            <!-- Mô tả chi tiết hành động -->
+                            <TextBlock x:Name="txtStepDescription" 
+                                       Text="Xin mời Quý khách cắm viên pin cũ vào khay và ĐÓNG CHẶT CỬA TỦ." 
+                                       FontSize="15" Foreground="#D1D5DB" HorizontalAlignment="Center" TextAlignment="Center" 
+                                       Margin="0,10,0,22" TextWrapping="Wrap" LineHeight="24" MaxWidth="520"/>
+
+                            <!-- Hộp thông số Telemetry BMS khi quét pin -->
+                            <Border x:Name="boxDetails" Background="#1E293B" BorderBrush="#374151" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,24" Visibility="Collapsed" Width="480">
+                                <StackPanel>
+                                    <TextBlock x:Name="lblDetailHeader" Text="🔍 KẾT QUẢ ĐỌC DỮ LIỆU CẢM BIẾN BMS" FontWeight="Bold" FontSize="13" Foreground="#38BDF8" Margin="0,0,0,10"/>
+                                    <UniformGrid Columns="2">
+                                        <StackPanel Margin="0,0,10,0">
+                                            <TextBlock x:Name="lblDetail1" Text="Mã Pin: PIN-009" FontSize="13" Foreground="#F3F4F6" Margin="0,2"/>
+                                            <TextBlock x:Name="lblDetail2" Text="Dung lượng SoC: 18.0%" FontSize="13" FontWeight="Bold" Foreground="#F59E0B" Margin="0,2"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock x:Name="lblDetail3" Text="Sức khỏe SoH: 95.0%" FontSize="13" Foreground="#F3F4F6" Margin="0,2"/>
+                                            <TextBlock x:Name="lblDetail4" Text="Nhiệt độ: 31.5 °C (An toàn)" FontSize="13" FontWeight="Bold" Foreground="#34D399" Margin="0,2"/>
+                                        </StackPanel>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Nút bấm tương tác cảm ứng -->
+                            <Button x:Name="btnAction" Content="ĐÃ CẮM PIN VÀ ĐÓNG CỬA KHAY ➔" 
+                                    Style="{StaticResource PrimaryButtonStyle}" 
+                                    Background="#059669" Height="52" FontSize="16" FontWeight="Bold" 
+                                    Click="BtnAction_Click" Width="420" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Chân trang Kiosk Touchscreen -->
+                    <Border Grid.Row="2" Background="#111827" CornerRadius="8" Padding="14,10" Margin="0,16,0,0">
+                        <Grid>
+                            <TextBlock Text="Đơn giá cố định: 25.000 VNĐ / lượt đổi pin" FontSize="12" Foreground="#9CA3AF" VerticalAlignment="Center"/>
+                            <TextBlock HorizontalAlignment="Right" Text="Tổng đài khẩn cấp: 1900-8888 (24/7)" FontSize="12" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- FOOTER -->
+        <TextBlock Grid.Row="3" Text="HỆ THỐNG MẠNG LƯỚI TỦ ĐỔI PIN TỰ ĐỘNG CHO XE MÁY ĐIỆN • HỌC PHẦN KTPMUD - ĐHBK HÀ NỘI" 
+                   FontSize="11" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+    </Grid>
+</UserControl>

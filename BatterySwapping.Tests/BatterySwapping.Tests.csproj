@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BatterySwapping.App\BatterySwapping.App.csproj" />
+    <ProjectReference Include="..\BatterySwapping.Simulator\BatterySwapping.Simulator.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BSS 3D Digital Twin - Trạm Đổi Pin Thông Minh (VinFast Style)</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔋</text></svg>">
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="brand-container">
+      <div class="brand-logo">⚡</div>
+      <div>
+        <div class="brand-title">BSS DIGITAL TWIN 3D • HANOI SMART MOBILITY</div>
+        <div class="brand-subtitle">Trạm Tủ Đổi Pin Tự Động 8 Ngăn • Chu Trình Kiosk Đổi Pin Thực Tế</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="stat-chip">
+        <span class="status-dot"></span>
+        <span>TRẠM: <b>TRAM-BK01</b></span>
+      </div>
+      <div class="stat-chip">
+        <span>⚡ LƯỚI ĐIỆN: <b>380V / 50Hz</b></span>
+      </div>
+      <button class="btn-toggle-sidebar" id="btn-toggle-sidebar">
+        ⚙️ BẢNG ĐIỀU KHIỂN BMS & GIẢ LẬP IOT
+      </button>
+    </div>
+  </header>
+
+  <!-- 3D Camera Preset Viewpoints (Top Left) -->
+  <div class="view-presets">
+    <button class="btn-preset active" data-view="front">👁 Mặt Trước (Trực Diện)</button>
+    <button class="btn-preset" data-view="iso">📐 Toàn Cảnh 3D</button>
+    <button class="btn-preset" data-view="top">🔝 Nhìn Trên Xuống</button>
+    <button class="btn-preset" data-view="focus">🔍 Tập Trung Khay</button>
+  </div>
+
+  <!-- Floating 3D Telemetry Tooltip -->
+  <div id="slot-tooltip"></div>
+
+  <!-- Three.js Canvas Container (Unobstructed View) -->
+  <div id="canvas-container"></div>
+
+  <!-- INTERACTIVE KIOSK TOUCHSCREEN FLOW (Bottom-Left Card) -->
+  <div class="kiosk-flow-card" id="kiosk-flow-card">
+    <div class="kiosk-card-header">
+      <span class="kiosk-step-title" id="kiosk-title">CHÀO MỪNG ĐẾN VỚI TRẠM ĐỔI PIN BSS</span>
+      <span class="kiosk-badge" id="kiosk-badge">BƯỚC 1 / 4 • SẴN SÀNG</span>
+    </div>
+
+    <div class="kiosk-body" id="kiosk-body">
+      <!-- Injected dynamically by simulatorController.js -->
+    </div>
+
+    <div class="kiosk-actions" id="kiosk-actions">
+      <!-- Injected dynamically by simulatorController.js -->
+    </div>
+  </div>
+
+  <!-- COLLAPSIBLE RIGHT SIDEBAR: IOT SIMULATOR & BMS CONTROLS -->
+  <div class="sidebar-panel collapsed" id="sidebar-panel">
+    <div class="sidebar-header">
+      <div class="sidebar-title">
+        <span>⚙️ Giả Lập IoT & Thông Số BMS</span>
+      </div>
+      <button class="btn-close-sidebar" id="btn-close-sidebar" title="Đóng bảng">✕</button>
+    </div>
+
+    <!-- 8 Slots Mini-Grid -->
+    <div>
+      <div class="sidebar-section-title">Chọn Ngăn Sạc (8 Khay)</div>
+      <div class="slots-grid-mini" id="slots-grid-mini">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+
+    <!-- Selected Slot Details Card -->
+    <div class="slot-details-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px;">
+        <b id="side-slot-title" style="font-size: 13px; color: var(--accent-cyan);">Khay #1 - PIN-001</b>
+        <span id="side-status" style="font-size: 11px; font-weight: 700; color: var(--accent-lime);">ĐẦY (SẴN SÀNG)</span>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-item">
+          <span class="lbl">Dung lượng</span>
+          <span class="val green" id="side-soc">98%</span>
+        </div>
+        <div class="metric-item">
+          <span class="lbl">Nhiệt độ</span>
+          <span class="val green" id="side-temp">31.0°C</span>
+        </div>
+        <div class="metric-item">
+          <span class="lbl">Dòng sạc</span>
+          <span class="val" id="side-current">0.0 A</span>
+        </div>
+        <div class="metric-item">
+          <span class="lbl">Điện áp</span>
+          <span class="val" id="side-voltage">53.8 V</span>
+        </div>
+        <div class="metric-item">
+          <span class="lbl">Sức khỏe</span>
+          <span class="val" id="side-soh">99.0%</span>
+        </div>
+        <div class="metric-item">
+          <span class="lbl">Vị trí</span>
+          <span class="val" style="font-size: 11px; color: var(--accent-cyan);">Tầng 1 - Cột 1</span>
+        </div>
+      </div>
+
+      <!-- Sliders -->
+      <div class="slider-group">
+        <div class="slider-item">
+          <div class="slider-header-row">
+            <span>🌡 Điều chỉnh Nhiệt độ:</span>
+            <b id="slider-temp-val">31.0°C</b>
+          </div>
+          <input type="range" id="slider-temp" min="20" max="80" step="0.5" value="31">
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-header-row">
+            <span>🔋 Giả lập Dung lượng (SoC):</span>
+            <b id="slider-soc-val">98%</b>
+          </div>
+          <input type="range" id="slider-soc" min="0" max="100" step="1" value="98">
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Control & Fault Injection Actions -->
+    <div class="sidebar-actions">
+      <button class="btn-sidebar-action" id="btn-eject-slot">
+        ⏏ Mở Khóa Đẩy Pin Ra
+      </button>
+      <button class="btn-sidebar-action" id="btn-insert-slot">
+        ❌ Gỡ Pin Khỏi Hộc
+      </button>
+      <button class="btn-sidebar-action btn-danger" id="btn-overheat" title="Kích hoạt sự cố quá nhiệt 65°C với hiệu ứng khói/lửa 3D">
+        🔥 KÍCH HOẠT QUÁ NHIỆT (65°C)
+      </button>
+      <button class="btn-sidebar-action" id="btn-reset" title="Hạ nhiệt về 31°C và khôi phục an toàn">
+        ❄️ Hạ Nhiệt Khẩn Cấp / Reset
+      </button>
+    </div>
+  </div>
+
+  <!-- Instruction Hint Pill -->
+  <div class="instruction-pill">
+    🖱 Chuột trái: Xoay 360° | Chuột phải: Lia camera | Cuộn: Zoom | Click khay để thao tác
+  </div>
+
+  <!-- Offline Bundled JS Libraries -->
+  <script src="js/three.min.js"></script>
+  <script src="js/OrbitControls.js"></script>
+  <script src="js/tween.umd.js"></script>
+  <script src="js/mqtt.min.js"></script>
+
+  <!-- Application Modules -->
+  <script src="js/cabinetModel.js"></script>
+  <script src="js/particleSystem.js"></script>
+  <script src="js/mqttSync.js"></script>
+  <script src="js/simulatorController.js"></script>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", () => {
+      SimulatorController.init();
+    });
+  </script>
+</body>
+</html>

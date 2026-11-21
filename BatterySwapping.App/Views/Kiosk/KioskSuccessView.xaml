@@ -1,0 +1,58 @@
+<UserControl x:Class="BatterySwapping.App.Views.Kiosk.KioskSuccessView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Segoe UI">
+
+    <Grid Background="#F8FAFC">
+        <Border Style="{StaticResource CardBorderStyle}" Width="520" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="32">
+            <StackPanel>
+                <!-- Icon thành công xanh lá -->
+                <Border Width="64" Height="64" CornerRadius="32" Background="#DCFCE7" HorizontalAlignment="Center" Margin="0,0,0,14">
+                    <TextBlock Text="✓" FontSize="36" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+
+                <TextBlock Text="ĐỔI PIN THÀNH CÔNG!" FontSize="20" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Cảm ơn Quý khách đã sử dụng năng lượng xanh và phương tiện giao thông bền vững" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,4,0,20" TextAlignment="Center"/>
+
+                <!-- Phiếu biên lai giao dịch -->
+                <Border Background="#F1F5F9" CornerRadius="10" Padding="18" Margin="0,0,0,24">
+                    <StackPanel>
+                        <TextBlock Text="BIÊN LAI ĐIỆN TỬ DỊCH VỤ ĐỔI PIN" FontWeight="Bold" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+
+                        <Grid Margin="0,4">
+                            <TextBlock Text="Mã giao dịch:" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="lblTxId" Text="GD-000123" FontWeight="Bold" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <TextBlock Text="Thời gian giao dịch:" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="lblTime" Text="26/10/2026 09:30:00" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <TextBlock Text="Pin đã trả lại khay:" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="lblOldBattery" Text="PIN-009 (18.0%) - Khay #6" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <TextBlock Text="Pin mới đã nhận:" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="lblNewBattery" Text="PIN-001 (98.5%) - Khay #1" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" HorizontalAlignment="Right"/>
+                        </Grid>
+                        
+                        <Separator Margin="0,10" Background="{StaticResource BorderBrush}"/>
+
+                        <Grid Margin="0,4">
+                            <TextBlock Text="Phí dịch vụ đổi pin:" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="lblFee" Text="25.000 đ" FontWeight="Bold" Foreground="{StaticResource DangerBrush}" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <TextBlock Text="Số dư ví còn lại:" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock x:Name="lblRemaining" Text="125.000 đ" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" HorizontalAlignment="Right"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Nút thao tác -->
+                <Button Content="HOÀN TẤT &amp; VỀ TRANG CHỦ" Style="{StaticResource PrimaryButtonStyle}" Height="44" Click="BtnFinish_Click" Margin="0,0,0,10"/>
+                <Button Content="🖨️ In Hóa Đơn Giấy" Style="{StaticResource OutlineButtonStyle}" Height="38" Click="BtnPrint_Click"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
