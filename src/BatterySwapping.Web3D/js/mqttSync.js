@@ -3,8 +3,24 @@ const MqttSync = (() => {
   let sequence = 0;
   const leases = {}; // stationId -> lease object
   let stationList = ["TRAM-BK01", "TRAM-CG02"];
-  const clientId = sessionStorage.getItem("bss-device-client") || crypto.randomUUID();
-  sessionStorage.setItem("bss-device-client",clientId);
+  const clientId = (typeof localStorage !== "undefined" && localStorage.getItem("bss-device-client")) ||
+    (typeof sessionStorage !== "undefined" && sessionStorage.getItem("bss-device-client")) ||
+    crypto.randomUUID();
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem("bss-device-client", clientId);
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem("bss-device-client", clientId);
+  } catch {}
+
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("storage", (e) => {
+      if (e.key && e.key.startsWith("bss-lease:") && e.newValue) {
+        const st = e.key.replace("bss-lease:", "");
+        try {
+          leases[st] = JSON.parse(e.newValue);
+        } catch {}
+      }
+    });
+  }
 
   async function json(path, options = {}) {
     const r = await fetch("/api/v1/" + path, {
@@ -35,8 +51,14 @@ const MqttSync = (() => {
           body: JSON.stringify({ stationId: st, clientId }),
         });
         leases[st] = l;
+        if (typeof localStorage !== "undefined") localStorage.setItem("bss-lease:" + st, JSON.stringify(l));
       } catch (err) {
-        console.warn(`Could not lease ${st}:`, err.message);
+        const savedLease = typeof localStorage !== "undefined" && JSON.parse(localStorage.getItem("bss-lease:" + st) || "null");
+        if (savedLease) {
+          leases[st] = savedLease;
+        } else {
+          console.warn(`Could not lease ${st}:`, err.message);
+        }
       }
     }
 
@@ -139,7 +161,10 @@ const MqttSync = (() => {
     connected: () => !!client?.connected,
     clientId: () => clientId,
     leaseId: (st) => leases[st || stationList[0]]?.leaseId,
-    applyLease: (st, leaseId) => { leases[st] = { ...leases[st], leaseId }; },
+    applyLease: (st, leaseId) => {
+      leases[st] = { ...leases[st], leaseId };
+      try { if (typeof localStorage !== "undefined") localStorage.setItem("bss-lease:" + st, JSON.stringify(leases[st])); } catch {}
+    },
     isLeased: (st) => !!leases[st]?.leaseId,
     disconnect: () => {
       client?.end(true);

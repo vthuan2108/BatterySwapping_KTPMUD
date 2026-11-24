@@ -87,6 +87,7 @@ namespace BatterySwapping.App.Views.Admin
     private bool _cooldownReadValid;
     private bool _cooldownDeviceOnline;
     private string _cooldownStation = "";
+    private int _consecutiveOfflineCount;
 
     private void ShowCooldowns(List<NganTu> slots, bool online)
     {
@@ -206,7 +207,29 @@ namespace BatterySwapping.App.Views.Admin
             try
             {
                 var connection=await BssApi.Client.Get<BatterySwapping.Contracts.StationStatus>($"stations/{targetStation}/status");
-                txtTelemetryStatus.Text=connection.Online?"● TELEMETRY ONLINE":"● THIẾT BỊ OFFLINE";
+                if (connection.Online)
+                {
+                    _consecutiveOfflineCount = 0;
+                    txtTelemetryStatus.Text = "● TELEMETRY ONLINE";
+                    if (txtTelemetryStatus.Parent is Border b)
+                    {
+                        b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xDC, 0xFC, 0xE7));
+                        txtTelemetryStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x16, 0x65, 0x34));
+                    }
+                }
+                else
+                {
+                    _consecutiveOfflineCount++;
+                    if (_consecutiveOfflineCount >= 2)
+                    {
+                        txtTelemetryStatus.Text = "● THIẾT BỊ OFFLINE";
+                        if (txtTelemetryStatus.Parent is Border b)
+                        {
+                            b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFE, 0xE2, 0xE2));
+                            txtTelemetryStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x99, 0x1B, 0x1B));
+                        }
+                    }
+                }
                 // Cập nhật thống kê KPI
                 if(AuthService.CurrentUser?.VaiTro=="Admin"){
                 var stats = await _reportService.GetSummaryStats();
@@ -244,6 +267,7 @@ namespace BatterySwapping.App.Views.Admin
             if (cboStations == null || lblStationAddress == null) return;
             if (cboStations.SelectedItem is TramPin selectedStation)
             {
+                _consecutiveOfflineCount = 0;
                 icSlots.IsEnabled=false;icSlots.ItemsSource=null;
                 _cooldownReadValid=false;txtCooldownStatus.Text="Đang kiểm tra khóa nhiệt của trạm được chọn…";
                 _currentStationId = selectedStation.MaTram;

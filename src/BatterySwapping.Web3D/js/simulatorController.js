@@ -1267,14 +1267,53 @@ const SimulatorController = (() => {
     await refresh();
     await acquire();
 
-    // Use elapsed monotonic time, including background-tab timer delays.
-    let previousTick=performance.now();
-    setInterval(() => {
-      const now=performance.now(),elapsed=Math.max(0,(now-previousTick)/1000);previousTick=now;
+    // Use an unthrottled Web Worker timer so tick() and refresh() continue running
+    // reliably every second even when the browser tab is in the background.
+    let previousTick = performance.now();
+    function onTimerTick() {
+      const now = performance.now();
+      const elapsed = Math.max(0, (now - previousTick) / 1000);
+      previousTick = now;
       tick(elapsed);
-    }, 1000);
+      refresh();
+    }
 
-    setInterval(refresh, 1000);
+    let timerWorker = null;
+    if (typeof Worker !== "undefined" && typeof Blob !== "undefined" && typeof URL !== "undefined") {
+      try {
+        const workerBlob = new Blob([
+          "setInterval(function(){ postMessage('tick'); }, 1000);"
+        ], { type: "application/javascript" });
+        const workerUrl = URL.createObjectURL(workerBlob);
+        timerWorker = new Worker(workerUrl);
+        timerWorker.onmessage = function() {
+          onTimerTick();
+        };
+        if (typeof window !== "undefined") {
+          window.addEventListener("beforeunload", () => {
+            timerWorker?.terminate();
+            URL.revokeObjectURL(workerUrl);
+          });
+        }
+      } catch (e) {
+        console.warn("Worker timer initialization failed, falling back to setInterval", e);
+        timerWorker = null;
+      }
+    }
+
+    if (!timerWorker) {
+      setInterval(onTimerTick, 1000);
+    }
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          previousTick = performance.now();
+          tick(0);
+          refresh();
+        }
+      });
+    }
   }
 
   return { init };

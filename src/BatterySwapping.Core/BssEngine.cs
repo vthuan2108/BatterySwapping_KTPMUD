@@ -32,7 +32,7 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
         Require(!string.IsNullOrWhiteSpace(request.ClientId) && request.ClientId.Length<=64,"Client ID không hợp lệ.");
         Require(db.Scalar("SELECT MaTram FROM dbo.TramPin WHERE MaTram=@s",("@s",request.StationId))!=null,"Không tìm thấy trạm.");
         var r=db.Rows("SELECT * FROM dbo.BssDevices WHERE StationId=@s",("@s",request.StationId)).SingleOrDefault();
-        Require(r==null || (DateTimeOffset)r["LastSeen"]! < DateTimeOffset.UtcNow.AddSeconds(-5),"Trạm đã có simulator đang hoạt động.");
+        Require(r==null || (string)r["ClientId"]! == request.ClientId || (DateTimeOffset)r["LastSeen"]! < DateTimeOffset.UtcNow.AddSeconds(-5),"Trạm đã có simulator đang hoạt động.");
         string lease=Guid.NewGuid().ToString("N");
         db.Exec("DELETE dbo.BssDevices WHERE StationId=@s; INSERT dbo.BssDevices(StationId,ClientId,LeaseId,LastSeen,Sequence) VALUES(@s,@c,@l,SYSDATETIMEOFFSET(),-1)",("@s",request.StationId),("@c",request.ClientId),("@l",lease));
         return new LeaseResponse(lease,request.StationId,DateTimeOffset.UtcNow.AddSeconds(5));
