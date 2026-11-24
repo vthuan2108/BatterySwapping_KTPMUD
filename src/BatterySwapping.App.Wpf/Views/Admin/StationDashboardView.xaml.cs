@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using BatterySwapping.App.Models;
 using BatterySwapping.App.Services;
+using BatterySwapping.Contracts;
 
 namespace BatterySwapping.App.Views.Admin
 {
@@ -82,6 +83,47 @@ namespace BatterySwapping.App.Views.Admin
             }
         }
 
+    private List<SlotCooldown> _cooldowns = new();
+    private bool _cooldownReadValid;
+    private bool _cooldownDeviceOnline;
+    private string _cooldownStation = "";
+
+    private void ShowCooldowns(List<NganTu> slots, bool online)
+    {
+        _cooldownDeviceOnline = online;
+        var active = _cooldowns.Where(c => c.ClearedAt == null).OrderBy(c => c.SlotNumber).ToList();
+        if (active.Count == 0)
+        {
+            txtCooldownStatus.Text = online ? "Bảo vệ nhiệt: không có ngăn đang trong đợt khóa quá nhiệt." : "Thiết bị offline — chưa thể xác nhận tình trạng an toàn hoặc mở ngăn.";
+            return;
+        }
+        var lines = active.Select(c => {
+            var seconds = Math.Max(0, (int)Math.Ceiling((c.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
+            var slot = slots.Find(n => n.SoThuTu == c.SlotNumber);
+            string temperature = slot == null ? "chưa có số liệu" : $"{slot.NhietDo:F1}°C";
+            string state = seconds > 0
+                ? $"đang làm mát tự động; khóa tối thiểu còn {seconds / 60:00}:{seconds % 60:00}"
+                : slot == null || slot.NhietDo >= 35
+                    ? "đã hết 5 phút, tiếp tục làm mát và giữ khóa; cần dưới 35°C"
+                    : "đã đủ thời gian và dưới 35°C; chờ kỹ thuật viên xác nhận reset cùng thiết bị";
+            return $"Ngăn #{c.SlotNumber} • {c.BatteryId ?? "chưa rõ pin"} • {temperature}: {state}.";
+        });
+        txtCooldownStatus.Text = string.Join("\n", lines) + "\nKhông nhận/cấp/rút pin hoặc mở cửa khi còn khóa bảo vệ. Thời gian thực, không tăng tốc theo mô phỏng." + (online ? "" : "\nThiết bị offline — số liệu có thể cũ, tiếp tục giữ khóa.");
+    }
+
+    private void CheckCooldownBeforeOpening(int slotNumber)
+    {
+        if (!_cooldownReadValid || _cooldownStation != _currentStationId)
+            throw new InvalidOperationException("Chưa xác nhận được trạng thái khóa nhiệt từ backend. Làm mới dữ liệu trước khi mở ngăn.");
+        if (!_cooldownDeviceOnline) throw new InvalidOperationException("Thiết bị đang offline; chưa cho mở ngăn hoặc thao tác pin. Chờ kết nối và số liệu an toàn mới nhất.");
+        var active = _cooldowns.Find(c => c.SlotNumber == slotNumber && c.ClearedAt == null);
+        if (active == null) return;
+        var seconds = Math.Max(0, (int)Math.Ceiling((active.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
+        throw new InvalidOperationException(seconds > 0
+            ? $"Ngăn #{slotNumber} đang làm mát tự động. Còn tối thiểu {seconds / 60:00}:{seconds % 60:00} khóa theo thời gian thực; không được cắm/rút pin hoặc mở cửa."
+            : $"Ngăn #{slotNumber} đã hết thời gian tối thiểu nhưng chưa được xác nhận an toàn. Kiểm tra nhiệt độ dưới 35°C và xử lý phiếu bảo trì trước khi mở ngăn.");
+    }
+
         private bool _refreshing;
         public async void RefreshData()
         {
@@ -99,7 +141,7 @@ namespace BatterySwapping.App.Views.Admin
                 lblActiveAlerts == null || icSlots == null || cboStations == null) return;
             try
             {
-                var connection=await BssApi.Client.Get<BatterySwapping.Contracts.StationStatus>($"stations/{_currentStationId}/status");
+                var connection=await BssApi.Client.Get<BatterySwapping.Contracts.StationStatus>($"stations/{targetStation}/status");
                 txtTelemetryStatus.Text=connection.Online?"● TELEMETRY ONLINE":"● THIẾT BỊ OFFLINE";
                 // Cập nhật thống kê KPI
                 if(AuthService.CurrentUser?.VaiTro=="Admin"){
@@ -113,6 +155,13 @@ namespace BatterySwapping.App.Views.Admin
                 // Cập nhật danh sách ngăn tủ
                 var slots = await _stationService.GetCabinetSlots(targetStation);
                 if(targetStation!=_currentStationId)return;
+                _cooldownReadValid = false;
+                try {
+                    var cooldowns = await BssApi.Client.Get<List<SlotCooldown>>($"stations/{targetStation}/cooldowns");
+                    if(targetStation != _currentStationId) return;
+                    _cooldowns = cooldowns; _cooldownStation = targetStation; _cooldownReadValid = true;
+                    ShowCooldowns(slots, connection.Online);
+                } catch(Exception ex) { txtCooldownStatus.Text = "Không đọc được khóa nhiệt từ backend; chưa cho mở ngăn. " + ex.Message; }
                 icSlots.ItemsSource = slots;icSlots.IsEnabled=true;
                 if(AuthService.CurrentUser?.VaiTro=="KyThuatVien"){lblReadyBatteries.Text=$"{slots.Count(s=>s.CoPin&&s.SoC>=90&&s.NhietDo<45&&!s.KhoaBaoTri)} / {slots.Count} pin";lblActiveAlerts.Text=$"{slots.Count(s=>s.KhoaBaoTri||s.NhietDo>=55)} ngăn cần kiểm tra";}
             }
@@ -131,6 +180,7 @@ namespace BatterySwapping.App.Views.Admin
             if (cboStations.SelectedItem is TramPin selectedStation)
             {
                 icSlots.IsEnabled=false;icSlots.ItemsSource=null;
+                _cooldownReadValid=false;txtCooldownStatus.Text="Đang kiểm tra khóa nhiệt của trạm được chọn…";
                 _currentStationId = selectedStation.MaTram;
                 lblStationAddress.Text = $"{selectedStation.TenTram} • {selectedStation.DiaChi}";
                 RefreshData();
@@ -165,6 +215,7 @@ namespace BatterySwapping.App.Views.Admin
                 var slots = icSlots.ItemsSource as List<NganTu>;
                 var slot = slots?.Find(s => s.SoThuTu == slotNumber);
                 bool nextDoorState = slot == null || !slot.CuaDangMo;
+                if(nextDoorState) CheckCooldownBeforeOpening(slotNumber);
 
                 await _stationService.SetDoorState(targetStation, slotNumber, nextDoorState);
                 MessageBox.Show($"Đã phát lệnh {(nextDoorState ? "MỞ CỬA" : "ĐÓNG CỬA")} ngăn tủ #{slotNumber} tại trạm {_currentStationId}!",

@@ -3,7 +3,7 @@ using BatterySwapping.Contracts;
 
 namespace BatterySwapping.Core;
 
-public sealed partial class BssEngine(SqlStore store)
+public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
 {
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, SqlStore.Json);
     static T Parse<T>(object? value) => JsonSerializer.Deserialize<T>((string)value!, SqlStore.Json)!;
@@ -55,8 +55,8 @@ public sealed partial class BssEngine(SqlStore store)
         var oldBattery=db.Rows("SELECT * FROM dbo.Pin WHERE MaPin=@p",("@p",cust["MaPinDangMuon"])).SingleOrDefault();
         Require(oldBattery!=null && (string)oldBattery["LoaiPin"]! == (string)db.Scalar("SELECT SupportedBatteryType FROM dbo.BssPolicy WHERE Id=1")!,"Loại pin đang giữ không tương thích hệ thống.");
         Require(Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.KhachHang WHERE MaPinDangMuon=@p",("@p",cust["MaPinDangMuon"])))==1 && db.Scalar("SELECT TOP 1 MaNgan FROM dbo.NganTu WHERE MaPinHienTai=@p",("@p",cust["MaPinDangMuon"]))==null,"Vị trí pin đang giữ chưa được đối soát.");
-        var empty=db.Rows("SELECT TOP 1 n.* FROM dbo.NganTu n WHERE n.MaTram=@s AND n.MaPinHienTai IS NULL AND n.KhoaBaoTri=0 AND n.CuaDangMo=0 AND NOT EXISTS(SELECT 1 FROM dbo.BssMaintenanceLocks WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar)) AND n.TrangThaiNgan<>N'Loi' AND NOT EXISTS(SELECT 1 FROM dbo.BssReservations WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar)) ORDER BY n.SoThuTu",("@s",request.StationId)).SingleOrDefault();
-        var full=db.Rows("SELECT TOP 1 n.*,p.SoC FROM dbo.NganTu n JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE n.MaTram=@s AND n.KhoaBaoTri=0 AND n.CuaDangMo=0 AND p.LoaiPin=(SELECT SupportedBatteryType FROM dbo.BssPolicy WHERE Id=1) AND NOT EXISTS(SELECT 1 FROM dbo.KhachHang WHERE MaPinDangMuon=p.MaPin) AND NOT EXISTS(SELECT 1 FROM dbo.BssMaintenanceLocks WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar) OR Resource='pin:'+p.MaPin) AND p.SoC>=90 AND p.SoH>=80 AND p.NhietDo<=45 AND p.TrangThai IN(N'DaDay',N'DangSac',N'KhaDung') AND NOT EXISTS(SELECT 1 FROM dbo.BssReservations WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar) OR Resource='pin:'+p.MaPin) ORDER BY p.SoC DESC,p.NhietDo,p.SoLanSac",("@s",request.StationId)).SingleOrDefault();
+        var empty=db.Rows("SELECT TOP 1 n.* FROM dbo.NganTu n WHERE n.MaTram=@s AND n.MaPinHienTai IS NULL AND n.KhoaBaoTri=0 AND n.CuaDangMo=0 AND NOT EXISTS(SELECT 1 FROM dbo.BssSlotCooldowns c WHERE c.StationId=n.MaTram AND c.SlotNumber=n.SoThuTu AND c.ClearedAt IS NULL) AND NOT EXISTS(SELECT 1 FROM dbo.BssMaintenanceLocks WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar)) AND n.TrangThaiNgan<>N'Loi' AND NOT EXISTS(SELECT 1 FROM dbo.BssReservations WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar)) ORDER BY n.SoThuTu",("@s",request.StationId)).SingleOrDefault();
+        var full=db.Rows("SELECT TOP 1 n.*,p.SoC FROM dbo.NganTu n JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE n.MaTram=@s AND n.KhoaBaoTri=0 AND n.CuaDangMo=0 AND NOT EXISTS(SELECT 1 FROM dbo.BssSlotCooldowns c WHERE c.StationId=n.MaTram AND c.SlotNumber=n.SoThuTu AND c.ClearedAt IS NULL) AND p.LoaiPin=(SELECT SupportedBatteryType FROM dbo.BssPolicy WHERE Id=1) AND NOT EXISTS(SELECT 1 FROM dbo.KhachHang WHERE MaPinDangMuon=p.MaPin) AND NOT EXISTS(SELECT 1 FROM dbo.BssMaintenanceLocks WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar) OR Resource='pin:'+p.MaPin) AND p.SoC>=90 AND p.SoH>=80 AND p.NhietDo<=45 AND p.TrangThai IN(N'DaDay',N'DangSac',N'KhaDung') AND NOT EXISTS(SELECT 1 FROM dbo.BssReservations WHERE Resource='slot:'+n.MaTram+':'+CAST(n.SoThuTu AS varchar) OR Resource='pin:'+p.MaPin) ORDER BY p.SoC DESC,p.NhietDo,p.SoLanSac",("@s",request.StationId)).SingleOrDefault();
         Require(empty!=null,"Không còn ngăn trống."); Require(full!=null,"Không có pin đạt chuẩn.");
         var s=new SwapSession { Fee=fee,CustomerId=customer,Key=request.IdempotencyKey,StationId=request.StationId,OldBatteryId=(string)cust["MaPinDangMuon"]!,NewBatteryId=(string)full!["MaPinHienTai"]!,ReturnSlot=(int)empty!["SoThuTu"]!,ReceiveSlot=(int)full["SoThuTu"]! };
         Save(db,s,true);
@@ -90,6 +90,8 @@ public sealed partial class BssEngine(SqlStore store)
         db.Exec("INSERT dbo.BssCommands VALUES(@id,@s,@state,@p)",("@id",c.CommandId),("@s",station),("@state",c.Status),("@p",Serialize(c)));return c;
     }
     public DeviceCommand RequestCommand(string station,CommandRequest request) => store.Write(db=>{
+        Require(request.Command!="RESTORE_STATION" || !CoolingLocked(db,station),"Trạm còn ngăn đang khóa làm mát.");
+        if(request.Command is "UNLOCK_SLOT" or "REPLACE_BATTERY")Require(!CoolingLocked(db,station,request.SlotNumber),"Ngăn đang khóa làm mát; cần xác nhận an toàn sau tối thiểu 5 phút.");
         Require(request.Command!="RESTORE_STATION" || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.CanhBaoIoT WHERE MaTram=@s AND DaXuLy=0",("@s",station)))==0,"Xử lý các cảnh báo đang mở trước khi khôi phục trạm.");
         Require(request.Command != "RESTORE_STATION" || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.BssMaintenance m JOIN dbo.BssMaintenanceLocks l ON l.MaintenanceId=m.Id WHERE m.StationId=@s",("@s",station)))==0,"Trạm còn phiếu bảo trì chưa đối soát.");
         Require(request.Command is not ("RESET_ALARM" or "REPLACE_BATTERY"),"Tạo phiếu bảo trì để xử lý hoặc thay pin.");
@@ -119,6 +121,7 @@ public sealed partial class BssEngine(SqlStore store)
         var s=db.Payload<SwapSession>("BssSessions",id)??throw new DomainException("Không tìm thấy phiên.",404);
         Require(s.State=="NeedsAssistance" && s.OldInserted,"Phiên không ở trạng thái cần hỗ trợ sau nhận pin.");
         Require(Status(db,s.StationId).Online,"Thiết bị mất kết nối.");
+        Require(!CoolingLocked(db,s.StationId,s.ReceiveSlot),"Ngăn cấp pin đang khóa làm mát.");
         Require(s.Charged,"Phiên chưa chốt phí: cần đối soát pin trả tại trạm; không tự trừ tiền.");
         var last=db.Rows("SELECT Payload FROM dbo.BssCommands WHERE JSON_VALUE(Payload,'$.sessionId')=@id AND JSON_VALUE(Payload,'$.command')='EJECT_BATTERY'",("@id",id)).Select(r=>Parse<DeviceCommand>(r["Payload"])).OrderByDescending(c=>c.Timestamp).FirstOrDefault();
         Require(last!=null,"Chưa có lệnh cấp pin để đối soát.");
@@ -131,7 +134,9 @@ public sealed partial class BssEngine(SqlStore store)
         }
         s.Note="Tiếp tục đối soát lệnh thiết bị, không thu phí thêm.";Save(db,s);return s;
     });
-    public void Receive(DeviceMessage m) => store.Write(db=>{
+    public void Receive(DeviceMessage m)
+    {
+        bool accepted=store.Write(db=>{
         Require(m.SchemaVersion==1 && m.MessageId.Length is >0 and <=64 && m.Slots.Length<=64,"Thông điệp không hợp lệ.");
         Require(m.Timestamp>DateTimeOffset.UtcNow.AddSeconds(-15) && m.Timestamp<DateTimeOffset.UtcNow.AddSeconds(5),"Thông điệp đã cũ.");
         var d=db.Rows("SELECT * FROM dbo.BssDevices WHERE StationId=@s",("@s",m.StationId)).SingleOrDefault();
@@ -144,18 +149,26 @@ public sealed partial class BssEngine(SqlStore store)
         db.Exec("INSERT dbo.BssMessages(Id) VALUES(@id); UPDATE dbo.BssDevices SET LastSeen=SYSDATETIMEOFFSET(),Sequence=@q WHERE StationId=@s",("@id",m.MessageId),("@q",m.Sequence),("@s",m.StationId));
         foreach(var t in m.Slots)
         {
+            ObserveCooldown(db,m.StationId,t);
             // Device measurements never silently reassign inventory ownership.
             if(t.BatteryId!=null)
                 db.Exec("UPDATE p SET SoC=@soc,SoH=@soh,NhietDo=@temp,DienAp=@v,DongDien=CASE WHEN n.KhoaBaoTri=1 OR @temp>=55 THEN 0 ELSE @i END,NgayCapNhatCuoi=GETDATE() FROM dbo.Pin p JOIN dbo.NganTu n ON n.MaPinHienTai=p.MaPin WHERE n.MaTram=@s AND n.SoThuTu=@n AND p.MaPin=@b",("@soc",t.Soc),("@soh",t.Soh),("@temp",t.Temperature),("@v",t.Voltage),("@i",t.Current),("@s",m.StationId),("@n",t.SlotNumber),("@b",t.BatteryId));
         }
-        if(m.Event is "OLD_INSERTED" or "NEW_TAKEN" or "OLD_RETURNED") HandleSwapEvent(db,m);
-        if(m.CommandId!=null && m.Event=="ACK") HandleAck(db,m);
         return true;
-    });
-    static void HandleSwapEvent(Db db,DeviceMessage m)
+        });
+        if(!accepted)return;
+        // Persist safety first: a malformed event or early ACK must never undo a hot observation.
+        if(m.Event is "OLD_INSERTED" or "NEW_TAKEN" or "OLD_RETURNED" || m.CommandId!=null && m.Event=="ACK")store.Write(db=>{
+            if(m.Event is "OLD_INSERTED" or "NEW_TAKEN" or "OLD_RETURNED")HandleSwapEvent(db,m);
+            if(m.CommandId!=null && m.Event=="ACK")HandleAck(db,m);
+            return true;
+        });
+    }
+    void HandleSwapEvent(Db db,DeviceMessage m)
     {
         var s=m.SessionId==null?null:db.Payload<SwapSession>("BssSessions",m.SessionId);
         Require(s!=null && s.StationId==m.StationId,"Phiên thiết bị không khớp.");
+        if(m.Event is "OLD_RETURNED" or "NEW_TAKEN")Require(!CoolingLocked(db,s!.StationId,m.Event=="OLD_RETURNED"?s.ReturnSlot:s.ReceiveSlot),"Ngăn đang khóa làm mát, chưa cho lấy pin.");
         if(m.Event=="OLD_RETURNED")
         {
             if(s!.State=="Cancelled")return;
@@ -173,12 +186,15 @@ public sealed partial class BssEngine(SqlStore store)
             bool cancelled=s.State!="AwaitingOldBattery" || s.ExpiresAt<=DateTimeOffset.UtcNow;
             var t=m.Slots.SingleOrDefault(t=>t.SlotNumber==s.ReturnSlot);
             Require(t!=null && t.BatteryId==s.OldBatteryId && !t.IsDoorOpen,"Pin trả hoặc cửa không khớp.");
+            // A hot pin just received must remain in custody; an already isolated empty slot cannot accept another pin.
+            var beforeCooldown=db.Rows("SELECT BatteryId FROM dbo.BssSlotCooldowns WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@s",s.StationId),("@n",s.ReturnSlot)).SingleOrDefault();
+            Require(beforeCooldown==null || (string?)beforeCooldown["BatteryId"]==s.OldBatteryId,"Ngăn đang khóa làm mát, không nhận pin khác.");
             s.OldInserted=true;
             db.Exec("UPDATE dbo.KhachHang SET MaPinDangMuon=NULL WHERE MaKH=@c AND MaPinDangMuon=@p",("@c",s.CustomerId),("@p",s.OldBatteryId));
             db.Exec("UPDATE dbo.NganTu SET MaPinHienTai=@p,CuaDangMo=0,TrangThaiNgan=N'DangSac' WHERE MaTram=@s AND SoThuTu=@n",("@p",s.OldBatteryId),("@s",s.StationId),("@n",s.ReturnSlot));
             db.Exec("UPDATE dbo.Pin SET SoC=@soc,NhietDo=@t,TrangThai=N'DangSac',DongDien=0 WHERE MaPin=@p",("@soc",t!.Soc),("@t",t.Temperature),("@p",s.OldBatteryId));
             bool ready=Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.NganTu n JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE n.MaTram=@s AND n.SoThuTu=@n AND p.MaPin=@p AND n.KhoaBaoTri=0 AND p.NhietDo<=45 AND p.SoC>=90 AND p.SoH>=80",("@s",s.StationId),("@n",s.ReceiveSlot),("@p",s.NewBatteryId)))==1;
-            if(cancelled || t.Temperature>=55 || !ready) {s.State="NeedsAssistance";s.Note="Đã nhận pin cũ; cần kỹ thuật viên kiểm tra.";Save(db,s);return;}
+            if(cancelled || t.Temperature>=55 || CoolingLocked(db,s.StationId,s.ReturnSlot) || !ready) {s.State="NeedsAssistance";s.Note="Đã nhận pin cũ; cần kỹ thuật viên kiểm tra.";Save(db,s);return;}
             Require(db.Exec("UPDATE dbo.KhachHang SET SoDuVi=SoDuVi-@fee,MaPinDangMuon=NULL WHERE MaKH=@c AND MaPinDangMuon IS NULL AND SoDuVi>=@fee",("@fee",s.Fee),("@c",s.CustomerId),("@old",s.OldBatteryId))==1,"Không thể chốt ví.");
             s.Charged=true;s.State="Dispensing";
             s.TransactionId=Convert.ToInt32(db.Scalar("INSERT dbo.LichSuDoiPin(MaKH,MaTram,MaPinTra,SoC_PinTra,NganTra,MaPinNhan,SoC_PinNhan,NganNhan,PhiDoiPin,TrangThai,ThoiGianBatDau,GhiChu) SELECT @c,@s,@old,@soc,@r,@new,SoC,@n,@fee,N'DangXuLy',@start,@note FROM dbo.Pin WHERE MaPin=@new; SELECT CAST(SCOPE_IDENTITY() AS int)",("@c",s.CustomerId),("@s",s.StationId),("@old",s.OldBatteryId),("@soc",t.Soc),("@r",s.ReturnSlot),("@new",s.NewBatteryId),("@n",s.ReceiveSlot),("@fee",s.Fee),("@start",s.CreatedAt.UtcDateTime),("@note",s.Id)));
@@ -197,7 +213,7 @@ public sealed partial class BssEngine(SqlStore store)
             s.State="Completed";Save(db,s);
         }
     }
-    static void HandleAck(Db db,DeviceMessage m)
+    void HandleAck(Db db,DeviceMessage m)
     {
         var c=db.Payload<DeviceCommand>("BssCommands",m.CommandId!);
         Require(c!=null && c.StationId==m.StationId,"Lệnh phản hồi không tồn tại.");
@@ -207,6 +223,9 @@ public sealed partial class BssEngine(SqlStore store)
             db.Exec("UPDATE dbo.BssMaintenance SET Status='Failed',Result=@note WHERE CommandId=@id",("@note",c.Note),("@id",c.CommandId));
             if(c.SessionId!=null){var session=db.Payload<SwapSession>("BssSessions",c.SessionId);if(session!=null && Active(session)){session.State="NeedsAssistance";session.Note=c.Note;Save(db,session);}}return;}
         var t=m.Slots.SingleOrDefault(t=>t.SlotNumber==c.SlotNumber);
+        if(c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY" or "RETURN_OLD_BATTERY" or "REPLACE_BATTERY")Require(!CoolingLocked(db,c.StationId,c.SlotNumber),"Ngăn chưa kết thúc cách ly làm mát.");
+        if(c.Command=="RESTORE_STATION")Require(!CoolingLocked(db,c.StationId),"Trạm còn ngăn khóa làm mát.");
+        if(c.Command=="RESET_ALARM")RequireCooldownElapsed(db,c.StationId,c.SlotNumber!.Value);
         if(c.Command is "RESET_ALARM" or "REPLACE_BATTERY")
         {
             Require(t!=null && t.Temperature<35 && !t.IsDoorOpen && !t.IsLocked,"Chưa có telemetry an toàn để mở khóa.");
@@ -237,6 +256,7 @@ public sealed partial class BssEngine(SqlStore store)
         }
         else if(c.Command=="RETURN_OLD_BATTERY") Require(t!=null && t.BatteryId==c.BatteryId && t.IsDoorOpen && !t.IsLocked && t.Temperature<=45,"Pin cũ chưa an toàn để trả.");
         else if(c.Command=="EJECT_BATTERY") Require(t!=null && t.BatteryId==c.BatteryId && t.IsDoorOpen && !t.IsLocked && t.Temperature<=45 && t.Soc>=90 && t.Soh>=80,"Pin không thể cấp.");
+        if(c.Command=="RESET_ALARM")db.Exec("UPDATE dbo.BssSlotCooldowns SET ClearedAt=@now WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@now",CooldownNow),("@s",c.StationId),("@n",c.SlotNumber));
         c.Status="Completed";Save(db,c);
         CompleteMaintenance(db,c);
         if(c.Command=="CLOSE_SLOT" && c.SessionId!=null)
@@ -265,7 +285,13 @@ public sealed partial class BssEngine(SqlStore store)
             var s=db.Payload<SwapSession>("BssSessions",c.SessionId);
             if(s==null || (!Active(s) && c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY")) { c.Status="Cancelled";Save(db,c);return null; }
         }
-        if(c.Command=="RESTORE_STATION" && (Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.CanhBaoIoT WHERE MaTram=@s AND DaXuLy=0",("@s",c.StationId)))>0 || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.BssMaintenance m JOIN dbo.BssMaintenanceLocks l ON l.MaintenanceId=m.Id WHERE m.StationId=@s",("@s",c.StationId)))>0)){c.Status="Failed";c.Note="Trạm chưa hoàn tất xử lý cảnh báo/bảo trì.";Save(db,c);return null;}
+        if(c.Command=="RESTORE_STATION" && (CoolingLocked(db,c.StationId) || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.CanhBaoIoT WHERE MaTram=@s AND DaXuLy=0",("@s",c.StationId)))>0 || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.BssMaintenance m JOIN dbo.BssMaintenanceLocks l ON l.MaintenanceId=m.Id WHERE m.StationId=@s",("@s",c.StationId)))>0)){c.Status="Failed";c.Note="Trạm chưa hoàn tất xử lý cảnh báo/bảo trì.";Save(db,c);return null;}
+        if(c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY" or "RETURN_OLD_BATTERY" or "REPLACE_BATTERY" && CoolingLocked(db,c.StationId,c.SlotNumber)){
+            c.Status="Failed";c.Note="Ngăn đang khóa làm mát.";Save(db,c);
+            db.Exec("UPDATE dbo.BssMaintenance SET Status='Cancelled',Result=@note WHERE CommandId=@id; DELETE l FROM dbo.BssMaintenanceLocks l JOIN dbo.BssMaintenance m ON m.Id=l.MaintenanceId WHERE m.CommandId=@id",("@note",c.Note),("@id",c.CommandId));
+            if(c.SessionId!=null){var interrupted=db.Payload<SwapSession>("BssSessions",c.SessionId);if(interrupted!=null&&Active(interrupted)){interrupted.State="NeedsAssistance";interrupted.Note=c.Note;Save(db,interrupted);}}
+            return null;
+        }
         c.Status="Sent";c.SentAt=DateTimeOffset.UtcNow;Save(db,c);return c;
     });
     public void Tick() => store.Write(db=>{

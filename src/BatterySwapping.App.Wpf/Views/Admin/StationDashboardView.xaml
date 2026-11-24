@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="BatterySwapping.App.Views.Admin.StationDashboardView"
+<UserControl x:Class="BatterySwapping.App.Views.Admin.StationDashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FontFamily="Segoe UI">
@@ -32,6 +32,7 @@
                         </Border>
                     </StackPanel>
                     <TextBlock x:Name="lblStationAddress" Text="Trạm Đổi Pin ĐH Bách Khoa Hà Nội • Cổng Parabol Giải Phóng" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="txtCooldownStatus" Text="Đang kiểm tra bảo vệ nhiệt…" TextWrapping="Wrap" MaxWidth="660" HorizontalAlignment="Left" FontSize="12" Foreground="{StaticResource DangerBrush}" Margin="0,8,0,0"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">

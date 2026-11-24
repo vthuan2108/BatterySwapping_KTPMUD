@@ -75,3 +75,9 @@ Lệnh:
 Lệnh được hỗ trợ: UNLOCK_SLOT, CLOSE_SLOT, LOCK_SLOT, EJECT_BATTERY, CUT_OFF, RESTORE_STATION, RESET_ALARM, REPLACE_BATTERY, TRIGGER_OVERHEAT, QUERY_STATUS. Sau 10 giây thiếu ACK, lệnh thành Unconfirmed và gửi QUERY_STATUS. Không tự thực hiện lại thao tác nhả pin. QUERY_STATUS đối soát kết quả đã lưu tại simulator.
 
 RESET_ALARM và REPLACE_BATTERY phải gửi qua phiếu bảo trì, không nhận từ API commands tổng quát. Sự kiện OLD_RETURNED xác nhận pin cũ được lấy và cửa đóng; phiên kết thúc Cancelled không thu phí.
+
+## Khóa nhiệt
+
+GET /api/v1/stations/{id}/cooldowns (đã đăng nhập) trả danh sách `{stationId,slotNumber,batteryId,startedAt,unlockAfter,clearedAt}`. ClearedAt=null nghĩa là còn cách ly, dù UnlockAfter đã qua. Chỉ reset an toàn sau tối thiểu5 phút và telemetry dưới35°C mới xóa cách ly. Snapshot thiết bị có trường cooldowns; SlotTelemetry thêm isOverheated=false tùy chọn. Chưa hết5 phút trả409 cho yêu cầu mở/reset/thay pin không hợp lệ.
+
+Cổng broker vẫn mặc định18883/19001. Cấu hình Broker:Port, Broker:WebSocketUrl, Broker:ClientId chỉ được tách riêng trong bộ kiểm thử cô lập.

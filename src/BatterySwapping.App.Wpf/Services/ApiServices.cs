@@ -46,7 +46,7 @@ public class StationService
     public Task<List<NganTu>> GetCabinetSlots(string station)=>BssApi.Client.Get<List<NganTu>>($"stations/{station}/slots");
     public async Task<Operation> AddStation(TramPin station){try{await BssApi.Client.Post<TramPin>("stations",BssApi.Body(station));return new(true);}catch(Exception e){return new(false,e.Message);}}
     public Task SetDoorState(string station,int number,bool open)=>BssApi.Command(station,open?"UNLOCK_SLOT":"CLOSE_SLOT",number);
-    public Task SetMaintenanceLock(string station,int number,bool locked)=>BssApi.Command(station,locked?"LOCK_SLOT":"RESET_ALARM",number);
+    public Task SetMaintenanceLock(string station,int number,bool locked)=>locked?BssApi.Command(station,"LOCK_SLOT",number):BssApi.Maintenance(station,number,"RESET_ALARM",null,"Kiểm tra an toàn và mở khóa bảo trì");
 }
 public class SystemSummaryStats {public decimal TongDoanhThu{get;set;}public decimal DoanhThuHomNay{get;set;}public int TongLuotDoiPin{get;set;}public int TongSoPin{get;set;}public int SoPinKhaDung{get;set;}public int SoCanhBaoChuaXuLy{get;set;}}
 public class ReportService
@@ -76,7 +76,7 @@ public class SafetyMonitorService
     async void Poll(object? s,EventArgs e){if(reading)return;reading=true;try{foreach(var alert in await GetAlerts(true))if(seen.Add(alert.MaCB))OnEmergencyAlertTriggered?.Invoke(alert);}catch{}finally{reading=false;}}
     public async Task<List<CanhBaoIoT>> GetAlerts(bool unresolved=false){var all=await BssApi.Client.Get<List<CanhBaoIoT>>("alerts");return unresolved?all.FindAll(a=>!a.DaXuLy):all;}
     public Task EmergencyCutoffStation(string station)=>BssApi.Command(station,"CUT_OFF");
-    public async Task<bool> ResolveAlert(int id,string technician,string note,bool moKhoaNganTu=true){var a=(await GetAlerts()).Find(a=>a.MaCB==id);if(a==null)return false;await BssApi.Command(a.MaTram,a.MaNgan.HasValue?"RESET_ALARM":"RESTORE_STATION",a.MaNgan);return true;}
+    public async Task<bool> ResolveAlert(int id,string technician,string note,bool moKhoaNganTu=true){var a=(await GetAlerts()).Find(a=>a.MaCB==id);if(a==null)return false;if(a.MaNgan.HasValue)await BssApi.Maintenance(a.MaTram,a.MaNgan.Value,"RESET_ALARM",null,note);else await BssApi.Command(a.MaTram,"RESTORE_STATION");return true;}
 }
 public class SwapResult
 {

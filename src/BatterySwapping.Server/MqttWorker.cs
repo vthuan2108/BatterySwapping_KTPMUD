@@ -21,7 +21,7 @@ public sealed class MqttWorker(BssEngine engine,IConfiguration config,ILogger<Mq
             catch(Exception ex){log.LogWarning("Rejected device message on {Topic}: {Reason}",e.ApplicationMessage.Topic,ex.Message);}
             return Task.CompletedTask;
         };
-        var options=new MqttClientOptionsBuilder().WithTcpServer("127.0.0.1",18883).WithClientId("bss-backend")
+        var options=new MqttClientOptionsBuilder().WithTcpServer("127.0.0.1",config.GetValue<int?>("Broker:Port")??18883).WithClientId(config["Broker:ClientId"]??"bss-backend")
             .WithCredentials("backend",config["Broker:Password"]??throw new InvalidOperationException("Broker password missing"))
             .WithCleanSession().Build();
         while(!stop.IsCancellationRequested)

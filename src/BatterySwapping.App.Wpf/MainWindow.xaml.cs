@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using BatterySwapping.App.Models;
 using BatterySwapping.App.Services;
 using BatterySwapping.App.Views.Admin;
@@ -32,7 +32,7 @@ namespace BatterySwapping.App
             bool staff=policy.Staff && !openInKioskMode;
             foreach(var button in new[]{btnNavOverview,btnNavDashboard,btnNavBatteries,btnNavAlerts})button.Visibility=staff?Visibility.Visible:Visibility.Collapsed;
             btnNavOverview.Visibility=staff&&policy.WalletAdministration?Visibility.Visible:Visibility.Collapsed;
-            if(staff&&!policy.WalletAdministration){btnNavDashboard.Content="🏭  Giám sát tủ và BMS";btnNavBatteries.Content="🔋  Kiểm định pin";btnNavTransactions.Content="📜  Phiên cần hỗ trợ";}
+            if(staff){btnNavDashboard.Content="🏭  Vận hành trạm và BMS";btnNavBatteries.Content="🔋  Pin và bảo trì";btnNavTransactions.Content="📜  Phiên đổi pin và hỗ trợ";}
             btnNavCustomers.Visibility=staff&&policy.WalletAdministration?Visibility.Visible:Visibility.Collapsed;btnNavBusiness.Visibility=btnNavCustomers.Visibility;
             btnNavKiosk.Visibility=policy.Kiosk||!staff?Visibility.Visible:Visibility.Collapsed;
             btnNavWallet.Visibility=policy.Kiosk?Visibility.Visible:Visibility.Collapsed;
@@ -93,7 +93,7 @@ namespace BatterySwapping.App
                 }
                 else
                 {
-                    mainContentArea.Content = policy.WalletAdministration ? _overviewView : _alertsView;
+                    mainContentArea.Content = _dashboardView;
                 }
             };
 

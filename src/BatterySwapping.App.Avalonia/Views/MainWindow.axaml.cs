@@ -113,8 +113,9 @@ public partial class MainWindow : Window
 
         if (staff)
         {
+            btnNavDashboard.Content="🏭  Vận hành trạm và BMS";btnNavBatteries.Content="🔋  Pin và bảo trì";btnNavTransactions.Content="📜  Phiên đổi pin và hỗ trợ";
             _safetyMonitor.StartMonitoring(2000);
-            mainContentArea.Content = policy.WalletAdministration ? _overviewView : _alertsView;
+            mainContentArea.Content = _dashboardView;
         }
         else
         {
@@ -128,7 +129,7 @@ public partial class MainWindow : Window
         {
             if (pnlEmergencyBanner != null && txtEmergencyBannerMessage != null)
             {
-                txtEmergencyBannerMessage.Text = $"🚨 PHÁT HIỆN SỰ CỐ: Trạm {alert.MaTram} - {alert.ViTriFormatted} - Pin {alert.MaPin ?? "N/A"} quá nhiệt ({alert.GiaTriDoFormatted})! Hệ thống đã tự động ngắt sạc bảo vệ.";
+                txtEmergencyBannerMessage.Text = $"🚨 PHÁT HIỆN SỰ CỐ: Trạm {alert.MaTram} - {alert.ViTriFormatted} - Pin {alert.MaPin ?? "N/A"}, giá trị {alert.GiaTriDoFormatted}. Kiểm tra loại cảnh báo và số liệu mới nhất.";
                 pnlEmergencyBanner.IsVisible = true;
             }
 

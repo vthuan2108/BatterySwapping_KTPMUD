@@ -29,6 +29,7 @@
                     </StackPanel>
                     <TextBlock x:Name="lblStationAddress" Text="Trạm Đổi Pin ĐH Bách Khoa Hà Nội • Cổng Parabol Giải Phóng" 
                                FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="txtCooldownStatus" Text="Đang kiểm tra bảo vệ nhiệt…" TextWrapping="Wrap" MaxWidth="660" HorizontalAlignment="Left" FontSize="12" Foreground="{StaticResource DangerBrush}" Margin="0,8,0,0"/>
                     <TextBlock x:Name="txtActionFeedback" Text="" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PrimaryDarkBrush}" Margin="0,2,0,0"/>
                 </StackPanel>
 

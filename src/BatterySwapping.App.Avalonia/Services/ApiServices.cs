@@ -148,7 +148,7 @@ public class StationService
         catch (Exception e) { return new(false, e.Message); }
     }
     public Task SetDoorState(string station, int number, bool open) => BssApi.Command(station, open ? "UNLOCK_SLOT" : "CLOSE_SLOT", number);
-    public Task SetMaintenanceLock(string station, int number, bool locked) => BssApi.Command(station, locked ? "LOCK_SLOT" : "RESET_ALARM", number);
+    public Task SetMaintenanceLock(string station, int number, bool locked) => locked ? BssApi.Command(station,"LOCK_SLOT",number) : BssApi.Maintenance(station,number,"RESET_ALARM",null,"Kiểm tra an toàn và mở khóa bảo trì");
 }
 
 public class SystemSummaryStats
@@ -265,7 +265,7 @@ public class SafetyMonitorService
     {
         var a = (await GetAlerts()).Find(a => a.MaCB == id);
         if (a == null) return false;
-        await BssApi.Command(a.MaTram, a.MaNgan.HasValue ? "RESET_ALARM" : "RESTORE_STATION", a.MaNgan);
+        if(a.MaNgan.HasValue)await BssApi.Maintenance(a.MaTram,a.MaNgan.Value,"RESET_ALARM",null,note);else await BssApi.Command(a.MaTram,"RESTORE_STATION");
         return true;
     }
 }

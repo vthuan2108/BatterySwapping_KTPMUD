@@ -1,4 +1,4 @@
-﻿<Window x:Class="BatterySwapping.App.MainWindow"
+<Window x:Class="BatterySwapping.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Hệ Thống Quản Lý Mạng Lưới Trạm Đổi Pin Tự Động (BSS) - KTPMUD" 
@@ -30,7 +30,7 @@
                             <TextBlock Text="⚡" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="BSS MANAGER" FontSize="16" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="BSS VẬN HÀNH" FontSize="16" FontWeight="Bold" Foreground="White"/>
                             <TextBlock Text="KTPMUD • ĐHBK Hà Nội" FontSize="11" Foreground="#94A3B8"/>
                         </StackPanel>
                     </StackPanel>
@@ -41,7 +41,7 @@
                 <StackPanel Grid.Row="1">
                     <TextBlock Text="PHÂN HỆ CHỨC NĂNG" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="8,0,0,8"/>
 
-                    <Button x:Name="btnNavOverview" Content="📊  Tổng quan" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavOverview_Click"/>
+                    <Button x:Name="btnNavOverview" Content="📊  Báo cáo quản trị" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavOverview_Click"/>
                     <Button x:Name="btnNavWallet" Content="💳  Ví và thông tin của tôi" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavWallet_Click"/>
                     <Button x:Name="btnNavKiosk" Content="🖥️  Đổi pin tại trạm" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavKiosk_Click"/>
                     <Button x:Name="btnNavDashboard" Content="🏭  Vận hành trạm" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavDashboard_Click"/>

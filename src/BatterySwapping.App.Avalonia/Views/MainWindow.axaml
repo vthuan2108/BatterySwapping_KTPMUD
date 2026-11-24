@@ -29,7 +29,7 @@
                             <TextBlock Text="⚡" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="BSS MANAGER" FontSize="16" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="BSS VẬN HÀNH" FontSize="16" FontWeight="Bold" Foreground="White"/>
                             <TextBlock Text="KTPMUD • ĐHBK Hà Nội" FontSize="11" Foreground="#94A3B8"/>
                         </StackPanel>
                     </StackPanel>
@@ -41,7 +41,7 @@
                     <StackPanel Spacing="4">
                         <TextBlock Text="PHÂN HỆ CHỨC NĂNG" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="8,0,0,8"/>
 
-                        <Button x:Name="btnNavOverview" Content="📊  Tổng quan" Classes="menunav" Click="BtnNavOverview_Click"/>
+                        <Button x:Name="btnNavOverview" Content="📊  Báo cáo quản trị" Classes="menunav" Click="BtnNavOverview_Click"/>
                         <Button x:Name="btnNavDashboard" Content="🏭  Vận hành trạm" Classes="menunav" Click="BtnNavDashboard_Click"/>
                         <Button x:Name="btnNavBatteries" Content="🔋  Quản lý danh mục pin" Classes="menunav" Click="BtnNavBatteries_Click"/>
                         <Button x:Name="btnNavBusiness" Content="Hồ sơ, kho và thanh toán" Classes="menunav" Click="BtnNavBusiness_Click"/>

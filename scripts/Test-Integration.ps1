@@ -11,6 +11,7 @@ USE [BssArchitectureTests_20261121];
 GO
 SET QUOTED_IDENTIFIER ON;
 GO
+IF OBJECT_ID('dbo.BssSlotCooldowns') IS NOT NULL DROP TABLE dbo.BssSlotCooldowns;
 IF OBJECT_ID('dbo.BssMaintenanceLocks') IS NOT NULL DROP TABLE dbo.BssMaintenanceLocks;
 IF OBJECT_ID('dbo.BssMaintenance') IS NOT NULL DROP TABLE dbo.BssMaintenance;
 IF OBJECT_ID('dbo.BssPayments') IS NOT NULL DROP TABLE dbo.BssPayments;
@@ -37,7 +38,7 @@ GO
  & (Join-Path $PSScriptRoot 'Start-Local.ps1') -NoBrowser -NoDesktop
  dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.Tests') --no-build -c Release -- --integration
  if($LASTEXITCODE -ne 0){throw 'Kiem thu API/MQTT that bai.'}
- dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.ArchitectureTests') --no-build -c Release -- --business
+ dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.ArchitectureTests') --no-build -c Release -- --business --cooldown
  if($LASTEXITCODE -ne 0){throw 'Kiem thu mat khau that bai.'}
  node (Join-Path $projectRoot 'tests/BatterySwapping.Web3D.Tests/bms.test.js')
  if($LASTEXITCODE -ne 0){throw 'Kiem thu BMS that bai.'}

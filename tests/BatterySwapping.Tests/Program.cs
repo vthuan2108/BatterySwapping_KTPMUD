@@ -13,7 +13,8 @@ using MQTTnet.Protocol;
 
 if(!args.Contains("--integration")){Console.WriteLine("Run with --integration against prepared BssArchitectureTests_* fixture. Unit tests: BatterySwapping.ArchitectureTests.");return;}
 string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));
-var settings=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,".runtime/server.json"))).RootElement;
+string settingsFile=Environment.GetEnvironmentVariable("BSS_TEST_SETTINGS")??Path.Combine(root,".runtime/server.json");
+var settings=JsonDocument.Parse(File.ReadAllText(settingsFile)).RootElement;
 string cs=settings.GetProperty("ConnectionStrings").GetProperty("Bss").GetString()!;
 if(!cs.Contains("Database=BssArchitectureTests_",StringComparison.OrdinalIgnoreCase))throw new Exception("Integration tests refuse to use the application database.");
 var store=new SqlStore(cs);var engine=new BssEngine(store);
@@ -21,7 +22,7 @@ using var admin=new ApiClient();using var driver=new ApiClient();using var other
 await admin.Login("admin","123456");await driver.Login("driver01","123456");await other.Login("driver02","123456");await tech.Login("tech01","123456");
 int count=0;
 void Check(bool condition,string name){if(!condition)throw new Exception("FAIL "+name);Console.WriteLine("PASS "+name);count++;}
-using var raw=new HttpClient{BaseAddress=new Uri("http://127.0.0.1:5080")};
+using var raw=new HttpClient{BaseAddress=new Uri(Environment.GetEnvironmentVariable("BSS_API_URL")??"http://127.0.0.1:5080")};
 Check((await raw.GetAsync("/api/v1/stations")).StatusCode==HttpStatusCode.Unauthorized,"anonymous cannot access admin data");
 try{await driver.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("CUT_OFF"));throw new Exception("Role bypass");}catch(InvalidOperationException){Check(true,"customer cannot control station");}
 Check(store.Read(db=>(string)db.Scalar("SELECT MatKhau FROM dbo.TaiKhoan WHERE TenDangNhap='admin'")!).StartsWith("pbkdf2$"),"legacy password migrated to salted PBKDF2");
@@ -77,6 +78,9 @@ try{
     await device.Event(recovery,"OLD_INSERTED",false);
     await Wait(async()=>(await driver.Get<SwapSession>($"swaps/{recovery.Id}")).State=="NeedsAssistance");
     Check(store.Read(db=>db.Scalar("SELECT MaPinDangMuon FROM dbo.KhachHang WHERE MaKH=1"))==null,"received old battery leaves customer custody before charge");
+    try{await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",recovery.ReturnSlot,"RESET_ALARM",null,"Chặn reset sớm",Guid.NewGuid().ToString()));throw new Exception("early cooldown bypass");}catch(InvalidOperationException){Check(true,"hot receipt cannot be reset before five minutes");}
+    // Dedicated fixture time travel only: deterministic endpoint regression avoids sleeping five minutes.
+    store.Write(db=>db.Exec("UPDATE dbo.BssSlotCooldowns SET StartedAt=DATEADD(minute,-6,SYSDATETIMEOFFSET()),UnlockAfter=DATEADD(minute,-1,SYSDATETIMEOFFSET()) WHERE StationId='TRAM-BK01' AND SlotNumber=@n",("@n",recovery.ReturnSlot)));
     var cooling=await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",recovery.ReturnSlot,"RESET_ALARM",null,"Làm mát pin trả",Guid.NewGuid().ToString()));
     await device.ExecuteUntil("RESET_ALARM",null);
     await Wait(async()=>(await tech.Get<DeviceCommand>($"commands/{cooling.CommandId}")).Status=="Completed");
@@ -93,6 +97,12 @@ try{
     device.Change(hotSlot,t=>t with{Temperature=30,Current=0,IsLocked=true});await device.Publish("telemetry");
     await Wait(()=>Task.FromResult(store.Read(db=>Convert.ToDecimal(db.Scalar("SELECT NhietDo FROM dbo.Pin WHERE MaPin=(SELECT MaPinHienTai FROM dbo.NganTu WHERE MaTram='TRAM-BK01' AND SoThuTu=4)")))<35));
     try{await admin.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("RESTORE_STATION"));throw new Exception("unresolvedalert bypass");}catch(InvalidOperationException){Check(true,"cooled pin still requires closing alert before station restore");}
+    var cooldown=(await admin.Get<List<SlotCooldown>>("stations/TRAM-BK01/cooldowns")).Single(c=>c.SlotNumber==hotSlot);
+    Check(cooldown.ClearedAt==null && cooldown.UnlockAfter-cooldown.StartedAt>=TimeSpan.FromMinutes(5),"cooldown persisted for minimum five real minutes");
+    try{await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",hotSlot,"RESET_ALARM",null,"Nguội sớm chưa hết hạn",Guid.NewGuid().ToString()));throw new Exception("cold early reset bypass");}catch(InvalidOperationException){Check(true,"cooled slot remains locked before five minutes");}
+    await RestartServer();
+    Check((await admin.Get<List<SlotCooldown>>("stations/TRAM-BK01/cooldowns")).Single(c=>c.SlotNumber==hotSlot).UnlockAfter==cooldown.UnlockAfter,"server restart preserves cooldown deadline");
+    store.Write(db=>db.Exec("UPDATE dbo.BssSlotCooldowns SET StartedAt=DATEADD(minute,-6,SYSDATETIMEOFFSET()),UnlockAfter=DATEADD(minute,-1,SYSDATETIMEOFFSET()) WHERE StationId='TRAM-BK01' AND SlotNumber=@n",("@n",hotSlot)));
     var reset=await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",hotSlot,"RESET_ALARM",null,"Kiểm tra quá nhiệt",Guid.NewGuid().ToString()));
     Check(reset.Status=="Pending","reset stays pending before device acknowledgement");
     await device.ExecuteUntil("RESET_ALARM",null);
@@ -117,9 +127,9 @@ try{
 
 async Task RestartServer()
 {
-    string pidFile=Path.Combine(root,".runtime/processes.json");
+    string pidFile=Environment.GetEnvironmentVariable("BSS_TEST_PIDS")??Path.Combine(root,".runtime/processes.json");
     var processes=JsonNode.Parse(File.ReadAllText(pidFile))!.AsArray();
-    string exe=Path.GetFullPath(Path.Combine(root,"src/BatterySwapping.Server/bin/Release/net8.0/BatterySwapping.Server.exe"));
+    string exe=Path.GetFullPath(Path.Combine(root,"src/BatterySwapping.Server/bin/"+(Environment.GetEnvironmentVariable("BSS_TEST_CONFIGURATION")??"Release")+"/net8.0/BatterySwapping.Server.exe"));
     var entry=processes.First(n=>string.Equals(n?["Path"]?.GetValue<string>(),exe,StringComparison.OrdinalIgnoreCase))!;
     using(var running=Process.GetProcessById(entry["Id"]!.GetValue<int>()))
     {
@@ -127,7 +137,7 @@ async Task RestartServer()
         running.Kill();await running.WaitForExitAsync();
     }
     var info=new ProcessStartInfo(exe){WorkingDirectory=root,UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};
-    info.Environment["BSS_SETTINGS"]=Path.Combine(root,".runtime/server.json");
+    info.Environment["BSS_SETTINGS"]=settingsFile;
     var restarted=Process.Start(info)!;
     restarted.OutputDataReceived+=(_,e)=>{if(e.Data?.Contains("Rejected")==true)Console.WriteLine(e.Data);};restarted.ErrorDataReceived+=(_,e)=>{if(e.Data!=null)Console.WriteLine(e.Data);};restarted.BeginOutputReadLine();restarted.BeginErrorReadLine();
     entry["Id"]=restarted.Id;entry["Start"]=restarted.StartTime.ToUniversalTime().ToString("O");File.WriteAllText(pidFile,processes.ToJsonString());
@@ -152,7 +162,7 @@ sealed class TestDevice(HttpClient http,List<NganTu> slots):IAsyncDisposable
         var r=await http.PostAsJsonAsync("/api/v1/device/lease",new DeviceLease("TRAM-BK01",Guid.NewGuid().ToString("N")));r.EnsureSuccessStatusCode();lease=(await r.Content.ReadFromJsonAsync<LeaseResponse>())!.LeaseId;
         var config=await http.GetFromJsonAsync<JsonElement>("/api/v1/device/config");
         mqtt.ApplicationMessageReceivedAsync+=e=>{var c=JsonSerializer.Deserialize<DeviceCommand>(e.ApplicationMessage.ConvertPayloadToString(),SqlStore.Json)!;commands.Writer.TryWrite(c);return Task.CompletedTask;};
-        await mqtt.ConnectAsync(new MqttClientOptionsBuilder().WithTcpServer("127.0.0.1",18883).WithCredentials("simulator",config.GetProperty("password").GetString()).Build());
+        await mqtt.ConnectAsync(new MqttClientOptionsBuilder().WithTcpServer("127.0.0.1",config.TryGetProperty("port",out var port)?port.GetInt32():18883).WithCredentials("simulator",config.GetProperty("password").GetString()).Build());
         await mqtt.SubscribeAsync(new MqttClientFactory().CreateSubscribeOptionsBuilder().WithTopicFilter(t=>t.WithTopic("bss/station/TRAM-BK01/commands").WithAtLeastOnceQoS()).Build());
         heartbeat=Task.Run(async()=>{try{while(!stopping.IsCancellationRequested){await Publish("telemetry");await Task.Delay(700,stopping.Token);}}catch(OperationCanceledException){}});
     }

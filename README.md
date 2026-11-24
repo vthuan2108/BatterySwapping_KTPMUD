@@ -104,7 +104,7 @@ cd BatterySwapping_KTPMUD
 4. `Database/04_CreateViews.sql`
 5. `Database/05_StoredProcedures.sql`
 
-Script `01` có thao tác xóa bảng và script `03` nạp dữ liệu mẫu: **không chạy lại chúng trên database đang sử dụng**. Nếu đã có `BatterySwappingDB`, giữ nguyên dữ liệu. Backend tự áp dụng lần lượt các migration tăng dần `06_Runtime.sql`, `07_Business.sql`, `08_Maintenance.sql` khi khởi động.
+Script `01` có thao tác xóa bảng và script `03` nạp dữ liệu mẫu: **không chạy lại chúng trên database đang sử dụng**. Nếu đã có `BatterySwappingDB`, giữ nguyên dữ liệu. Backend tự áp dụng lần lượt các migration tăng dần `06_Runtime.sql`, `07_Business.sql`, `08_Maintenance.sql`, `09_Cooldowns.sql` khi khởi động.
 
 ### Bước 3 — Chuẩn bị broker và build
 
@@ -253,3 +253,7 @@ Log do launcher ghi tại `.runtime/server.out.log`, `.runtime/server.err.log`, 
 ## Quy trình nghiệp vụ và nâng cấp
 
 Xem [nghiệp vụ và migration](docs/BUSINESS-WORKFLOWS.md) trước khi chạy với database đã có dữ liệu. Các API nạp ví trực tiếp, đăng nhập QR/điện thoại và HTTP giả xác nhận cắm/rút đã bị bỏ.
+
+### Khóa nhiệt tự động
+
+Từ55°C, simulator tự làm mát và khóa ngăn ít nhất5 phút thực. Không cắm/rút/cấp pin hoặc mở ngăn trong thời gian này. Hết5 phút vẫn chờ nhiệt độ dưới35°C và xác nhận reset của kỹ thuật viên; tốc độx10/x60 không rút ngắn khóa. Bộ đếm được lưu qua tải lại/restart và hiển thị trên WPF, Avalonia, Web3D. Xem [quy trình chi tiết](docs/BUSINESS-WORKFLOWS.md).

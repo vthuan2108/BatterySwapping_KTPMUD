@@ -23,6 +23,7 @@ public sealed partial class BssEngine
             Require((string?)db.Scalar("SELECT LoaiPin FROM dbo.Pin WHERE MaPin=@p",("@p",r.NewBatteryId))==(string?)slot!["LoaiPin"],"Loại pin thay thế không tương thích.");
             Require(Convert.ToDecimal(db.Scalar("SELECT NhietDo FROM dbo.Pin WHERE MaPin=@p",("@p",r.NewBatteryId)))<35,"Chờ pin trong kho nguội dưới 35°C trước khi thay.");
         }
+        if(r.Action=="RESET_ALARM")RequireCooldownElapsed(db,r.StationId,r.SlotNumber);else Require(!CoolingLocked(db,r.StationId,r.SlotNumber),"Ngăn còn cách ly làm mát; xác nhận reset an toàn trước khi thay pin.");
         var c=Queue(db,r.StationId,r.Action,r.SlotNumber,r.NewBatteryId);
         string id=Guid.NewGuid().ToString("N");
         db.Exec("INSERT dbo.BssMaintenance(Id,RequestId,StationId,SlotNumber,Action,OldBatteryId,NewBatteryId,Note,ActorId,CommandId,Status) VALUES(@id,@key,@s,@n,@a,@old,@new,@note,@actor,@cmd,'Pending'); UPDATE dbo.NganTu SET KhoaBaoTri=1 WHERE MaTram=@s AND SoThuTu=@n",("@id",id),("@key",r.RequestId),("@s",r.StationId),("@n",r.SlotNumber),("@a",r.Action),("@old",slot!["MaPinHienTai"]),("@new",r.NewBatteryId),("@note",r.Note),("@actor",actor),("@cmd",c.CommandId));
@@ -33,9 +34,10 @@ public sealed partial class BssEngine
     public MaintenanceOrder RetryMaintenance(string id)=>store.Write(db=>{
         var row=db.Rows("SELECT * FROM dbo.BssMaintenance WHERE Id=@id",("@id",id)).SingleOrDefault()??throw new DomainException("Không tìm thấy phiếu.",404);
         var order=MaintenanceRow(row);var old=db.Payload<DeviceCommand>("BssCommands",order.CommandId)!;
-        Require(old.Status=="Failed","Chỉ gửi lại sau phản hồi thất bại rõ ràng; lệnh chưa xác nhận phải đối soát.");
+        Require(order.Status=="Failed" && old.Status=="Failed","Chỉ gửi lại sau phản hồi thất bại rõ ràng; lệnh chưa xác nhận phải đối soát.");
         Require(Status(db,order.StationId).Online,"Thiết bị mất kết nối.");
         Require((string?)db.Scalar("SELECT MaPinHienTai FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=@n",("@s",order.StationId),("@n",order.SlotNumber))==order.OldBatteryId,"Pin tại ngăn đã thay đổi, cần đối soát.");
+        if(order.Action=="RESET_ALARM")RequireCooldownElapsed(db,order.StationId,order.SlotNumber);else Require(!CoolingLocked(db,order.StationId,order.SlotNumber),"Ngăn đang khóa làm mát.");
         var c=Queue(db,order.StationId,order.Action,order.SlotNumber,order.NewBatteryId);
         db.Exec("UPDATE dbo.BssMaintenance SET CommandId=@cmd,Status='Pending',Result=NULL WHERE Id=@id",("@cmd",c.CommandId),("@id",id));
         return MaintenanceRow(db.Rows("SELECT * FROM dbo.BssMaintenance WHERE Id=@id",("@id",id)).Single());
@@ -46,6 +48,7 @@ public sealed partial class BssEngine
     }
     public SwapSession ReturnOldBattery(string id)=>store.Write(db=>{
         var s=db.Payload<SwapSession>("BssSessions",id)??throw new DomainException("Không tìm thấy phiên.",404);
+        Require(!CoolingLocked(db,s.StationId,s.ReturnSlot),"Ngăn pin trả đang khóa làm mát.");
         if(s.State=="ReturningOldBattery")return s;
         Require(s.State=="NeedsAssistance"&&s.OldInserted&&!s.Charged,"Chỉ trả pin cũ cho phiên đã nhận pin nhưng chưa thu phí.");
         Require(Status(db,s.StationId).Online,"Thiết bị mất kết nối.");

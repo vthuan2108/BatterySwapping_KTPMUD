@@ -47,7 +47,7 @@ public class DeviceCommand
     public string? Note { get; set; }
 }
 public record SlotTelemetry(int SlotNumber, string? BatteryId, decimal Soc, decimal Soh,
-    decimal Temperature, decimal Voltage, decimal Current, bool IsCharging, bool IsDoorOpen, bool IsLocked);
+    decimal Temperature, decimal Voltage, decimal Current, bool IsCharging, bool IsDoorOpen, bool IsLocked, bool IsOverheated = false);
 public record DeviceMessage(int SchemaVersion, string StationId, string LeaseId, string MessageId,
     long Sequence, DateTimeOffset Timestamp, string? Event, string? CommandId, string? SessionId,
     int? SlotNumber, string? BatteryId, bool Success, SlotTelemetry[] Slots);

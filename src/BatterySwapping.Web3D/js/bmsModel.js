@@ -1,6 +1,20 @@
 /* Assumed 72 V / 30 Ah pack; educational model, not calibrated to a physical BMS. */
 const BmsModel = (() => {
+  const minimumLockMs = 5 * 60 * 1000;
+  function protect(slot, now=Date.now()) {
+    if(slot.temperature>=55 && !slot.cooldownUntil) {
+      slot.cooldownStartedAt=now;slot.cooldownUntil=now+minimumLockMs;
+    }
+    if(slot.cooldownUntil || slot.isOverheated || slot.temperature>=55) {
+      slot.isOverheated=true;slot.isCooling=true;slot.isLocked=true;
+      slot.current=0;slot.isCharging=false;slot.isEjected=false;slot.isDoorOpen=false;
+    }
+  }
+  function locked(slot, now=Date.now()) { return !!slot && (slot.isOverheated || slot.temperature>=55 || now<(slot.cooldownUntil||0)); }
+  function ready(slot, now=Date.now()) { return slot.temperature<35 && now>=(slot.cooldownUntil||0); }
+  function clear(slot) {slot.cooldownUntil=null;slot.cooldownStartedAt=null;slot.isOverheated=false;slot.isCooling=false;slot.isLocked=false;}
   function step(slot, seconds, scale=1) {
+    protect(slot);
     if (!slot.hasBattery) { slot.current=0;slot.voltage=0;slot.isCharging=false;return; }
     if(slot.temperature>=55) {slot.isOverheated=true;slot.isLocked=true;slot.isEjected=false;slot.isDoorOpen=false;}
     const dt=Math.max(0,Math.min(seconds,60))*scale;
@@ -17,6 +31,6 @@ const BmsModel = (() => {
     slot.voltage=67.2+12.8*(slot.soc/100)+slot.current*0.04;
     if(slot.temperature>=55){slot.current=0;slot.isCharging=false;slot.isLocked=true;slot.isOverheated=true;}
   }
-  return {step};
+  return {step,protect,locked,ready,clear,minimumLockMs};
 })();
 if(typeof module!=="undefined") module.exports=BmsModel;

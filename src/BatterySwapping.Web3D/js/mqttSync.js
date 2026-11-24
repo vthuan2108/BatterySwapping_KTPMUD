@@ -117,6 +117,7 @@ const MqttSync = (() => {
         isCharging: s.isCharging,
         isDoorOpen: s.isDoorOpen,
         isLocked: s.isLocked,
+        isOverheated: !!s.isOverheated,
       })),
       ...additional,
     };
