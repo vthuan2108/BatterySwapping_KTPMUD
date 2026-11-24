@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using BatterySwapping.App.Services;
 
@@ -14,11 +14,12 @@ namespace BatterySwapping.App.Views.Admin
         public TransactionHistoryView()
         {
             InitializeComponent();
+            topupsTab.Visibility=AuthService.CurrentUser?.VaiTro=="Admin"?Visibility.Visible:Visibility.Collapsed;
             _reportService = new ReportService();
             Loaded += (s, e) => LoadData();
         }
 
-        public void LoadData()
+        public async void LoadData()
         {
             if (!Dispatcher.CheckAccess())
             {
@@ -28,11 +29,13 @@ namespace BatterySwapping.App.Views.Admin
             if (dgSwapHistory == null || dgPaymentHistory == null) return;
             try
             {
-                dgSwapHistory.ItemsSource = _reportService.GetSwapHistory();
-                dgPaymentHistory.ItemsSource = _reportService.GetTopUpHistory();
+                dgSwapHistory.ItemsSource = await _reportService.GetSwapHistory();
+                if(AuthService.CurrentUser?.VaiTro=="Admin")dgPaymentHistory.ItemsSource = await _reportService.GetTopUpHistory();
+                else dgPaymentHistory.Visibility=Visibility.Collapsed;
             }
-            catch
+            catch (Exception ex)
             {
+                BssApi.ReportError(ex);
                 // Safe ignore
             }
         }

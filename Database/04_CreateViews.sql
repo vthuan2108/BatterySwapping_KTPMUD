@@ -1,4 +1,4 @@
--- ==============================================================================
+﻿-- ==============================================================================
 -- HỆ THỐNG QUẢN LÝ MẠNG LƯỚI TỦ ĐỔI PIN TỰ ĐỘNG CHO XE MÁY ĐIỆN (BSS)
 -- TẬP LỆNH: KHỞI TẠO CÁC VIEW TRUY VẤN VÀ BÁO CÁO NGHIỆP VỤ (04_CreateViews.sql)
 -- Phục vụ tiêu chí chấm điểm LMS Pro: "Tạo các View" (10/10)

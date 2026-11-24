@@ -1,0 +1,89 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BatterySwapping.App.Avalonia.Views.Admin.SafetyAlertsView">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tiêu đề & Cảnh báo -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="🚨 NHẬT KÝ CẢNH BÁO AN TOÀN IOT &amp; PHÒNG CHÁY NỔ" 
+                           FontSize="18" FontWeight="Bold" Foreground="{StaticResource DangerBrush}"/>
+                <TextBlock Text="Tự động ghi nhận khi cảm biến BMS phát hiện nhiệt độ quá ngưỡng (&gt; 55°C) hoặc ngắn mạch" 
+                           FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
+                <CheckBox x:Name="chkOnlyUnresolved" Content="Chỉ hiện sự cố chưa xử lý" 
+                          IsChecked="False" VerticalAlignment="Center"
+                          IsCheckedChanged="ChkOnlyUnresolved_Changed"/>
+                <Button Content="🔄 Làm mới" Classes="outline" Click="BtnRefresh_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- DataGrid Cảnh báo -->
+        <Border Grid.Row="1" Classes="card" Padding="0" Background="White">
+            <DataGrid x:Name="dgAlerts" 
+                      AutoGenerateColumns="False" 
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="MÃ CB" Binding="{Binding MaCB}" FontWeight="Bold" Width="80"/>
+                    <DataGridTextColumn Header="TRẠM" Binding="{Binding MaTram}" Width="110"/>
+                    <DataGridTextColumn Header="VỊ TRÍ" Binding="{Binding ViTriFormatted}" Width="100"/>
+                    <DataGridTextColumn Header="MÃ PIN" Binding="{Binding MaPin, FallbackValue='--'}" FontWeight="SemiBold" Width="110"/>
+                    <DataGridTextColumn Header="LOẠI SỰ CỐ" Binding="{Binding LoaiCanhBao}" FontWeight="Bold" Width="260"/>
+                    
+                    <DataGridTemplateColumn Header="GIÁ TRỊ ĐO" Width="110">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding GiaTriDoFormatted}" FontWeight="Bold" 
+                                           Foreground="{StaticResource DangerBrush}" 
+                                           VerticalAlignment="Center" Margin="4,0"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="THỜI GIAN" Binding="{Binding ThoiGianPhatHien, StringFormat='{}{0:dd/MM/yyyy HH:mm:ss}'}" Width="160"/>
+                    
+                    <DataGridTemplateColumn Header="MỨC ĐỘ" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding MauMucDo}" CornerRadius="6" Padding="6,2" 
+                                        HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0">
+                                    <TextBlock Text="{Binding MucDoNghiemTrong}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="ĐÃ XỬ LÝ?" Binding="{Binding DaXuLyText}" FontWeight="SemiBold" Width="110"/>
+
+                    <DataGridTemplateColumn Header="THAO TÁC" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="✔ Đã khắc phục" Classes="outline" Padding="8,3" FontSize="11"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Click="BtnResolve_Click" Tag="{Binding}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Thanh thông báo kết quả xử lý -->
+        <TextBlock x:Name="txtStatusFeedback" Grid.Row="2" Text="" FontSize="12" FontWeight="SemiBold" 
+                   Foreground="{StaticResource PrimaryDarkBrush}" Margin="0,10,0,0"/>
+    </Grid>
+</UserControl>

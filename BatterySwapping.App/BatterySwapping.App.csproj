@@ -1,18 +1,1 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <UseWPF>true</UseWPF>
-    <RootNamespace>BatterySwapping.App</RootNamespace>
-    <AssemblyName>BatterySwapping.App</AssemblyName>
-    <RollForward>LatestMajor</RollForward>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.0" />
-    <PackageReference Include="MQTTnet" Version="5.2.0.1603" />
-  </ItemGroup>
-
-</Project>
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework><UseWPF>true</UseWPF><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><CodePage>65001</CodePage></PropertyGroup><ItemGroup><ProjectReference Include="../BatterySwapping.Client/BatterySwapping.Client.csproj"/><Compile Remove="DesktopWindow.cs"/></ItemGroup></Project>

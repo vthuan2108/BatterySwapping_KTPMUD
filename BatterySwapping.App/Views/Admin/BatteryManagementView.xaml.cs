@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -20,10 +20,11 @@ namespace BatterySwapping.App.Views.Admin
         {
             InitializeComponent();
             _batteryService = new BatteryService();
+            btnAddBattery.Visibility=NavigationPolicy.For(AuthService.CurrentUser?.VaiTro).WalletAdministration?Visibility.Visible:Visibility.Collapsed;
             Loaded += (s, e) => LoadBatteries();
         }
 
-        public void LoadBatteries()
+        public async void LoadBatteries()
         {
             if (!Dispatcher.CheckAccess())
             {
@@ -32,11 +33,12 @@ namespace BatterySwapping.App.Views.Admin
             }
             try
             {
-                _allBatteries = _batteryService.GetAllBatteries() ?? new();
+                _allBatteries = await _batteryService.GetAllBatteries() ?? new();
                 FilterData();
             }
-            catch
+            catch (Exception ex)
             {
+                BssApi.ReportError(ex);
                 // Safe ignore
             }
         }
@@ -50,7 +52,7 @@ namespace BatterySwapping.App.Views.Admin
 
             if (!string.IsNullOrEmpty(keyword))
             {
-                query = query.Where(b => (b != null && b.MaPin != null && b.MaPin.ToLower().Contains(keyword)) || 
+                query = query.Where(b => (b != null && b.MaPin != null && b.MaPin.ToLower().Contains(keyword)) ||
                                          (b != null && b.LoaiPin != null && b.LoaiPin.ToLower().Contains(keyword)));
             }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using BatterySwapping.App.Models;
 using BatterySwapping.App.Services;
@@ -18,8 +18,16 @@ namespace BatterySwapping.App.Views.Dialogs
             _batteryService = new BatteryService();
         }
 
-        private void BtnSave_Click(object sender, RoutedEventArgs e)
+        private bool _saving;
+        private async void BtnSave_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
+            if(_saving)return;_saving=true;
+            try {
+
             string maPin = txtMaPin?.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(maPin))
             {
@@ -53,7 +61,8 @@ namespace BatterySwapping.App.Views.Dialogs
                 TrangThai = "DaDay"
             };
 
-            if (_batteryService.AddBattery(pin, out string error))
+            var outcome = await _batteryService.AddBattery(pin);
+            if (outcome.Success)
             {
                 MessageBox.Show("Thêm pin mới thành công!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
@@ -61,8 +70,13 @@ namespace BatterySwapping.App.Views.Dialogs
             }
             else
             {
-                MessageBox.Show($"Lỗi thêm pin: {error}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Lỗi thêm pin: {outcome.Error}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+
+            } finally {_saving=false;}
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)

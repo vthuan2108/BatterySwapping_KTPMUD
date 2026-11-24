@@ -1,0 +1,119 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BatterySwapping.App.Avalonia.Views.Admin.CustomerManagementView">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tiêu đề & Nút nạp tiền -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="👥 QUẢN LÝ KHÁCH HÀNG &amp; VÍ ĐIỆN TỬ NỘI BỘ" 
+                           FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Tra cứu số dư, phương tiện đăng ký và nạp tiền tài khoản đổi pin" 
+                           FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="💳 Nạp Tiền Vào Ví" Classes="primary" Click="BtnTopUp_Click"/>
+                <Button Content="🔄 Làm mới" Classes="outline" Click="BtnRefresh_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Tìm kiếm -->
+        <Border Grid.Row="1" Classes="card" Padding="12" Margin="0,0,0,16" Background="White">
+            <TextBox x:Name="txtSearch" Classes="modern" 
+                     Watermark="🔍 Tìm kiếm khách hàng theo họ tên, số điện thoại hoặc biển số xe..." 
+                     KeyUp="TxtSearch_KeyUp"/>
+        </Border>
+
+        <!-- DataGrid Khách hàng -->
+        <Border Grid.Row="2" Classes="card" Padding="0" Background="White">
+            <DataGrid x:Name="dgCustomers" 
+                      AutoGenerateColumns="False" 
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="MÃ KH" Binding="{Binding MaKH}" FontWeight="Bold" Width="80"/>
+                    <DataGridTextColumn Header="HỌ VÀ TÊN" Binding="{Binding HoTen}" FontWeight="SemiBold" Width="180"/>
+                    <DataGridTextColumn Header="SỐ ĐIỆN THOẠI" Binding="{Binding SoDienThoai}" Width="130"/>
+                    <DataGridTextColumn Header="BIỂN SỐ XE" Binding="{Binding BienSoXe}" FontWeight="Bold" Foreground="{StaticResource SecondaryBrush}" Width="130"/>
+                    <DataGridTextColumn Header="SỐ DƯ VÍ" Binding="{Binding SoDuFormatted}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="140"/>
+                    <DataGridTextColumn Header="PIN ĐANG MƯỢN" Binding="{Binding PinDangMuonDisplay}" Width="140"/>
+                    <DataGridTextColumn Header="NGÀY ĐĂNG KÝ" Binding="{Binding NgayDangKy, StringFormat='{}{0:dd/MM/yyyy}'}" Width="130"/>
+                    <DataGridTemplateColumn Header="THAO TÁC" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="💳 Nạp tiền" Classes="outline" Padding="8,3" FontSize="11" 
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Click="BtnRowTopUp_Click" Tag="{Binding}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- In-App Top-Up Wallet Drawer / Panel -->
+        <Border x:Name="pnlTopUp" Grid.Row="3" Classes="card" Background="#F8FAFC" Margin="0,16,0,0" IsVisible="False">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="💳 NẠP TIỀN VÍ KHÁCH HÀNG:" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="txtCustomerTarget" Text="Nguyễn Văn A (0901234567)" FontWeight="Bold" FontSize="14" Foreground="{StaticResource PrimaryDarkBrush}"/>
+                    </StackPanel>
+                    <Button Content="✕ Đóng" Classes="outline" HorizontalAlignment="Right" Padding="6,2" FontSize="11" Click="BtnCloseTopUp_Click"/>
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="160"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="Số tiền nạp (đ):" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                    <TextBox x:Name="txtAmount" Grid.Column="1" Classes="modern" Text="100000" Margin="0,0,16,0"/>
+
+                    <TextBlock Grid.Column="2" Text="Phương thức:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="cboMethod" Grid.Column="3" Height="38" HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="ChuyenKhoan" IsSelected="True"/>
+                        <ComboBoxItem Content="TienMat"/>
+                        <ComboBoxItem Content="TheNganHang"/>
+                    </ComboBox>
+                </Grid>
+
+                <Grid Grid.Row="2">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="50.000 đ" Classes="outline" Click="BtnQuick_Click" Tag="50000"/>
+                        <Button Content="100.000 đ" Classes="outline" Click="BtnQuick_Click" Tag="100000"/>
+                        <Button Content="200.000 đ" Classes="outline" Click="BtnQuick_Click" Tag="200000"/>
+                        <Button Content="500.000 đ" Classes="outline" Click="BtnQuick_Click" Tag="500000"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <TextBlock x:Name="txtTopUpFeedback" Text="" FontWeight="SemiBold" Foreground="{StaticResource PrimaryDarkBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <Button x:Name="btnConfirmTopUp" Content="✔ Xác nhận nạp tiền" Classes="primary" Click="BtnConfirmTopUp_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

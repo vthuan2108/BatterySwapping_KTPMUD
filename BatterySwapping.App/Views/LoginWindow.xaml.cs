@@ -1,5 +1,5 @@
-using System.Windows;
-using BatterySwapping.App.Helpers;
+﻿using System.Windows;
+
 using BatterySwapping.App.Services;
 
 namespace BatterySwapping.App.Views
@@ -15,22 +15,27 @@ namespace BatterySwapping.App.Views
         {
             InitializeComponent();
             _authService = new AuthService();
-            txtConnString.Text = DatabaseHelper.ConnectionString;
+            txtConnString.Text = BssApi.Url;
             txtPassword.Password = "123456";
         }
 
-        private void BtnLogin_Click(object sender, RoutedEventArgs e)
+        private async void BtnLogin_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
             if (lblError != null) lblError.Visibility = Visibility.Collapsed;
             if (txtConnString != null && !string.IsNullOrWhiteSpace(txtConnString.Text))
             {
-                DatabaseHelper.ConnectionString = txtConnString.Text.Trim();
+                BssApi.Configure(txtConnString.Text.Trim());
             }
 
             string username = txtUsername?.Text?.Trim() ?? string.Empty;
             string password = txtPassword?.Password ?? string.Empty;
 
-            if (_authService.Login(username, password, out string errorMessage))
+            var outcome = await _authService.Login(username, password);
+            if (outcome.Success)
             {
                 var mainWindow = new MainWindow();
                 mainWindow.Show();
@@ -40,39 +45,54 @@ namespace BatterySwapping.App.Views
             {
                 if (lblError != null)
                 {
-                    lblError.Text = errorMessage;
+                    lblError.Text = outcome.Error;
                     lblError.Visibility = Visibility.Visible;
                 }
             }
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
-        private void BtnKioskDirect_Click(object sender, RoutedEventArgs e)
+        private async void BtnKioskDirect_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
             if (txtConnString != null && !string.IsNullOrWhiteSpace(txtConnString.Text))
             {
-                DatabaseHelper.ConnectionString = txtConnString.Text.Trim();
+                BssApi.Configure(txtConnString.Text.Trim());
             }
-            _authService.Logout();
+            await _authService.Logout();
             var mainWindow = new MainWindow(openInKioskMode: true);
             mainWindow.Show();
             this.Close();
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
-        private void BtnTestConnection_Click(object sender, RoutedEventArgs e)
+        private async void BtnTestConnection_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
             if (txtConnString != null && !string.IsNullOrWhiteSpace(txtConnString.Text))
             {
-                DatabaseHelper.ConnectionString = txtConnString.Text.Trim();
+                BssApi.Configure(txtConnString.Text.Trim());
             }
-            if (DatabaseHelper.TestConnection(out string error))
+            try
             {
-                MessageBox.Show("Kết nối tới SQL Server thành công!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
+                using var http=new System.Net.Http.HttpClient { Timeout=TimeSpan.FromSeconds(5) };
+                (await http.GetAsync(BssApi.Url+"/health")).EnsureSuccessStatusCode();
+                MessageBox.Show("Backend đã kết nối.");
             }
-            else
-            {
-                MessageBox.Show($"Kết nối thất bại!\nLỗi: {error}\n\nHướng dẫn: Hãy đảm bảo bạn đã chạy file script SQL tạo cơ sở dữ liệu BatterySwappingDB trong SQL Server.", 
-                                "Lỗi kết nối", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            catch(Exception ex){MessageBox.Show(ex.Message,"Backend không sẵn sàng");}
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
     }
 }

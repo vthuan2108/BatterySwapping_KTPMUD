@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 
 namespace BatterySwapping.App
 {
@@ -7,5 +7,6 @@ namespace BatterySwapping.App
     /// </summary>
     public partial class App : Application
     {
+        public App(){DispatcherUnhandledException += (_,e)=>{Services.BssApi.Error(e.Exception);e.Handled=true;};}
     }
 }

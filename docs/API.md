@@ -1,0 +1,59 @@
+# Hợp đồng đang triển khai — v1
+
+Địa chỉ cục bộ `http://127.0.0.1:5080`. REST JSON dùng camelCase cho DTO; các kết quả SQL dictionary (`wallet`, `alerts`) giữ tên cột gốc. Client C# deserialize không phân biệt hoa thường. API bảo vệ yêu cầu `Authorization: Bearer <token>`; token trả từ đăng nhập. Thiết bị dùng lease riêng, không dùng token tài khoản.
+
+| Method / URL | Request | Response |
+|---|---|---|
+| POST `/api/v1/auth/login` | `{username,password}` | 200 `{token,user:{id,username,name,role,customerId}}` |
+| POST `/api/v1/auth/logout` | `{}` | 204; token bị thu hồi |
+| GET `/api/v1/auth/me` | — | 200 user |
+| GET `/api/v1/stations` | — | 200 danh sách TramPin |
+| GET `/api/v1/stations/{id}/slots` | — | 200 danh sách NganTu cùng BMS |
+| GET `/api/v1/stations/{id}/status` | — | 200 `{stationId,online,lastSeen,ownerId}`; ownerId không phải lease secret |
+| POST `/api/v1/stations` | `{maTram,tenTram,diaChi,soLuongNgan,...}` | 200 trạm mới; Admin |
+| GET/POST `/api/v1/batteries` | POST: `{maPin,loaiPin,dungLuongThietKe,soC,soH,nhietDo,...}` | GET danh sách; POST pin đã thêm; POST chỉ Admin |
+| GET `/api/v1/customers` | — | Danh sách khách hàng; Admin |
+| GET `/api/v1/wallet` | — | Khách hàng của tài khoản, gồm `SoDuVi`, `ReservedBalance` |
+| POST `/api/v1/wallet/topup` | `{customerId,amount,method}` | 200 thông báo nạp ví demo; Admin |
+| POST `/api/v1/swaps` | `{stationId,idempotencyKey}` | 202 SwapSession; khách hàng sử dụng ví của chính mình |
+| GET `/api/v1/swaps` | — | Danh sách phiên; khách hàng chỉ thấy phiên của mình |
+| GET `/api/v1/swaps/{id}` | — | 200 SwapSession, kiểm tra chủ sở hữu |
+| POST `/api/v1/swaps/{id}/cancel` | `{}` | Phiên đang đóng ngăn hoặc cần hỗ trợ; chưa có nghĩa hủy hoàn tất |
+| POST `/api/v1/swaps/{id}/resume` | `{}` | Phiên đã thu phí được đối soát/tiếp tục; kỹ thuật/Admin |
+| POST `/api/v1/stations/{id}/commands` | `{command,slotNumber?,batteryId?}` | 202 DeviceCommand và Location; kỹ thuật/Admin |
+| GET `/api/v1/commands/{id}` | — | DeviceCommand, kỹ thuật/Admin |
+| GET `/api/v1/commands` | — | Tối đa 200 lệnh gần nhất, kỹ thuật/Admin |
+| GET `/api/v1/alerts` | — | Cảnh báo, kỹ thuật/Admin |
+| GET `/api/v1/reports/summary` | — | Thống kê, kỹ thuật/Admin |
+| GET `/api/v1/history/swaps` | — | Lịch sử đổi pin, kỹ thuật/Admin |
+| GET `/api/v1/history/topups` | — | Lịch sử nạp ví, Admin |
+
+Ví dụ response tạo phiên:
+
+```json
+{"id":"<sessionId>","customerId":1,"stationId":"TRAM-BK01","oldBatteryId":"PIN-009","newBatteryId":"PIN-001","returnSlot":6,"receiveSlot":1,"state":"AwaitingOldBattery","fee":25000,"charged":false,"oldInserted":false,"transactionId":null}
+```
+
+Lỗi nghiệp vụ: 409 `{error,code:"BUSINESS_RULE"}`. Chưa đăng nhập: 401. Không đúng quyền: 403. Không tồn tại: 404. JSON binding sai trả 400 theo ASP.NET. Một số lỗi database/môi trường trả 500 với thông báo chung, chi tiết chỉ ở log server. Không coi HTTP 202 là thiết bị đã thực hiện thành công.
+
+## Giao thức thiết bị
+
+`GET /api/v1/device/config`: cấu hình kết nối broker cục bộ. `POST /api/v1/device/lease {stationId,clientId}`: cấp `{leaseId,stationId,expiresAt}` nếu chưa có simulator sống. `GET /api/v1/device/{id}/snapshot`: trạng thái trạm, ngăn, pin, phiên hoạt động và lệnh để phục hồi; không trả lease secret. Các endpoint này chỉ được phục vụ ở loopback, không phải API công khai để triển khai Internet.
+
+Broker TCP `127.0.0.1:18883`, WebSocket `ws://127.0.0.1:19001/mqtt`. Tài khoản simulator không được publish topic commands. Lease gắn với stationId; thông điệp sai lease, sai version, sai thời gian, sequence cũ, thiếu ngăn hoặc BMS ngoài giới hạn bị từ chối.
+
+Các topic `bss/station/{stationId}/{telemetry|alerts|events|commands|acks}`. Telemetry QoS 0 mỗi giây. Các topic còn lại QoS 1; không retain commands.
+
+```json
+{"schemaVersion":1,"stationId":"TRAM-BK01","leaseId":"<private lease>","messageId":"<unique>","sequence":1,"timestamp":"<UTC ISO8601>","event":null,"commandId":null,"sessionId":null,"slotNumber":null,"batteryId":null,"success":true,"slots":[{"slotNumber":1,"batteryId":"PIN-001","soc":98.5,"soh":99,"temperature":31,"voltage":78,"current":0,"isCharging":false,"isDoorOpen":false,"isLocked":false}]}
+```
+
+Ví dụ trên rút gọn một phần tử; thông điệp thực tế phải có đúng toàn bộ các ngăn. `event` là `OLD_INSERTED`, `NEW_TAKEN`, `OVERHEAT` hoặc `ACK` tùy topic. ACK phải mang commandId, kết quả success và snapshot đầy đủ.
+
+Lệnh:
+
+```json
+{"schemaVersion":1,"stationId":"TRAM-BK01","commandId":"<unique>","command":"EJECT_BATTERY","slotNumber":1,"batteryId":"PIN-001","sessionId":"<sessionId>","timestamp":"<UTC ISO8601>"}
+```
+
+Lệnh được hỗ trợ: UNLOCK_SLOT, CLOSE_SLOT, LOCK_SLOT, EJECT_BATTERY, CUT_OFF, RESTORE_STATION, RESET_ALARM, REPLACE_BATTERY, TRIGGER_OVERHEAT, QUERY_STATUS. Sau 10 giây thiếu ACK, lệnh thành Unconfirmed và gửi QUERY_STATUS. Không tự thực hiện lại thao tác nhả pin. QUERY_STATUS đối soát kết quả đã lưu tại simulator.

@@ -1,0 +1,156 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BatterySwapping.App.Avalonia.Views.Admin.BatteryManagementView">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tiêu đề & Các nút thao tác -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="🔋 QUẢN LÝ DANH MỤC PIN VÀ GIÁM SÁT BMS" 
+                           FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Theo dõi tuổi thọ pin (SoH), chu kỳ sạc xả và kiểm định an toàn kỹ thuật" 
+                           FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="➕ Thêm Pin Mới" Classes="primary" Click="BtnAddBattery_Click"/>
+                <Button Content="🔄 Làm mới" Classes="outline" Click="BtnRefresh_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Thanh tìm kiếm & Bộ lọc -->
+        <Border Grid.Row="1" Classes="card" Padding="12" Margin="0,0,0,16" Background="White">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="220"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBox x:Name="txtSearch" Grid.Column="0" Classes="modern" 
+                         Watermark="🔍 Nhập mã pin hoặc loại pin cần tìm (ví dụ: PIN-001)..." 
+                         KeyUp="TxtSearch_KeyUp"/>
+
+                <ComboBox x:Name="cboStatusFilter" Grid.Column="2" Height="38" 
+                          HorizontalAlignment="Stretch" SelectionChanged="CboStatusFilter_SelectionChanged">
+                    <ComboBoxItem Content="-- Tất cả trạng thái --" IsSelected="True"/>
+                    <ComboBoxItem Content="Đã đầy (SoC ≥ 90%)"/>
+                    <ComboBoxItem Content="Đang sạc"/>
+                    <ComboBoxItem Content="Khả dụng"/>
+                    <ComboBoxItem Content="Đang sử dụng"/>
+                    <ComboBoxItem Content="Lỗi quá nhiệt"/>
+                </ComboBox>
+            </Grid>
+        </Border>
+
+        <!-- Bảng danh sách Pin (DataGrid) -->
+        <Border Grid.Row="2" Classes="card" Padding="0" Background="White">
+            <DataGrid x:Name="dgBatteries" 
+                      AutoGenerateColumns="False" 
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal"
+                      SelectionChanged="DgBatteries_SelectionChanged">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="MÃ PIN" Binding="{Binding MaPin}" FontWeight="Bold" Width="100"/>
+                    <DataGridTextColumn Header="LOẠI PIN" Binding="{Binding LoaiPin}" Width="160"/>
+                    <DataGridTextColumn Header="DUNG LƯỢNG" Binding="{Binding DungLuongThietKe, StringFormat='{}{0} Ah'}" Width="110"/>
+                    
+                    <DataGridTemplateColumn Header="DUNG LƯỢNG (SoC)" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel VerticalAlignment="Center" Margin="4,0">
+                                    <TextBlock Text="{Binding SoC, StringFormat='{}{0:F1}%'}" FontWeight="SemiBold" FontSize="12"/>
+                                    <ProgressBar Value="{Binding SoC}" Minimum="0" Maximum="100" Height="4" Margin="0,2,0,0"
+                                                 Foreground="{Binding MauNhietDo}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="SỨC KHỎE (SoH)" Binding="{Binding SoH, StringFormat='{}{0:F1}%'}" Width="120"/>
+
+                    <DataGridTemplateColumn Header="NHIỆT ĐỘ BMS" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding NhietDo, StringFormat='{}{0:F1} °C'}" 
+                                           FontWeight="Bold" VerticalAlignment="Center"
+                                           Foreground="{Binding MauNhietDo}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="ĐIỆN ÁP (V)" Binding="{Binding DienAp, StringFormat='{}{0:F1} V'}" Width="90"/>
+                    <DataGridTextColumn Header="DÒNG (A)" Binding="{Binding DongDien, StringFormat='{}{0:F1} A'}" Width="85"/>
+                    <DataGridTextColumn Header="SỐ LẦN SẠC" Binding="{Binding SoLanSac}" Width="95"/>
+                    <DataGridTextColumn Header="TRẠNG THÁI" Binding="{Binding TrangThai}" FontWeight="SemiBold" Width="*"/>
+
+                    <DataGridTemplateColumn Header="THAO TÁC" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="🛠️ Kiểm định" Classes="outline" 
+                                        Padding="8,3" FontSize="11" FontWeight="SemiBold"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Tag="{Binding}" Click="BtnRowMaintain_Click"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Panel Kiểm định & Bảo trì chi tiết (Hiển thị khi chọn pin) -->
+        <Border x:Name="pnlInspection" Grid.Row="3" Classes="card" Background="#F8FAFC" Margin="0,16,0,0" IsVisible="False">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="🛠️ BẢNG ĐIỀU KHIỂN BẢO TRÌ BMS:" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="txtInspectPinId" Text="PIN-001" FontWeight="Bold" FontSize="14" Foreground="{StaticResource SecondaryBrush}"/>
+                    </StackPanel>
+                    <Button Content="✕ Đóng" Classes="outline" HorizontalAlignment="Right" Padding="6,2" FontSize="11" Click="BtnCloseInspect_Click"/>
+                </Grid>
+
+                <Border Grid.Row="1" x:Name="bdrDiagnosticResult" CornerRadius="8" Padding="12" Margin="0,0,0,10" Background="#FEF2F2">
+                    <StackPanel>
+                        <TextBlock x:Name="txtDiagnosticTitle" Text="🚨 BÁO ĐỘNG SỰ CỐ" FontWeight="Bold" FontSize="13" Foreground="{StaticResource DangerBrush}"/>
+                        <TextBlock x:Name="txtDiagnosticDesc" Text="SoC 100% • SoH 100% • Nhiệt độ 58.0°C. Cần làm mát khẩn cấp!" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="Mã pin mới thay thế (nếu cần):" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBox x:Name="txtNewPinCode" Width="140" Classes="modern" Text="PIN-NEW01"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="btnCoolAndReset" Content="❄️ Bảo dưỡng / Hạ nhiệt về 25°C" Classes="primary" Click="BtnCoolAndReset_Click"/>
+                        <Button x:Name="btnReplaceBattery" Content="🔄 Thay thế bằng pin mới" Classes="outline" Click="BtnReplaceBattery_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,236 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BatterySwapping.App.Avalonia.Views.Admin.StationDashboardView">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Tiêu đề & Chọn trạm -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="🏭 BẢNG ĐIỀU KHIỂN &amp; GIÁM SÁT MẠNG LƯỚI TRẠM SẠC IOT" 
+                                   FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <Border x:Name="pnlTelemetryBadge" Background="#DCFCE7" CornerRadius="4" Padding="8,3" Margin="12,0,0,0">
+                            <TextBlock x:Name="txtTelemetryStatus" Text="● TELEMETRY ONLINE" FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock x:Name="lblStationAddress" Text="Trạm Đổi Pin ĐH Bách Khoa Hà Nội • Cổng Parabol Giải Phóng" 
+                               FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="txtActionFeedback" Text="" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PrimaryDarkBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                    <TextBlock Text="Chọn Trạm:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    <ComboBox x:Name="cboStations" Width="200" Height="38" SelectionChanged="CboStations_SelectionChanged"/>
+                    <Button Content="🔄 Làm mới" Classes="outline" Height="38" Click="BtnRefresh_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- 4 Thẻ chỉ số KPI -->
+            <Grid Grid.Row="1" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="DOANH THU HÔM NAY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblTodayRevenue" Text="0 đ" FontSize="20" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Đơn giá: 25.000 đ/lượt" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="TỔNG LƯỢT ĐỔI PIN" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblTotalSwaps" Text="0 lượt" FontSize="20" FontWeight="Bold" Foreground="{StaticResource SecondaryBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="An toàn chu kỳ 100%" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="4" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="PIN ĐÃ ĐẦY (SoC ≥ 90%)" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblReadyBatteries" Text="0 / 8 pin" FontSize="20" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Đạt chuẩn nhiệt độ &lt; 45°C" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="6" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="CẢNH BÁO AN TOÀN IOT" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblActiveAlerts" Text="0 sự cố" FontSize="20" FontWeight="Bold" Foreground="{StaticResource DangerBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Giám sát BMS liên tục 2s" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Tiêu đề Sơ đồ 8 ngăn tủ & Chú giải LED -->
+            <Grid Grid.Row="2" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="SƠ ĐỒ PHẦN CỨNG 8 HỘC TỦ TRẠM SẠC THÔNG MINH" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <Border Background="#E0F2FE" CornerRadius="4" Padding="6,2" Margin="10,0,0,0">
+                        <TextBlock Text="TỦ 8 NGĂN CÔNG NGHIỆP" FontSize="10" FontWeight="Bold" Foreground="#0284C7"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- Chú giải LED -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                        <Border Width="10" Height="10" Background="#10B981" CornerRadius="5"/>
+                        <TextBlock Text="Đã đầy" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                        <Border Width="10" Height="10" Background="#F59E0B" CornerRadius="5"/>
+                        <TextBlock Text="Đang sạc" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                        <Border Width="10" Height="10" Background="#38BDF8" CornerRadius="5"/>
+                        <TextBlock Text="Cửa mở" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                        <Border Width="10" Height="10" Background="#64748B" CornerRadius="5"/>
+                        <TextBlock Text="Khay trống" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                        <Border Width="10" Height="10" Background="#EF4444" CornerRadius="5"/>
+                        <TextBlock Text="Quá nhiệt / Khóa" FontSize="11"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- Nút điều khiển toàn trạm (Emergency Cutoff / Restore) -->
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,0,0,12">
+                <Button Content="🚨 Ngắt sạc toàn trạm khẩn cấp" Classes="danger" Click="CutoffClick" Padding="12,6" FontSize="12"/>
+                <Button Content="🔄 Khôi phục trạm" Classes="outline" Click="RestoreClick" Padding="12,6" FontSize="12"/>
+            </StackPanel>
+
+            <!-- KHUNG TỦ SẠC CÔNG NGHIỆP 8 HỘC (2 HÀNG x 4 CỘT) -->
+            <Border Grid.Row="4" Background="#0F172A" CornerRadius="16" BorderBrush="#1E293B" BorderThickness="3" Padding="12">
+                <ItemsControl x:Name="icSlots">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="4"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{Binding MauVienHoc}" 
+                                    BorderThickness="2" 
+                                    Background="{Binding NenKhoangTu}" 
+                                    CornerRadius="12" 
+                                    Margin="6" 
+                                    Padding="12">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Header Ngăn: Số thứ tự + LED trạng thái + Door Pill -->
+                                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                                            <TextBlock Text="{Binding TenHocTu}" FontWeight="Bold" FontSize="13" Foreground="White"/>
+                                            <Border Width="8" Height="8" CornerRadius="4" Background="{Binding MauTrangThai}"/>
+                                        </StackPanel>
+                                        <Border HorizontalAlignment="Right" Background="{Binding MauTrangThaiCua}" CornerRadius="4" Padding="6,2">
+                                            <TextBlock Text="{Binding TrangThaiCuaText}" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- Khoang hộc tủ chứa pin -->
+                                    <Border Grid.Row="1" Background="#1E293B" CornerRadius="8" Padding="10,8" Margin="0,0,0,8" BorderBrush="#334155" BorderThickness="1">
+                                        <Grid>
+                                            <!-- Nếu Có Pin -->
+                                            <StackPanel IsVisible="{Binding CoPin}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Text="🔋" FontSize="13"/>
+                                                    <TextBlock Text="{Binding MaPinHienTai}" FontSize="13" FontWeight="Bold" Foreground="#38BDF8"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding LoaiPin, FallbackValue='Lithium LFP 72V'}" FontSize="10" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Nếu Khay Trống -->
+                                            <StackPanel IsVisible="{Binding !CoPin}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="[ KHAY TRỐNG ]" FontSize="12" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Sẵn sàng nhận pin" FontSize="10" Foreground="#475569" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Progress bar SoC -->
+                                    <Grid Grid.Row="2" Margin="0,0,0,8">
+                                        <ProgressBar Value="{Binding SoC}" Minimum="0" Maximum="100" Height="6" 
+                                                     Foreground="{Binding MauTrangThai}" Background="#1E293B"/>
+                                    </Grid>
+
+                                    <!-- Thông số Telemetry BMS -->
+                                    <Grid Grid.Row="3" Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{Binding SoC, StringFormat='SoC: {0:F0}%'}" FontSize="11" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+                                            <TextBlock Text="{Binding SoH, StringFormat='SoH: {0:F0}%'}" FontSize="10" Foreground="#94A3B8"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding NhietDo, StringFormat='Nhiệt: {0:F1}°C'}" FontSize="11" FontWeight="Bold" Foreground="{Binding MauNhietDo}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding DongDien, StringFormat='Dòng: {0:F1}A'}" FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Right"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Nút điều khiển phần cứng ngăn tủ -->
+                                    <Grid Grid.Row="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Mở cửa hộc" 
+                                                Background="#334155" Foreground="White" BorderThickness="0" 
+                                                Padding="4,6" FontSize="11" FontWeight="SemiBold"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Click="BtnOpenDoor_Click" Tag="{Binding SoThuTu}"/>
+                                        <Button Grid.Column="2" Content="Khóa bảo trì" 
+                                                Background="#1E293B" Foreground="#F87171" BorderBrush="#EF4444" BorderThickness="1" 
+                                                Padding="4,6" FontSize="11" FontWeight="SemiBold"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                Click="BtnToggleLock_Click" Tag="{Binding SoThuTu}"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

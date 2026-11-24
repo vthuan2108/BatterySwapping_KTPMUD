@@ -1,4 +1,4 @@
-<Window x:Class="BatterySwapping.App.Views.Dialogs.BatteryMaintenanceDialog"
+﻿<Window x:Class="BatterySwapping.App.Views.Dialogs.BatteryMaintenanceDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Kiểm Định &amp; Bảo Trì Thay Thế Pin (Kỹ Thuật Viên)" 

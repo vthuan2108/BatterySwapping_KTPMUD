@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using BatterySwapping.App.Models;
 using BatterySwapping.App.Services;
@@ -18,8 +18,16 @@ namespace BatterySwapping.App.Views.Dialogs
             _stationService = new StationService();
         }
 
-        private void BtnSave_Click(object sender, RoutedEventArgs e)
+        private bool _saving;
+        private async void BtnSave_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
+            if(_saving)return;_saving=true;
+            try {
+
             string maTram = txtMaTram?.Text?.Trim() ?? string.Empty;
             string tenTram = txtTenTram?.Text?.Trim() ?? string.Empty;
             string diaChi = txtDiaChi?.Text?.Trim() ?? string.Empty;
@@ -51,17 +59,23 @@ namespace BatterySwapping.App.Views.Dialogs
                 NgayLapDat = DateTime.Now
             };
 
-            if (_stationService.AddStation(tram, out string errorMessage))
+            var outcome = await _stationService.AddStation(tram);
+            if (outcome.Success)
             {
-                MessageBox.Show($"Đã tạo mới thành công trạm '{tenTram}' ({maTram}) kèm {soLuongNgan} ngăn tủ!", 
+                MessageBox.Show($"Đã tạo mới thành công trạm '{tenTram}' ({maTram}) kèm {soLuongNgan} ngăn tủ!",
                                 "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();
             }
             else
             {
-                MessageBox.Show($"Không thể tạo trạm mới:\n{errorMessage}", "Lỗi tạo trạm", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Không thể tạo trạm mới:\n{outcome.Error}", "Lỗi tạo trạm", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+
+            } finally {_saving=false;}
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using BatterySwapping.App.Services;
@@ -33,7 +33,7 @@ namespace BatterySwapping.App.Views.Kiosk
 
         private void BtnPrint_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Lệnh in hóa đơn nhiệt đã được gửi tới máy in tại trạm!", "In biên lai", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Biên lai đang hiển thị trên màn hình. Chưa kết nối máy in thực tế.", "In biên lai", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 }

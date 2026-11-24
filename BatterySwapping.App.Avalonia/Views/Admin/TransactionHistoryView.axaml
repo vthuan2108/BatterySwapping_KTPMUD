@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BatterySwapping.App.Avalonia.Views.Admin.TransactionHistoryView">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tiêu đề & Làm mới -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="📜 LỊCH SỬ GIAO DỊCH ĐỔI PIN &amp; NẠP TIỀN" 
+                           FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Nhật ký đối soát giao dịch (Audit Logs) đảm bảo tính toàn vẹn tài chính hệ thống" 
+                           FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <Button Grid.Column="1" Content="🔄 Làm mới" Classes="outline" Click="BtnRefresh_Click"/>
+        </Grid>
+
+        <!-- Tab chuyển đổi giữa Đổi pin và Nạp tiền -->
+        <TabControl Grid.Row="1">
+            <!-- Tab 1: Đổi Pin -->
+            <TabItem Header="⚡ LỊCH SỬ ĐỔI PIN TỰ ĐỘNG" FontSize="13" FontWeight="SemiBold">
+                <Border Classes="card" Padding="0" Margin="0,10,0,0" Background="White">
+                    <DataGrid x:Name="dgSwapHistory" 
+                              AutoGenerateColumns="False" 
+                              IsReadOnly="True"
+                              GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MÃ GD" Binding="{Binding MaGD}" FontWeight="Bold" Width="80"/>
+                            <DataGridTextColumn Header="KHÁCH HÀNG" Binding="{Binding TenKhachHang}" FontWeight="SemiBold" Width="160"/>
+                            <DataGridTextColumn Header="SĐT" Binding="{Binding SoDienThoai}" Width="120"/>
+                            <DataGridTextColumn Header="TRẠM SẠC" Binding="{Binding MaTram}" Width="120"/>
+                            <DataGridTextColumn Header="PIN ĐÃ TRẢ" Binding="{Binding MaPinTra}" Width="110"/>
+                            <DataGridTextColumn Header="SOC TRẢ" Binding="{Binding SoC_PinTra, StringFormat='{}{0:F1}%'}" Width="90"/>
+                            <DataGridTextColumn Header="PIN ĐÃ NHẬN" Binding="{Binding MaPinNhan}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="110"/>
+                            <DataGridTextColumn Header="SOC NHẬN" Binding="{Binding SoC_PinNhan, StringFormat='{}{0:F1}%'}" FontWeight="Bold" Width="90"/>
+                            <DataGridTextColumn Header="PHÍ DỊCH VỤ" Binding="{Binding PhiFormatted}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="120"/>
+                            <DataGridTextColumn Header="THỜI GIAN" Binding="{Binding ThoiGianBatDauFormatted}" Width="160"/>
+                            <DataGridTextColumn Header="TRẠNG THÁI" Binding="{Binding TrangThai}" FontWeight="SemiBold" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </TabItem>
+
+            <!-- Tab 2: Nạp Tiền -->
+            <TabItem x:Name="tabTopUps" Header="💳 LỊCH SỬ NẠP TIỀN VÍ" FontSize="13" FontWeight="SemiBold">
+                <Border Classes="card" Padding="0" Margin="0,10,0,0" Background="White">
+                    <DataGrid x:Name="dgPaymentHistory" 
+                              AutoGenerateColumns="False" 
+                              IsReadOnly="True"
+                              GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MÃ NẠP" Binding="{Binding MaNap}" FontWeight="Bold" Width="90"/>
+                            <DataGridTextColumn Header="KHÁCH HÀNG" Binding="{Binding TenKhachHang}" FontWeight="SemiBold" Width="180"/>
+                            <DataGridTextColumn Header="SỐ TIỀN" Binding="{Binding SoTienFormatted}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="140"/>
+                            <DataGridTextColumn Header="PHƯƠNG THỨC" Binding="{Binding PhuongThuc}" Width="140"/>
+                            <DataGridTextColumn Header="MÃ GD NGÂN HÀNG" Binding="{Binding MaGiaoDichNganHang, FallbackValue='--'}" Width="160"/>
+                            <DataGridTextColumn Header="THỜI GIAN" Binding="{Binding ThoiGianFormatted}" Width="160"/>
+                            <DataGridTextColumn Header="TRẠNG THÁI" Binding="{Binding TrangThai}" FontWeight="SemiBold" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

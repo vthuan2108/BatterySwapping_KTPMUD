@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using BatterySwapping.App.Models;
 using BatterySwapping.App.Services;
 using BatterySwapping.App.Views.Admin;
@@ -11,6 +11,11 @@ namespace BatterySwapping.App
     /// </summary>
     public partial class MainWindow : Window
     {
+        private void ReportConnectionError(string message){lblSystemStatus.Text="MẤT KẾT NỐI BACKEND: "+message;}
+        private System.Windows.Controls.TabControl? _transactionTabs;
+        private readonly OverviewView _overviewView;
+        private readonly SwapSessionsView _sessionsView;
+        private readonly CustomerDashboardView _walletView;
         private readonly SafetyMonitorService _safetyMonitorService;
         private readonly StationDashboardView _dashboardView;
         private readonly BatteryManagementView _batteryView;
@@ -21,11 +26,20 @@ namespace BatterySwapping.App
         public MainWindow(bool openInKioskMode = false)
         {
             InitializeComponent();
-            bool staff = !openInKioskMode && AuthService.CurrentUser?.VaiTro is "Admin" or "KyThuatVien";
-            foreach (var button in new[] { btnNavDashboard, btnNavBatteries, btnNavCustomers, btnNavTransactions, btnNavAlerts })
-                button.Visibility = staff ? Visibility.Visible : Visibility.Collapsed;
-            btnEmergencyCutoff.Visibility = staff ? Visibility.Visible : Visibility.Collapsed;
-            if (!staff) openInKioskMode = true;
+            BssApi.ConnectionError += ReportConnectionError;
+            Closed += (_,_)=>BssApi.ConnectionError -= ReportConnectionError;
+            var policy=NavigationPolicy.For(AuthService.CurrentUser?.VaiTro);
+            bool staff=policy.Staff && !openInKioskMode;
+            foreach(var button in new[]{btnNavOverview,btnNavDashboard,btnNavBatteries,btnNavAlerts})button.Visibility=staff?Visibility.Visible:Visibility.Collapsed;
+            btnNavOverview.Visibility=staff&&policy.WalletAdministration?Visibility.Visible:Visibility.Collapsed;
+            if(staff&&!policy.WalletAdministration){btnNavDashboard.Content="🏭  Giám sát tủ và BMS";btnNavBatteries.Content="🔋  Kiểm định pin";btnNavTransactions.Content="📜  Phiên cần hỗ trợ";}
+            btnNavCustomers.Visibility=staff&&policy.WalletAdministration?Visibility.Visible:Visibility.Collapsed;
+            btnNavKiosk.Visibility=policy.Kiosk||!staff?Visibility.Visible:Visibility.Collapsed;
+            btnNavWallet.Visibility=policy.Kiosk?Visibility.Visible:Visibility.Collapsed;
+            btnNavTransactions.Visibility=staff||policy.Kiosk?Visibility.Visible:Visibility.Collapsed;
+            btnEmergencyCutoff.Visibility=Visibility.Collapsed;
+            if(!staff)openInKioskMode=true;
+            _overviewView=new OverviewView();_walletView=new CustomerDashboardView();_sessionsView=new SwapSessionsView();
 
             _safetyMonitorService = new SafetyMonitorService();
             _dashboardView = new StationDashboardView();
@@ -33,6 +47,8 @@ namespace BatterySwapping.App
             _customerView = new CustomerManagementView();
             _transactionView = new TransactionHistoryView();
             _alertsView = new SafetyAlertsView();
+            _walletView.StartSwap+=OpenKioskMode;
+            _overviewView.StationSelected+=station=>{mainContentArea.Content=_dashboardView;_dashboardView.SelectStation(station);};
 
             // Hiển thị thông tin người dùng đăng nhập
             if (AuthService.CurrentUser != null)
@@ -67,17 +83,17 @@ namespace BatterySwapping.App
 
             // Đăng ký nhận cảnh báo an toàn thời gian thực
             _safetyMonitorService.OnEmergencyAlertTriggered += SafetyMonitorService_OnEmergencyAlertTriggered;
-            _safetyMonitorService.StartMonitoring(2000);
+            if(staff)_safetyMonitorService.StartMonitoring(2000);
 
             Loaded += (s, e) =>
             {
                 if (openInKioskMode)
                 {
-                    OpenKioskMode();
+                    mainContentArea.Content = policy.Kiosk ? _walletView : new KioskWelcomeView();
                 }
                 else
                 {
-                    mainContentArea.Content = _dashboardView;
+                    mainContentArea.Content = policy.WalletAdministration ? _overviewView : _alertsView;
                 }
             };
 
@@ -145,6 +161,8 @@ namespace BatterySwapping.App
 
         private void BtnNavKiosk_Click(object sender, RoutedEventArgs e)
         {
+            var role = AuthService.CurrentUser?.VaiTro;
+            if (NavigationPolicy.For(role).Staff && role != "Admin") return;
             OpenKioskMode();
         }
 
@@ -164,16 +182,21 @@ namespace BatterySwapping.App
 
         private void BtnNavCustomers_Click(object sender, RoutedEventArgs e)
         {
-            if (AuthService.CurrentUser?.VaiTro is not ("Admin" or "KyThuatVien")) return;
+            if (AuthService.CurrentUser?.VaiTro != "Admin") return;
             _customerView.LoadCustomers();
             mainContentArea.Content = _customerView;
         }
 
-        private void BtnNavTransactions_Click(object sender, RoutedEventArgs e)
+        private void BtnNavOverview_Click(object sender,RoutedEventArgs e){if(NavigationPolicy.For(AuthService.CurrentUser?.VaiTro).Staff)mainContentArea.Content=_overviewView;}
+        private void BtnNavWallet_Click(object sender,RoutedEventArgs e){if(NavigationPolicy.For(AuthService.CurrentUser?.VaiTro).Kiosk)mainContentArea.Content=_walletView;}
+        private void BtnNavTransactions_Click(object sender,RoutedEventArgs e)
         {
-            if (AuthService.CurrentUser?.VaiTro is not ("Admin" or "KyThuatVien")) return;
-            _transactionView.LoadData();
-            mainContentArea.Content = _transactionView;
+            var policy=NavigationPolicy.For(AuthService.CurrentUser?.VaiTro);if(!policy.Staff&&!policy.Kiosk)return;
+            if(_transactionTabs!=null){mainContentArea.Content=_transactionTabs;return;}
+            var tabs=new System.Windows.Controls.TabControl();_transactionTabs=tabs;
+            tabs.Items.Add(new System.Windows.Controls.TabItem{Header=policy.Staff?"📋  Phiên và cần hỗ trợ":"📋  Phiên của tôi",Content=_sessionsView});
+            if(policy.WalletAdministration)tabs.Items.Add(new System.Windows.Controls.TabItem{Header="📜  Lịch sử giao dịch",Content=_transactionView});
+            mainContentArea.Content=tabs;
         }
 
         private void BtnNavAlerts_Click(object sender, RoutedEventArgs e)
@@ -183,24 +206,24 @@ namespace BatterySwapping.App
             mainContentArea.Content = _alertsView;
         }
 
-        private void BtnEmergencyCutoff_Click(object sender, RoutedEventArgs e)
+        private async void BtnEmergencyCutoff_Click(object sender, RoutedEventArgs e)
         {
             if (AuthService.CurrentUser?.VaiTro is not ("Admin" or "KyThuatVien")) return;
             if (MessageBox.Show("BẠN CÓ CHẮC CHẮN MUỐN KÍCH HOẠT LỆNH NGẮT SẠC TOÀN BỘ TRẠM?\n\nToàn bộ các khay sạc sẽ dừng dòng điện và khóa chốt bảo vệ khẩn cấp.", 
                                 "CẢNH BÁO AN TOÀN", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             {
-                try { _safetyMonitorService.EmergencyCutoffStation(_dashboardView.CurrentStationId); }
+                try { await _safetyMonitorService.EmergencyCutoffStation(_dashboardView.CurrentStationId); }
                 catch (System.Exception ex) { MessageBox.Show(ex.Message, "Ngắt sạc thất bại"); return; }
                 MessageBox.Show("Lệnh ngắt sạc toàn trạm đã được phát đi thành công!", "Hệ thống bảo vệ", MessageBoxButton.OK, MessageBoxImage.Information);
                 _dashboardView.RefreshData();
             }
         }
 
-        private void BtnLogout_Click(object sender, RoutedEventArgs e)
+        private async void BtnLogout_Click(object sender, RoutedEventArgs e)
         {
             if (MessageBox.Show("Bạn có muốn đăng xuất khỏi hệ thống?", "Xác nhận", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                new AuthService().Logout();
+                await new AuthService().Logout();
                 var login = new Views.LoginWindow();
                 login.Show();
                 this.Close();
@@ -210,3 +233,4 @@ namespace BatterySwapping.App
         #endregion
     }
 }
+

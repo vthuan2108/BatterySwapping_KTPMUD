@@ -1,4 +1,4 @@
-<Window x:Class="BatterySwapping.App.Views.Dialogs.TopUpWalletDialog"
+﻿<Window x:Class="BatterySwapping.App.Views.Dialogs.TopUpWalletDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Nạp Tiền Vào Ví Đổi Pin" Height="420" Width="420"

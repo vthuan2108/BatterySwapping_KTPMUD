@@ -1,0 +1,121 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BatterySwapping.App.Avalonia.Views.Admin.OverviewView">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Tiêu đề & Trạng thái -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="📊 TỔNG QUAN HỆ THỐNG MẠNG LƯỚI TRẠM ĐỔI PIN" 
+                               FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock x:Name="txtStatus" 
+                               Text="Đang tải dữ liệu báo cáo vận hành..." 
+                               FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <Button Grid.Column="1" Content="🔄 Làm mới" Classes="outline" Height="38" Click="BtnRefresh_Click"/>
+            </Grid>
+
+            <!-- 4 Thẻ KPI Cards -->
+            <Grid Grid.Row="1" Margin="0,0,0,24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- KPI 1: Doanh thu hôm nay -->
+                <Border Grid.Column="0" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="DOANH THU HÔM NAY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblRevenue" Text="0 đ" FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Margin="0,6,0,0"/>
+                        <TextBlock Text="Đơn giá: 25.000 đ/lượt" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- KPI 2: Tổng lượt đổi -->
+                <Border Grid.Column="2" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="TỔNG LƯỢT ĐỔI PIN" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblSwaps" Text="0 lượt" FontSize="22" FontWeight="Bold" Foreground="{StaticResource SecondaryBrush}" Margin="0,6,0,0"/>
+                        <TextBlock Text="An toàn chu kỳ 100%" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- KPI 3: Pin sẵn sàng -->
+                <Border Grid.Column="4" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="PIN SẴN SÀNG (SoC ≥ 90%)" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblReadyBatteries" Text="0 / 0 pin" FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Margin="0,6,0,0"/>
+                        <TextBlock Text="Nhiệt độ BMS &lt; 45°C" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- KPI 4: Cảnh báo chưa xử lý -->
+                <Border Grid.Column="6" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="CẢNH BÁO IOT CHƯA XỬ LÝ" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="lblAlerts" Text="0 sự cố" FontSize="22" FontWeight="Bold" Foreground="{StaticResource DangerBrush}" Margin="0,6,0,0"/>
+                        <TextBlock Text="BMS cập nhật thời gian thực" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Tiêu đề Bảng trạm -->
+            <Grid Grid.Row="2" Margin="0,0,0,12">
+                <TextBlock Text="DANH SÁCH TRẠM ĐỔI PIN ĐANG HOẠT ĐỘNG" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Nhấp đúp chuột hoặc bấm 'Vận hành' để xem chi tiết tủ sạc" 
+                           HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- DataGrid Danh sách trạm -->
+            <Border Grid.Row="3" Classes="card" Padding="0" Background="White">
+                <DataGrid x:Name="dgStations" 
+                          AutoGenerateColumns="False" 
+                          IsReadOnly="True"
+                          GridLinesVisibility="Horizontal"
+                          DoubleTapped="DgStations_DoubleTapped"
+                          MinHeight="300">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="MÃ TRẠM" Binding="{Binding MaTram}" FontWeight="Bold" Width="130"/>
+                        <DataGridTextColumn Header="TÊN TRẠM PIN" Binding="{Binding TenTram}" FontWeight="SemiBold" Width="*"/>
+                        <DataGridTextColumn Header="ĐỊA CHỈ" Binding="{Binding DiaChi}" Width="250"/>
+                        <DataGridTextColumn Header="TRẠNG THÁI" Binding="{Binding TrangThaiHoatDong}" Width="130"/>
+                        <DataGridTextColumn Header="SỐ NGĂN" Binding="{Binding SoLuongNgan}" Width="90"/>
+                        <DataGridTemplateColumn Header="THAO TÁC" Width="140">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="🏭 Vận hành" 
+                                            Classes="outline" 
+                                            Padding="10,4" 
+                                            FontSize="12" 
+                                            HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"
+                                            Click="BtnInspectStation_Click"
+                                            Tag="{Binding}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

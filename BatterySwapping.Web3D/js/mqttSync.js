@@ -1,125 +1,144 @@
-/**
- * mqttSync.js
- * MQTT over WebSocket Client for BSS Digital Twin Telemetry & Commands
- * Broker Default: broker.emqx.io:8084 (Secure WSS) or local WebSocket
- */
-
-const MqttSync = (function () {
+const MqttSync = (() => {
   let client = null;
-  let isConnected = false;
-  let stationId = "TRAM-BK01";
-  let commandCallback = null;
-  let telemetryInterval = null;
+  let sequence = 0;
+  const leases = {}; // stationId -> lease object
+  let stationList = ["TRAM-BK01", "TRAM-CG02"];
+  const clientId = crypto.randomUUID();
 
-  const DEFAULT_BROKER = "wss://broker.emqx.io:8084/mqtt";
-  const TELEMETRY_TOPIC = `bss/station/${stationId}/telemetry`;
-  const COMMAND_TOPIC = `bss/station/${stationId}/commands`;
-
-  function init(onCommandReceived) {
-    commandCallback = onCommandReceived;
+  async function json(path, options = {}) {
+    const r = await fetch("/api/v1/" + path, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      const error = Error(e.error || `Lỗi kết nối ${r.status}`);
+      error.status = r.status;
+      throw error;
+    }
+    return r.json();
   }
 
-  function connect(brokerUrl = DEFAULT_BROKER, onStatusChange = null) {
-    if (typeof mqtt === "undefined") {
-      console.warn("[MQTT] Thư viện mqtt.min.js chưa được tải. Hoạt động ở chế độ Mock Offline.");
-      if (onStatusChange) onStatusChange(false, "Thư viện MQTT chưa nạp");
-      return;
-    }
+  async function connect(stations, handler, onStatus) {
+    stationList = Array.isArray(stations) ? stations : [stations];
+    const config = await json("device/config");
 
-    try {
-      const clientId = `bss_web3d_${Math.random().toString(16).substr(2, 8)}`;
-      console.log(`[MQTT] Đang kết nối tới ${brokerUrl} với ID: ${clientId}...`);
-
-      client = mqtt.connect(brokerUrl, {
-        clientId: clientId,
-        clean: true,
-        connectTimeout: 5000,
-        reconnectPeriod: 10000,
-      });
-
-      client.on("connect", () => {
-        isConnected = true;
-        console.log(`[MQTT] Đã kết nối thành công tới ${brokerUrl}!`);
-        client.subscribe(COMMAND_TOPIC, (err) => {
-          if (!err) {
-            console.log(`[MQTT] Đã lắng nghe topic điều khiển: ${COMMAND_TOPIC}`);
-          }
+    // Acquire device leases for all stations
+    for (const st of stationList) {
+      try {
+        const l = await json("device/lease", {
+          method: "POST",
+          body: JSON.stringify({ stationId: st, clientId }),
         });
+        leases[st] = l;
+      } catch (err) {
+        console.warn(`Could not lease ${st}:`, err.message);
+      }
+    }
 
-        if (onStatusChange) onStatusChange(true, "Đã kết nối Cloud EMQX");
+    client = mqtt.connect(config.brokerUrl, {
+      clientId: "bss_sim_" + clientId,
+      username: config.username,
+      password: config.password,
+      clean: true,
+      reconnectPeriod: 1000,
+      connectTimeout: 4000,
+    });
+
+    client.on("connect", () => {
+      // Subscribe to commands for all stations using MQTT wildcard +
+      client.subscribe("bss/station/+/commands", { qos: 1 }, (err) => {
+        onStatus(!err, err ? "Không đăng ký được MQTT" : "MQTT cục bộ đã kết nối (2 trạm)");
       });
+    });
 
-      client.on("message", (topic, message) => {
-        try {
-          const payload = JSON.parse(message.toString());
-          console.log(`[MQTT] Nhận lệnh từ ${topic}:`, payload);
-          if (commandCallback) {
-            commandCallback(payload);
-          }
-        } catch (e) {
-          console.error("[MQTT] Lỗi parse JSON lệnh:", e);
+    client.on("close", () => onStatus(false, "MQTT mất kết nối"));
+    client.on("error", () => onStatus(false, "Không kết nối được broker"));
+
+    client.on("message", (topic, payload) => {
+      try {
+        const c = JSON.parse(payload.toString());
+        const topicParts = topic.split("/");
+        const topicStation = topicParts[2];
+        const targetStation = c.stationId || topicStation;
+        if (targetStation && c.schemaVersion === 1) {
+          c.stationId = targetStation;
+          handler(c);
         }
-      });
+      } catch (e) {
+        console.error("Command rejected", e.message);
+      }
+    });
 
-      client.on("error", (err) => {
-        console.warn("[MQTT] Lỗi kết nối MQTT:", err.message);
-        isConnected = false;
-        if (onStatusChange) onStatusChange(false, "Lỗi kết nối");
-      });
-
-      client.on("close", () => {
-        isConnected = false;
-        if (onStatusChange) onStatusChange(false, "Mất kết nối");
-      });
-    } catch (ex) {
-      console.error("[MQTT] Ngoại lệ khi kết nối:", ex);
-      isConnected = false;
-      if (onStatusChange) onStatusChange(false, ex.message);
-    }
+    return leases;
   }
 
-  function disconnect(onStatusChange = null) {
-    if (client) {
-      client.end(true);
-      client = null;
-    }
-    isConnected = false;
-    if (onStatusChange) onStatusChange(false, "Chế độ Offline");
-  }
+  function publish(targetStationOrKind, kindOrSlots, slotsOrExtra = [], extra = {}) {
+    let stationId, kind, slots, additional;
 
-  function publishTelemetry(slotsData) {
-    const payload = {
+    // Support both publish(stationId, kind, slots, extra) and legacy publish(kind, slots, extra)
+    if (typeof targetStationOrKind === "string" && (targetStationOrKind.startsWith("TRAM-") || stationList.includes(targetStationOrKind))) {
+      stationId = targetStationOrKind;
+      kind = kindOrSlots;
+      slots = slotsOrExtra || [];
+      additional = extra || {};
+    } else {
+      stationId = stationList[0] || "TRAM-BK01";
+      kind = targetStationOrKind;
+      slots = kindOrSlots || [];
+      additional = slotsOrExtra || {};
+    }
+
+    const lease = leases[stationId];
+    if (!client?.connected || !lease) return false;
+
+    const message = {
+      schemaVersion: 1,
       stationId: stationId,
+      leaseId: lease.leaseId,
+      messageId: crypto.randomUUID(),
+      sequence: ++sequence,
       timestamp: new Date().toISOString(),
-      gridVoltage: 380.0,
-      totalPowerKW: (slotsData.filter((s) => s.isCharging).length * 1.2).toFixed(2),
-      slots: slotsData.map((s) => ({
-        slotId: s.id,
+      event: null,
+      commandId: null,
+      sessionId: null,
+      slotNumber: null,
+      batteryId: null,
+      success: true,
+      slots: slots.map((s) => ({
+        slotNumber: s.id,
         batteryId: s.batteryId,
-        hasBattery: s.hasBattery,
-        soc: parseFloat(s.soc.toFixed(1)),
-        soh: parseFloat(s.soh.toFixed(1)),
-        temperature: parseFloat(s.temperature.toFixed(1)),
-        voltage: parseFloat(s.voltage.toFixed(1)),
-        current: parseFloat(s.current.toFixed(1)),
+        soc: s.soc,
+        soh: s.soh,
+        temperature: s.temperature,
+        voltage: s.voltage,
+        current: s.current,
         isCharging: s.isCharging,
         isDoorOpen: s.isDoorOpen,
-        isOverheated: s.isOverheated,
-        status: s.isOverheated ? "OVERHEAT_ALARM" : (!s.hasBattery ? "EMPTY" : (s.soc >= 90 ? "READY" : "CHARGING")),
+        isLocked: s.isLocked,
       })),
+      ...additional,
     };
 
-    if (isConnected && client) {
-      client.publish(TELEMETRY_TOPIC, JSON.stringify(payload));
-    }
-    return payload;
+    client.publish(`bss/station/${stationId}/${kind}`, JSON.stringify(message), {
+      qos: kind === "telemetry" ? 0 : 1,
+      retain: false,
+    });
+    return true;
   }
 
   return {
-    init,
     connect,
-    disconnect,
-    publishTelemetry,
-    isConnected: () => isConnected,
+    publish,
+    json,
+    connected: () => !!client?.connected,
+    clientId: () => clientId,
+    leaseId: (st) => leases[st || stationList[0]]?.leaseId,
+    isLeased: (st) => !!leases[st]?.leaseId,
+    disconnect: () => {
+      client?.end(true);
+      client = null;
+    },
   };
 })();

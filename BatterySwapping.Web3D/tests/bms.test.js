@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const Bms = require('../js/bmsModel.js');
+let s={hasBattery:true,soc:50,soh:96,temperature:28,voltage:72,current:15,isCharging:true,isLocked:false,isOverheated:false};
+Bms.step(s,60,1);assert(Math.abs(s.soc-(50+0.8333333/0.96))<0.01,'charge follows amp-hours');
+s.temperature=65;Bms.step(s,1,60);assert.equal(s.current,0);assert.equal(s.isLocked,true);
+s={hasBattery:true,soc:99.99,soh:96,temperature:28,isCharging:true,isLocked:false,isOverheated:false};
+Bms.step(s,60,60);assert.equal(s.soc,100);assert.equal(s.current,0);
+let a={hasBattery:true,soc:50,soh:96,temperature:28,isCharging:true,isLocked:false,isOverheated:false};
+let b={...a};Bms.step(a,1,60);Bms.step(b,60,1);assert(Math.abs(a.soc-b.soc)<0.001);assert.equal(a.soh,96);
+console.log('PASS BMS charge, cutoff, full charge, time scale, stable SoH');

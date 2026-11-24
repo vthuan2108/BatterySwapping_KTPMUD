@@ -1,8 +1,1 @@
-<Application x:Class="BatterySwapping.Simulator.App"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="MainWindow.xaml">
-    <Application.Resources>
-         <!-- Simulator Styles -->
-    </Application.Resources>
-</Application>
+<Application x:Class="BatterySwapping.Simulator.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Application.Resources/></Application>

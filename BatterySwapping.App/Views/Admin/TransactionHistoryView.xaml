@@ -1,4 +1,4 @@
-<UserControl x:Class="BatterySwapping.App.Views.Admin.TransactionHistoryView"
+﻿<UserControl x:Class="BatterySwapping.App.Views.Admin.TransactionHistoryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FontFamily="Segoe UI">
@@ -45,7 +45,7 @@
             </TabItem>
 
             <!-- Tab 2: Nạp Tiền -->
-            <TabItem Header="💳 LỊCH SỬ NẠP TIỀN VÍ" FontSize="13" FontWeight="SemiBold" Padding="16,8">
+            <TabItem x:Name="topupsTab" Header="💳 LỊCH SỬ NẠP TIỀN VÍ" FontSize="13" FontWeight="SemiBold" Padding="16,8">
                 <Border Style="{StaticResource CardBorderStyle}" Padding="0" Margin="0,10,0,0">
                     <DataGrid x:Name="dgPaymentHistory" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                               BorderThickness="0" Background="White" RowHeight="36" HeadersVisibility="Column"

@@ -1,8 +1,8 @@
-using System;
-using System.Data;
+﻿using System;
+
 using System.Windows;
 using System.Windows.Media;
-using Microsoft.Data.SqlClient;
+
 using BatterySwapping.App.Helpers;
 using BatterySwapping.App.Models;
 using BatterySwapping.App.Services;
@@ -28,29 +28,28 @@ namespace BatterySwapping.App.Views.Dialogs
 
             if (!string.IsNullOrEmpty(stationId)) _stationId = stationId;
             if (slotNumber.HasValue && slotNumber.Value > 0) _slotNumber = slotNumber.Value;
-            else DetectSlotForBattery();
+
 
             Loaded += BatteryMaintenanceDialog_Loaded;
         }
 
-        private void DetectSlotForBattery()
+        private async Task DetectSlotForBattery()
         {
-            try
+            foreach(var station in await new StationService().GetAllStations())
             {
-                string sql = "SELECT TOP 1 MaTram, SoThuTu FROM dbo.NganTu WHERE MaPinHienTai = @MaPin";
-                var param = new SqlParameter("@MaPin", SqlDbType.VarChar, 20) { Value = _pin.MaPin };
-                DataTable dt = DatabaseHelper.ExecuteDataTable(sql, param);
-                if (dt.Rows.Count > 0)
-                {
-                    _stationId = dt.Rows[0]["MaTram"].ToString() ?? "TRAM-BK01";
-                    _slotNumber = Convert.ToInt32(dt.Rows[0]["SoThuTu"]);
-                }
+                var slot=(await new StationService().GetCabinetSlots(station.MaTram)).Find(n=>n.MaPinHienTai==_pin.MaPin);
+                if(slot!=null){_stationId=station.MaTram;_slotNumber=slot.SoThuTu;return;}
             }
-            catch { }
+            throw new InvalidOperationException("Pin chưa nằm trong ngăn tủ; không thể bảo trì tại trạm.");
         }
 
-        private void BatteryMaintenanceDialog_Loaded(object sender, RoutedEventArgs e)
+        private async void BatteryMaintenanceDialog_Loaded(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
+            await DetectSlotForBattery();
             lblMaPin.Text = $"{_pin.MaPin} (Khay #{_slotNumber} - {_stationId})";
             lblLoaiPin.Text = _pin.LoaiPin;
             lblSoC.Text = $"{_pin.SoC:F1}%";
@@ -61,7 +60,7 @@ namespace BatterySwapping.App.Views.Dialogs
             lblTrangThai.Text = _pin.TrangThai;
 
             // Đánh giá chẩn đoán chi tiết từ BatteryService
-            var inspection = _batteryService.InspectBattery(_pin.MaPin);
+            var inspection = await _batteryService.InspectBattery(_pin.MaPin);
             if (inspection != null)
             {
                 lblDiagnosticDesc.Text = $"{inspection.HealthStatusDescription}\nKhuyến nghị: {inspection.RecommendedAction}";
@@ -90,14 +89,22 @@ namespace BatterySwapping.App.Views.Dialogs
 
             // Gợi ý mã pin mới
             txtNewPinId.Text = $"PIN-0{DateTime.Now:ss}";
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
-        private void BtnMaintain_Click(object sender, RoutedEventArgs e)
+        private async void BtnMaintain_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
             string technicianName = AuthService.CurrentUser?.HoTen ?? "Kỹ thuật viên Trạm";
             string note = txtNote?.Text?.Trim() ?? "Bảo dưỡng kỹ thuật BMS hoàn tất";
 
-            if (_batteryService.MaintainBattery(_stationId, _slotNumber, _pin.MaPin, technicianName, note, out string errorMessage))
+            var outcome = await _batteryService.MaintainBattery(_stationId, _slotNumber, _pin.MaPin, technicianName, note);
+            if (outcome.Success)
             {
                 MessageBox.Show($"Đã hoàn tất bảo dưỡng pin {_pin.MaPin} tại trạm {_stationId} (Ngăn #{_slotNumber})!\n" +
                                 $"• Nhiệt độ đã hạ về 25°C an toàn\n" +
@@ -109,12 +116,19 @@ namespace BatterySwapping.App.Views.Dialogs
             }
             else
             {
-                MessageBox.Show($"Bảo dưỡng thất bại:\n{errorMessage}", "Lỗi bảo dưỡng", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Bảo dưỡng thất bại:\n{outcome.Error}", "Lỗi bảo dưỡng", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
-        private void BtnReplace_Click(object sender, RoutedEventArgs e)
+        private async void BtnReplace_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
             string newPinId = txtNewPinId?.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(newPinId))
             {
@@ -132,7 +146,8 @@ namespace BatterySwapping.App.Views.Dialogs
                                 $"Bạn có chắc chắn muốn thực hiện nghiệp vụ này?",
                                 "Xác nhận thay thế pin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                if (_batteryService.ReplaceBattery(_stationId, _slotNumber, _pin.MaPin, newPinId, technicianName, note, out string errorMessage))
+                var outcome = await _batteryService.ReplaceBattery(_stationId, _slotNumber, _pin.MaPin, newPinId, technicianName, note);
+            if (outcome.Success)
                 {
                     MessageBox.Show($"Đã thay thế thành công viên pin {newPinId} vào khay #{_slotNumber} trạm {_stationId}!",
                                     "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -141,9 +156,12 @@ namespace BatterySwapping.App.Views.Dialogs
                 }
                 else
                 {
-                    MessageBox.Show($"Thay thế pin thất bại:\n{errorMessage}", "Lỗi thay thế", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Thay thế pin thất bại:\n{outcome.Error}", "Lỗi thay thế", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)

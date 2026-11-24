@@ -1,877 +1,995 @@
-/**
- * simulatorController.js - V2 (Real-world VinFast Kiosk Swap Flow & IoT Engine)
- * Features:
- * - Unobstructed 3D view with collapsible right sidebar
- * - Step-by-step Interactive Kiosk Swap Flow (QR scan, old battery insert, BMS check, full battery eject)
- * - Realtime synchronized 3D touchscreen texture on the cabinet
- * - Eject / Dock physics animation for batteries
- * - Overheat 3D particle smoke simulation (> 55°C)
- */
+const SimulatorController = (() => {
+  const STATION_IDS = ["TRAM-BK01", "TRAM-CG02"];
+  const $ = (id) => document.getElementById(id);
 
-const SimulatorController = (function () {
-  let scene, camera, renderer, controls;
-  let raycaster, mouse;
-  let cabinetData = null;
+  let view;
+  let activeStationId = new URLSearchParams(location.search).get("station") || "TRAM-BK01";
+  if (!STATION_IDS.includes(activeStationId)) activeStationId = "TRAM-BK01";
 
-  // Real-time slots state (8 slots matching DB)
-  const slotsData = [
-    { id: 1, batteryId: "PIN-001", hasBattery: true, isEjected: false, soc: 98.0, soh: 99.0, temperature: 31.0, voltage: 53.8, current: 0.0, isCharging: false, isOverheated: false },
-    { id: 2, batteryId: "PIN-002", hasBattery: true, isEjected: false, soc: 65.0, soh: 96.5, temperature: 36.5, voltage: 50.1, current: 12.0, isCharging: true, isOverheated: false },
-    { id: 3, batteryId: "PIN-003", hasBattery: true, isEjected: false, soc: 45.0, soh: 95.0, temperature: 38.0, voltage: 48.5, current: 15.0, isCharging: true, isOverheated: false },
-    { id: 4, batteryId: "PIN-004", hasBattery: true, isEjected: false, soc: 95.0, soh: 98.5, temperature: 30.5, voltage: 53.2, current: 0.0, isCharging: false, isOverheated: false },
-    { id: 5, batteryId: "PIN-005", hasBattery: true, isEjected: false, soc: 22.0, soh: 94.0, temperature: 34.5, voltage: 45.8, current: 15.0, isCharging: true, isOverheated: false },
-    { id: 6, batteryId: null, hasBattery: false, isEjected: false, soc: 0.0, soh: 0.0, temperature: 26.0, voltage: 0.0, current: 0.0, isCharging: false, isOverheated: false },
-    { id: 7, batteryId: "PIN-007", hasBattery: true, isEjected: false, soc: 88.0, soh: 97.0, temperature: 35.0, voltage: 52.0, current: 8.0, isCharging: true, isOverheated: false },
-    { id: 8, batteryId: null, hasBattery: false, isEjected: false, soc: 0.0, soh: 0.0, temperature: 25.5, voltage: 0.0, current: 0.0, isCharging: false, isOverheated: false },
-  ];
-
-  let selectedSlotId = 1;
-  let autoChargeActive = true;
-  let clock;
-  let hoveredSlotId = null;
-
-  // Kiosk Swap Flow State Machine
-  // STEPS: 'IDLE' -> 'INSERT_OLD' -> 'BMS_EVAL' -> 'EJECT_NEW' -> 'COMPLETED'
-  let kioskState = {
-    step: "IDLE",
-    driverName: "Nguyễn Văn A",
-    driverPhone: "0987654321",
-    walletBalance: 150000,
-    targetEmptySlotId: 6,
-    targetFullSlotId: 1,
-    oldBatterySoc: 18.0,
-    swapFee: 25000,
+  const stationData = {
+    "TRAM-BK01": {
+      id: "TRAM-BK01",
+      name: "Trạm 1: ĐH Bách Khoa Hà Nội",
+      shortName: "TRAM-BK01 • BÁCH KHOA",
+      address: "Cổng Parabol Giải Phóng, P. Bách Khoa, Hai Bà Trưng, Hà Nội",
+      posX: -1.55,
+      accentColor: "#38bdf8",
+      slots: [],
+      selectedSlot: 1,
+      snapshot: null,
+      commands: JSON.parse(localStorage.getItem("bss-commands:TRAM-BK01") || "{}"),
+      pending: JSON.parse(localStorage.getItem("bss-events:TRAM-BK01") || "[]"),
+      leased: false,
+    },
+    "TRAM-CG02": {
+      id: "TRAM-CG02",
+      name: "Trạm 2: Cầu Giấy",
+      shortName: "TRAM-CG02 • CẦU GIẤY",
+      address: "Số 144 Xuân Thủy, Q. Cầu Giấy, Hà Nội",
+      posX: 1.55,
+      accentColor: "#10b981",
+      slots: [],
+      selectedSlot: 1,
+      snapshot: null,
+      commands: JSON.parse(localStorage.getItem("bss-commands:TRAM-CG02") || "{}"),
+      pending: JSON.parse(localStorage.getItem("bss-events:TRAM-CG02") || "[]"),
+      leased: false,
+    },
   };
 
-  // DOM Elements cache
-  let dom = {};
+  let backend = false;
+  let token = sessionStorage.getItem("bss-token");
+  let user = null;
+  let session = null;
+  let simSeconds = 0;
+  let scale = 1;
+  let updating = false;
 
-  function init() {
-    clock = new THREE.Clock();
-    raycaster = new THREE.Raycaster();
-    mouse = new THREE.Vector2();
+  function notice(text) {
+    const el = $("notice");
+    if (el) el.textContent = text;
+  }
 
-    cacheDom();
-    setupThreeScene();
-    setupLighting();
+  async function api(path, method = "GET", body) {
+    return MqttSync.json(path, {
+      method,
+      headers: token ? { Authorization: "Bearer " + token } : {},
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  }
 
-    // Build 3D Station Model
-    cabinetData = CabinetModel.buildCabinet(scene);
+  function persist(stId) {
+    const ids = stId ? [stId] : STATION_IDS;
+    for (const id of ids) {
+      localStorage.setItem("bss-commands:" + id, JSON.stringify(stationData[id].commands));
+      localStorage.setItem("bss-events:" + id, JSON.stringify(stationData[id].pending));
+    }
+  }
 
-    // Init 3D Smoke Particle System
-    ParticleSystem.init(scene);
+  const stateNames = {
+    AwaitingOldBattery: "Chờ cắm pin cũ",
+    Dispensing: "Đã chốt phí — chờ lấy pin mới",
+    NeedsAssistance: "Cần kỹ thuật viên hỗ trợ",
+    ClosingCancelled: "Đang đóng ngăn để hủy",
+    ClosingExpired: "Hết thời gian — đang đóng ngăn",
+    Completed: "Đổi pin hoàn tất",
+    Cancelled: "Đã hủy",
+    Expired: "Phiên đã hết hạn",
+  };
 
-    // Initial visuals sync
-    slotsData.forEach((slot) => {
-      updateSlotVisuals(slot);
-      if (!slot.hasBattery) {
-        CabinetModel.setBatteryPresence(slot.id, false, false);
+  function setActiveStation(stId, animateCamera = false) {
+    if (!stationData[stId]) return;
+    activeStationId = stId;
+
+    // Update switcher tab visual state
+    const btnBk = $("btn-station-bk");
+    const btnCg = $("btn-station-cg");
+    if (btnBk && btnCg) {
+      btnBk.classList.toggle("active", stId === "TRAM-BK01");
+      btnCg.classList.toggle("active", stId === "TRAM-CG02");
+    }
+    const asideBk = $("aside-btn-bk");
+    const asideCg = $("aside-btn-cg");
+    if (asideBk && asideCg) {
+      asideBk.classList.toggle("active", stId === "TRAM-BK01");
+      asideCg.classList.toggle("active", stId === "TRAM-CG02");
+    }
+
+    if (animateCamera && view && typeof TWEEN !== "undefined") {
+      const posX = stationData[stId].posX;
+      new TWEEN.Tween(view.controls.target)
+        .to({ x: posX, y: 0.2, z: 0 }, 600)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+
+      new TWEEN.Tween(view.camera.position)
+        .to({ x: posX, y: 0.2, z: 4.8 }, 600)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+    }
+
+    render();
+  }
+
+  function render() {
+    const st = stationData[activeStationId];
+    if (!st) return;
+
+    const s = st.slots.find((t) => t.id === st.selectedSlot) || st.slots[0];
+    if (!s) return;
+
+    // Update aside header
+    const titleEl = $("station-title");
+    if (titleEl) {
+      titleEl.innerHTML = `${st.shortName} <span class="station-badge ${st.id === 'TRAM-BK01' ? 'badge-bk' : 'badge-cg'}">Trực tuyến</span>`;
+    }
+    const addrEl = $("station-address");
+    if (addrEl) addrEl.textContent = st.address;
+
+    const slotTitleEl = $("slot-title");
+    if (slotTitleEl) {
+      slotTitleEl.textContent = `Ngăn ${s.id} • ${s.batteryId || "Trống"}`;
+    }
+
+    const metrics = [
+      ["Mức pin", s.hasBattery ? s.soc.toFixed(1) + "%" : "—"],
+      ["Sức khỏe", s.hasBattery ? s.soh.toFixed(1) + "%" : "—"],
+      ["Nhiệt độ", s.temperature.toFixed(1) + " °C"],
+      ["Điện áp", s.voltage.toFixed(1) + " V"],
+      ["Dòng sạc", s.current.toFixed(1) + " A"],
+      ["Cửa hộc", s.isDoorOpen ? "Mở" : "Đóng"],
+      ["Khóa bảo trì", s.isLocked ? "Đang khóa" : "Bình thường"],
+    ];
+
+    const metricsEl = $("metrics");
+    if (metricsEl) {
+      metricsEl.replaceChildren(
+        ...metrics.flatMap(([a, b]) => {
+          let dt = document.createElement("dt");
+          let dd = document.createElement("dd");
+          dt.textContent = a;
+          dd.textContent = b;
+          return [dt, dd];
+        })
+      );
+    }
+
+    const gridEl = $("slots-grid");
+    if (gridEl) {
+      gridEl.replaceChildren(
+        ...st.slots.map((t) => {
+          let b = document.createElement("button");
+          b.textContent = `${t.id} · ${t.hasBattery ? Math.round(t.soc) + "%" : "—"}`;
+          b.className = t.id === st.selectedSlot ? "selected" : "";
+          b.style.borderColor = t.isOverheated
+            ? "#ef4444"
+            : t.isLocked
+            ? "#fbbf24"
+            : t.soc >= 90
+            ? "#34d399"
+            : "#40536a";
+          b.setAttribute("aria-label", `Chọn ngăn ${t.id} trạm ${st.id}`);
+          b.onclick = () => {
+            st.selectedSlot = t.id;
+            render();
+          };
+          return b;
+        })
+      );
+    }
+
+    // Kiosk Area
+    const stNameEl = $("kiosk-station-name");
+    if (stNameEl) {
+      stNameEl.textContent = `${st.name} (${st.id})`;
+    }
+
+    const walletEl = $("wallet-balance");
+    if (walletEl) {
+      walletEl.textContent = user
+        ? `Ví hiện tại: ${Number($("flow-info").dataset.balance || 0).toLocaleString("vi-VN")} đ`
+        : "";
+    }
+
+    const userNameEl = $("kiosk-user-name");
+    if (userNameEl) {
+      userNameEl.textContent = user ? user.name : "Khách hàng";
+    }
+
+    const loginSec = $("kiosk-login-section");
+    const activeSec = $("kiosk-active-section");
+    if (loginSec && activeSec) {
+      loginSec.style.display = user ? "none" : "block";
+      activeSec.style.display = user ? "block" : "none";
+    }
+
+    const active = session && !["Completed", "Cancelled", "Expired"].includes(session.state);
+    const startSwapBtn = $("start-swap");
+    if (startSwapBtn) {
+      startSwapBtn.hidden = !user || !!active;
+      startSwapBtn.disabled = !st.leased || !backend || !MqttSync.connected();
+    }
+    const cancelSwapBtn = $("cancel-swap");
+    if (cancelSwapBtn) {
+      cancelSwapBtn.hidden = !user || !active;
+    }
+
+    const stepBadge = $("step-badge");
+    const stepMainText = $("step-main-text");
+    if (stepBadge && stepMainText) {
+      if (session) {
+        stepBadge.textContent = `BƯỚC: ${stateNames[session.state] || session.state}`;
+        stepMainText.textContent = `${session.oldBatteryId} → Hộc #${session.returnSlot} / Lấy ${session.newBatteryId} tại Hộc #${session.receiveSlot}`;
+      } else if (user) {
+        stepBadge.textContent = "BƯỚC 1: SẴN SÀNG";
+        stepMainText.textContent = `Sẵn sàng thực hiện đổi pin tại ${st.id}`;
       }
-    });
+    }
 
-    // Init MQTT sync
-    MqttSync.init(handleRemoteCommand);
-
-    setupEventListeners();
-    renderKioskFlow();
-    renderSidebarMiniGrid();
-    updateSidebarSlotDetails();
-
-    // Simulation loop
-    setInterval(simulationTick, 1000);
-
-    animate();
-    console.log("🚀 BSS 3D VinFast-Style Controller initialized successfully!");
-  }
-
-  function cacheDom() {
-    dom.container = document.getElementById("canvas-container");
-    dom.tooltip = document.getElementById("slot-tooltip");
-
-    // Sidebar
-    dom.sidebar = document.getElementById("sidebar-panel");
-    dom.btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
-    dom.btnCloseSidebar = document.getElementById("btn-close-sidebar");
-
-    // Sidebar slot details
-    dom.sideSlotTitle = document.getElementById("side-slot-title");
-    dom.sideSoc = document.getElementById("side-soc");
-    dom.sideTemp = document.getElementById("side-temp");
-    dom.sideCurrent = document.getElementById("side-current");
-    dom.sideVoltage = document.getElementById("side-voltage");
-    dom.sideSoh = document.getElementById("side-soh");
-    dom.sideStatus = document.getElementById("side-status");
-
-    dom.sliderTemp = document.getElementById("slider-temp");
-    dom.sliderTempVal = document.getElementById("slider-temp-val");
-    dom.sliderSoc = document.getElementById("slider-soc");
-    dom.sliderSocVal = document.getElementById("slider-soc-val");
-
-    dom.btnEjectSlot = document.getElementById("btn-eject-slot");
-    dom.btnInsertSlot = document.getElementById("btn-insert-slot");
-    dom.btnOverheat = document.getElementById("btn-overheat");
-    dom.btnReset = document.getElementById("btn-reset");
-
-    // Kiosk Flow Card
-    dom.kioskFlowCard = document.getElementById("kiosk-flow-card");
-    dom.kioskBadge = document.getElementById("kiosk-badge");
-    dom.kioskTitle = document.getElementById("kiosk-title");
-    dom.kioskBody = document.getElementById("kiosk-body");
-    dom.kioskActions = document.getElementById("kiosk-actions");
-  }
-
-  function setupThreeScene() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x070c18);
-    scene.fog = new THREE.FogExp2(0x070c18, 0.035);
-
-    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    // Adjusted camera position to view whole station nicely from top to bottom
-    camera.position.set(0, 0.2, 5.0);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
-
-    dom.container.appendChild(renderer.domElement);
-
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.02;
-    controls.minDistance = 2.0;
-    controls.maxDistance = 11.0;
-    controls.target.set(0, 0.1, 0);
-  }
-
-  function setupLighting() {
-    // Ambient Light
-    const ambientLight = new THREE.AmbientLight(0x64748b, 0.95);
-    scene.add(ambientLight);
-
-    // Key Studio Light
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
-    dirLight.position.set(4, 7, 5.5);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
-    dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 20;
-    dirLight.shadow.bias = -0.0005;
-    const d = 3.8;
-    dirLight.shadow.camera.left = -d;
-    dirLight.shadow.camera.right = d;
-    dirLight.shadow.camera.top = d;
-    dirLight.shadow.camera.bottom = -d;
-    scene.add(dirLight);
-
-    // Front soft fill
-    const frontFill = new THREE.DirectionalLight(0x38bdf8, 0.7);
-    frontFill.position.set(0, 1, 5);
-    scene.add(frontFill);
-
-    // Cyan Rim Light
-    const rimLight = new THREE.DirectionalLight(0x0284c7, 0.6);
-    rimLight.position.set(-5, 3, -4);
-    scene.add(rimLight);
-  }
-
-  function setupEventListeners() {
-    window.addEventListener("resize", onWindowResize);
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("click", onMouseClick);
-
-    // Toggle Sidebar
-    dom.btnToggleSidebar.addEventListener("click", () => {
-      dom.sidebar.classList.toggle("collapsed");
-    });
-
-    dom.btnCloseSidebar.addEventListener("click", () => {
-      dom.sidebar.classList.add("collapsed");
-    });
-
-    // Sidebar Sliders
-    dom.sliderTemp.addEventListener("input", (e) => {
-      const val = parseFloat(e.target.value);
-      dom.sliderTempVal.innerText = `${val.toFixed(1)}°C`;
-      const slot = getSelectedSlot();
-      if (slot) {
-        slot.temperature = val;
-        checkSafetyLimits(slot);
-        updateSidebarSlotDetails();
+    const flowInfoEl = $("flow-info");
+    if (flowInfoEl) {
+      if (session) {
+        flowInfoEl.textContent = `Phí dịch vụ: ${session.fee.toLocaleString("vi-VN")} đ · ${session.charged ? "Đã trừ ví" : "Giữ chỗ phí"}. ${session.note || ""}`;
+      } else if (user) {
+        flowInfoEl.textContent = `Phí dịch vụ cố định: 25.000 đ / lượt đổi pin. Bấm 'Bắt đầu đổi pin' để tự động mở hộc nhận pin.`;
       }
-    });
+    }
 
-    dom.sliderSoc.addEventListener("input", (e) => {
-      const val = parseFloat(e.target.value);
-      dom.sliderSocVal.innerText = `${Math.round(val)}%`;
-      const slot = getSelectedSlot();
-      if (slot && slot.hasBattery) {
-        slot.soc = val;
-        updateSlotVisuals(slot);
-        updateSidebarSlotDetails();
-      }
-    });
+    const action = $("physical-action");
+    action.hidden = true;
+    action.disabled = !st.leased || !backend || !MqttSync.connected();
 
-    // Sidebar Slot Actions
-    dom.btnEjectSlot.addEventListener("click", () => {
-      const slot = getSelectedSlot();
-      if (!slot || !slot.hasBattery) return;
-      slot.isEjected = !slot.isEjected;
-      CabinetModel.setBatteryEjected(slot.id, slot.isEjected, true);
-      dom.btnEjectSlot.innerText = slot.isEjected ? "📥 Đẩy Pin Vào Hộc" : "⏏ Mở Khóa Đẩy Pin Ra";
-    });
+    const physicalSession = (st.snapshot?.sessions || []).find(
+      (x) => x.state === "AwaitingOldBattery" || (x.charged && ["Dispensing", "NeedsAssistance"].includes(x.state))
+    );
 
-    dom.btnInsertSlot.addEventListener("click", () => {
-      const slot = getSelectedSlot();
-      if (!slot) return;
-      if (slot.hasBattery) {
-        // Eject completely
-        slot.hasBattery = false;
-        slot.batteryId = null;
-        slot.soc = 0;
-        slot.current = 0;
-        slot.isCharging = false;
-        CabinetModel.setBatteryPresence(slot.id, false, true);
+    if (physicalSession) {
+      if (physicalSession.state === "AwaitingOldBattery") {
+        const t = st.slots.find((x) => x.id === physicalSession.returnSlot);
+        if (t?.isDoorOpen && !t.hasBattery && !t.isLocked) {
+          action.hidden = false;
+          action.textContent = `👉 [MÔ PHỎNG] Cắm pin ${physicalSession.oldBatteryId} vào Hộc #${t.id} & Đóng hộc`;
+          action.onclick = () => insertOld(st.id, physicalSession);
+        }
       } else {
-        // Insert new
-        slot.hasBattery = true;
-        slot.batteryId = `PIN-00${slot.id}`;
-        slot.soc = 92.0;
-        slot.temperature = 30.0;
-        slot.voltage = 52.5;
-        CabinetModel.setBatteryPresence(slot.id, true, true);
-      }
-      updateSlotVisuals(slot);
-      updateSidebarSlotDetails();
-    });
-
-    dom.btnOverheat.addEventListener("click", () => {
-      const slot = getSelectedSlot();
-      if (!slot) return;
-      triggerOverheatFault(slot.id, 65.0);
-    });
-
-    dom.btnReset.addEventListener("click", () => {
-      const slot = getSelectedSlot();
-      if (!slot) return;
-      resetSlotFault(slot.id);
-    });
-
-    // Camera preset buttons
-    document.querySelectorAll(".btn-preset").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".btn-preset").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        const preset = btn.getAttribute("data-view");
-        setCameraPreset(preset);
-      });
-    });
-  }
-
-  function setCameraPreset(preset) {
-    if (typeof TWEEN === "undefined") return;
-
-    let targetPos, targetLookAt;
-    if (preset === "front") {
-      targetPos = { x: 0, y: 0.1, z: 4.8 };
-      targetLookAt = { x: 0, y: 0.1, z: 0 };
-    } else if (preset === "iso") {
-      targetPos = { x: 3.2, y: 1.6, z: 4.2 };
-      targetLookAt = { x: 0, y: 0.1, z: 0 };
-    } else if (preset === "top") {
-      targetPos = { x: 0, y: 5.5, z: 1.0 };
-      targetLookAt = { x: 0, y: 0.1, z: 0 };
-    } else if (preset === "focus") {
-      const slot = getSelectedSlot();
-      const slotObj = cabinetData.slots.find((s) => s.slotId === slot.id);
-      if (slotObj) {
-        targetPos = { x: slotObj.group.position.x * 0.7, y: slotObj.group.position.y + 0.1, z: 2.4 };
-        targetLookAt = { x: slotObj.group.position.x, y: slotObj.group.position.y, z: 0.2 };
-      }
-    }
-
-    if (targetPos) {
-      new TWEEN.Tween(camera.position).to(targetPos, 850).easing(TWEEN.Easing.Cubic.Out).start();
-      new TWEEN.Tween(controls.target).to(targetLookAt, 850).easing(TWEEN.Easing.Cubic.Out).start();
-    }
-  }
-
-  function getSelectedSlot() {
-    return slotsData.find((s) => s.id === selectedSlotId);
-  }
-
-  function selectSlot(slotId) {
-    selectedSlotId = slotId;
-    updateSidebarSlotDetails();
-    updateMiniGridActive();
-  }
-
-  // ==============================================================
-  // INTERACTIVE KIOSK SWAP WORKFLOW STATE MACHINE
-  // ==============================================================
-  function renderKioskFlow() {
-    const s = kioskState.step;
-
-    if (s === "IDLE") {
-      dom.kioskBadge.innerText = "BƯỚC 1 / 4 • SẴN SÀNG";
-      dom.kioskTitle.innerText = "CHÀO MỪNG ĐẾN VỚI TRẠM ĐỔI PIN BSS";
-
-      dom.kioskBody.innerHTML = `
-        <div class="kiosk-qr-box">
-          <svg viewBox="0 0 100 100" fill="#000">
-            <rect x="5" y="5" width="30" height="30" fill="#000"/>
-            <rect x="10" y="10" width="20" height="20" fill="#fff"/>
-            <rect x="14" y="14" width="12" height="12" fill="#000"/>
-            <rect x="65" y="5" width="30" height="30" fill="#000"/>
-            <rect x="70" y="10" width="20" height="20" fill="#fff"/>
-            <rect x="74" y="14" width="12" height="12" fill="#000"/>
-            <rect x="5" y="65" width="30" height="30" fill="#000"/>
-            <rect x="10" y="70" width="20" height="20" fill="#fff"/>
-            <rect x="14" y="74" width="12" height="12" fill="#000"/>
-            <circle cx="50" cy="50" r="8" fill="#0284c7"/>
-            <rect x="45" y="20" width="8" height="15" fill="#000"/>
-            <rect x="45" y="65" width="8" height="15" fill="#000"/>
-          </svg>
-        </div>
-        <div class="kiosk-step-info">
-          <div class="kiosk-step-desc">
-            Quét mã QR trên ứng dụng di động hoặc bấm nút bên dưới để bắt đầu chu trình đổi pin tự động.
-          </div>
-          <div class="kiosk-driver-info">
-            Tài xế demo: <b>${kioskState.driverName}</b> (${kioskState.driverPhone})<br>
-            Số dư ví: <b>${kioskState.walletBalance.toLocaleString("vi-VN")} đ</b>
-          </div>
-        </div>
-      `;
-
-      dom.kioskActions.innerHTML = `
-        <button class="btn-kiosk-primary" id="btn-start-swap">
-          🚀 BẮT ĐẦU ĐỔI PIN (QUÉT QR)
-        </button>
-      `;
-
-      document.getElementById("btn-start-swap").addEventListener("click", startSwapProcess);
-      CabinetModel.updateKioskScreen("STANDBY", "CHÀO MỪNG ĐẾN VỚI TRẠM ĐỔI PIN", "Quét QR để đổi pin", "#10b981");
-
-    } else if (s === "INSERT_OLD") {
-      const emptySlot = kioskState.targetEmptySlotId;
-      dom.kioskBadge.innerText = "BƯỚC 2 / 4 • CẮM PIN CŨ";
-      dom.kioskTitle.innerText = `VUI LÒNG CẮM PIN CŨ VÀO Ô #${emptySlot}`;
-
-      dom.kioskBody.innerHTML = `
-        <div class="kiosk-step-info" style="width: 100%;">
-          <div class="kiosk-step-desc">
-            Khay <b>Ô #${emptySlot}</b> đã mở chốt khóa (viền LED nhấp nháy xanh dương). Hãy cắm viên pin cạn của bạn vào ô này.
-          </div>
-          <div class="kiosk-driver-info">
-            Pin cũ dự kiến: <b>PIN-CŨ-18%</b> | Trạng thái: Chờ cắm vào hộc tủ.
-          </div>
-        </div>
-      `;
-
-      dom.kioskActions.innerHTML = `
-        <button class="btn-kiosk-primary" id="btn-do-insert-old" style="background: linear-gradient(135deg, #0284c7, #2563eb);">
-          🔋 [THAO TÁC] CẮM PIN CŨ VÀO Ô #${emptySlot}
-        </button>
-        <button class="btn-kiosk-secondary" id="btn-cancel-swap">Hủy</button>
-      `;
-
-      document.getElementById("btn-do-insert-old").addEventListener("click", onOldBatteryInserted);
-      document.getElementById("btn-cancel-swap").addEventListener("click", resetSwapWorkflow);
-
-      // Flash target slot LED
-      CabinetModel.setSlotLedColor(emptySlot, 0x38bdf8, 3.0);
-      CabinetModel.updateKioskScreen("SWAP", "VUI LÒNG CẮM PIN CŨ VÀO", "Chốt điện từ đã mở", "#38bdf8", emptySlot);
-
-    } else if (s === "BMS_EVAL") {
-      dom.kioskBadge.innerText = "BƯỚC 3 / 4 • KIỂM ĐỊNH BMS";
-      dom.kioskTitle.innerText = "HỆ THỐNG ĐANG KIỂM ĐỊNH PIN CŨ...";
-
-      dom.kioskBody.innerHTML = `
-        <div class="kiosk-step-info" style="width: 100%;">
-          <div class="kiosk-step-desc">
-            Đang đo dung lượng SoC, điện áp cell, nhiệt độ pack pin và tiến hành trừ phí dịch vụ...
-          </div>
-          <div class="kiosk-driver-info" style="color: #10b981;">
-            ✔ Đã khóa chốt Ô #${kioskState.targetEmptySlotId} an toàn.<br>
-            ✔ Dung lượng ghi nhận: <b>${kioskState.oldBatterySoc}%</b> | Nhiệt độ: <b>33.5°C</b><br>
-            ✔ Phí đổi pin: <b>${kioskState.swapFee.toLocaleString("vi-VN")} đ</b> (Trừ trực tiếp vào ví)
-          </div>
-        </div>
-      `;
-
-      dom.kioskActions.innerHTML = `
-        <div style="font-size: 12px; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px;">
-          <span class="status-dot"></span> Đang chuẩn bị nhả viên pin đầy tối ưu nhất...
-        </div>
-      `;
-
-      CabinetModel.updateKioskScreen("SWAP", "KIỂM ĐỊNH BMS THÀNH CÔNG", "Trừ phí: 25.000 đ", "#10b981", kioskState.targetEmptySlotId);
-
-    } else if (s === "EJECT_NEW") {
-      const fullSlot = kioskState.targetFullSlotId;
-      dom.kioskBadge.innerText = "BƯỚC 4 / 4 • NHẬN PIN MỚI";
-      dom.kioskTitle.innerText = `VUI LÒNG RÚT VIÊN PIN ĐẦY TỪ Ô #${fullSlot}`;
-
-      dom.kioskBody.innerHTML = `
-        <div class="kiosk-step-info" style="width: 100%;">
-          <div class="kiosk-step-desc">
-            Viên pin đạt chuẩn (Dung lượng <b>98%</b>) tại <b>Ô #${fullSlot}</b> đã tự động mở khóa và đẩy nhô ra phía trước. Bạn hãy nắm quai xách và rút ra!
-          </div>
-          <div class="kiosk-driver-info" style="border-color: var(--accent-lime);">
-            Mã pin mới: <b>PIN-001 (98% SoC)</b> | Đèn viền xanh lá rực rỡ.
-          </div>
-        </div>
-      `;
-
-      dom.kioskActions.innerHTML = `
-        <button class="btn-kiosk-primary" id="btn-do-take-new" style="background: linear-gradient(135deg, #10b981, #059669);">
-          🔋 [THAO TÁC] RÚT PIN ĐẦY KHỎI Ô #${fullSlot}
-        </button>
-      `;
-
-      document.getElementById("btn-do-take-new").addEventListener("click", onNewBatteryTaken);
-
-      // Eject target battery in 3D & light up lime green
-      CabinetModel.setBatteryEjected(fullSlot, true, true);
-      CabinetModel.setSlotLedColor(fullSlot, 0x84cc16, 3.2);
-      CabinetModel.updateKioskScreen("SWAP", "VUI LÒNG RÚT PIN ĐẦY", "Pin đạt 98% dung lượng", "#84cc16", fullSlot);
-
-    } else if (s === "COMPLETED") {
-      dom.kioskBadge.innerText = "HOÀN TẤT • THÀNH CÔNG";
-      dom.kioskTitle.innerText = "🎉 ĐỔI PIN THÀNH CÔNG! CHÚC THƯỢNG LỘ BÌNH AN";
-
-      dom.kioskBody.innerHTML = `
-        <div class="kiosk-step-info" style="width: 100%;">
-          <div class="kiosk-step-desc">
-            Giao dịch đã được ghi nhận vào hệ thống. Biên lai điện tử đã gửi tới số điện thoại <b>${kioskState.driverPhone}</b>.
-          </div>
-          <div class="kiosk-driver-info" style="border-color: #10b981;">
-            Số dư ví còn lại: <b>${kioskState.walletBalance.toLocaleString("vi-VN")} đ</b><br>
-            Pin mới nhận: <b>PIN-001 (98% SoC)</b>
-          </div>
-        </div>
-      `;
-
-      dom.kioskActions.innerHTML = `
-        <button class="btn-kiosk-secondary" id="btn-reset-workflow" style="width: 100%;">
-          Quay về màn hình chờ (Tự động sau 6s)
-        </button>
-      `;
-
-      document.getElementById("btn-reset-workflow").addEventListener("click", resetSwapWorkflow);
-      CabinetModel.updateKioskScreen("SWAP", "ĐỔI PIN THÀNH CÔNG!", "Chúc bạn vạn dặm bình an", "#10b981");
-    }
-  }
-
-  function startSwapProcess() {
-    if (kioskState.step !== "IDLE" && kioskState.step !== "STANDBY") return;
-    if (kioskState.walletBalance < kioskState.swapFee) { alert("Số dư không đủ."); return; }
-    // Find empty slot (e.g. Slot 6 or 8)
-    const emptySlot = slotsData.find((s) => !s.hasBattery);
-    if (!emptySlot) { alert("Không còn ngăn trống."); return; }
-    kioskState.targetEmptySlotId = emptySlot.id;
-
-    // Find best full battery (e.g. Slot 1 or 4)
-    const fullSlot = slotsData.find((s) => s.hasBattery && s.soc >= 90 && s.soh >= 80 && s.temperature <= 45 && !s.isOverheated);
-    if (!fullSlot) { alert("Không có pin đạt chuẩn."); return; }
-    kioskState.targetFullSlotId = fullSlot.id;
-
-    kioskState.step = "INSERT_OLD";
-    renderKioskFlow();
-  }
-
-  function onOldBatteryInserted() {
-    if (kioskState.step !== "INSERT_OLD") return;
-    const slotId = kioskState.targetEmptySlotId;
-    const slot = slotsData.find((s) => s.id === slotId);
-
-    if (slot) {
-      slot.hasBattery = true;
-      slot.batteryId = "PIN-CU-06";
-      slot.soc = kioskState.oldBatterySoc;
-      slot.soh = 96.0;
-      slot.temperature = 33.5;
-      slot.voltage = 45.0;
-      slot.current = 15.0;
-      slot.isCharging = true;
-      CabinetModel.setBatteryPresence(slotId, true, true);
-      updateSlotVisuals(slot);
-    }
-
-    // Deduct wallet fee
-    kioskState.walletBalance -= kioskState.swapFee;
-
-    kioskState.step = "BMS_EVAL";
-    renderKioskFlow();
-
-    // Auto progress to Eject New after 1.8s
-    setTimeout(() => {
-      if (kioskState.step !== "BMS_EVAL") return;
-      kioskState.step = "EJECT_NEW";
-      renderKioskFlow();
-    }, 1800);
-  }
-
-  function onNewBatteryTaken() {
-    if (kioskState.step !== "EJECT_NEW") return;
-    const fullSlotId = kioskState.targetFullSlotId;
-    const slot = slotsData.find((s) => s.id === fullSlotId);
-
-    if (slot) {
-      slot.hasBattery = false;
-      slot.isEjected = false;
-      slot.batteryId = null;
-      slot.soc = 0;
-      slot.voltage = 0;
-      slot.current = 0;
-      slot.isCharging = false;
-      CabinetModel.setBatteryPresence(fullSlotId, false, true);
-      updateSlotVisuals(slot);
-    }
-
-    kioskState.step = "COMPLETED";
-    renderKioskFlow();
-    renderSidebarMiniGrid();
-
-    // Auto reset to standby after 6s
-    setTimeout(() => {
-      if (kioskState.step === "COMPLETED") {
-        resetSwapWorkflow();
-      }
-    }, 6000);
-  }
-
-  function resetSwapWorkflow() {
-    kioskState.step = "IDLE";
-    renderKioskFlow();
-    slotsData.forEach((s) => updateSlotVisuals(s));
-  }
-
-  // ==============================================================
-  // SIDEBAR & FAULT INJECTION CONTROLS
-  // ==============================================================
-  function renderSidebarMiniGrid() {
-    const grid = document.getElementById("slots-grid-mini");
-    if (!grid) return;
-
-    grid.innerHTML = "";
-    slotsData.forEach((slot) => {
-      const btn = document.createElement("button");
-      btn.className = `mini-slot-btn ${slot.id === selectedSlotId ? "active" : ""}`;
-
-      if (slot.isOverheated) {
-        btn.classList.add("status-error");
-      } else if (!slot.hasBattery) {
-        btn.classList.add("status-empty");
-      } else if (slot.soc >= 90) {
-        btn.classList.add("status-full");
-      } else if (slot.isCharging) {
-        btn.classList.add("status-charging");
-      }
-
-      btn.innerHTML = `
-        <span>#${slot.id}</span>
-        <span class="slot-soc">${slot.hasBattery ? `${Math.round(slot.soc)}%` : "TRỐNG"}</span>
-      `;
-
-      btn.addEventListener("click", () => {
-        selectSlot(slot.id);
-      });
-
-      grid.appendChild(btn);
-    });
-  }
-
-  function updateMiniGridActive() {
-    document.querySelectorAll(".mini-slot-btn").forEach((btn, idx) => {
-      btn.classList.toggle("active", idx + 1 === selectedSlotId);
-    });
-  }
-
-  function updateSidebarSlotDetails() {
-    const slot = getSelectedSlot();
-    if (!slot) return;
-
-    dom.sideSlotTitle.innerText = `Khay #${slot.id} - ${slot.hasBattery ? slot.batteryId : "Ngăn trống"}`;
-
-    if (slot.isOverheated) {
-      dom.sideStatus.innerText = "🔥 QUÁ NHIỆT";
-      dom.sideStatus.style.color = "#ef4444";
-    } else if (!slot.hasBattery) {
-      dom.sideStatus.innerText = "TRỐNG";
-      dom.sideStatus.style.color = "#94a3b8";
-    } else if (slot.soc >= 90) {
-      dom.sideStatus.innerText = "ĐẦY (SẴN SÀNG)";
-      dom.sideStatus.style.color = "#84cc16";
-    } else if (slot.isCharging) {
-      dom.sideStatus.innerText = "ĐANG SẠC";
-      dom.sideStatus.style.color = "#f59e0b";
-    } else {
-      dom.sideStatus.innerText = "CHỜ SẠC";
-      dom.sideStatus.style.color = "#38bdf8";
-    }
-
-    dom.sideSoc.innerText = slot.hasBattery ? `${Math.round(slot.soc)}%` : "--";
-    dom.sideSoc.className = `val ${slot.soc >= 90 ? "green" : slot.soc < 30 ? "red" : "amber"}`;
-
-    dom.sideTemp.innerText = `${slot.temperature.toFixed(1)}°C`;
-    dom.sideTemp.className = `val ${slot.temperature >= 55 ? "red" : slot.temperature >= 40 ? "amber" : "green"}`;
-
-    dom.sideCurrent.innerText = `${slot.current.toFixed(1)} A`;
-    dom.sideVoltage.innerText = `${slot.voltage.toFixed(1)} V`;
-    dom.sideSoh.innerText = slot.hasBattery ? `${slot.soh.toFixed(1)}%` : "--";
-
-    dom.sliderTemp.value = slot.temperature;
-    dom.sliderTempVal.innerText = `${slot.temperature.toFixed(1)}°C`;
-
-    dom.sliderSoc.value = slot.soc;
-    dom.sliderSocVal.innerText = `${Math.round(slot.soc)}%`;
-    dom.sliderSoc.disabled = !slot.hasBattery;
-
-    dom.btnEjectSlot.innerText = slot.isEjected ? "📥 Đẩy Pin Vào Hộc" : "⏏ Mở Khóa Đẩy Pin Ra";
-    dom.btnInsertSlot.innerText = slot.hasBattery ? "❌ Gỡ Pin Khỏi Hộc" : "➕ Cắm Thêm Pin Mới";
-  }
-
-  function triggerOverheatFault(slotId, targetTemp = 65.0) {
-    const slot = slotsData.find((s) => s.id === slotId);
-    if (!slot) return;
-
-    slot.temperature = targetTemp;
-    checkSafetyLimits(slot);
-    updateSidebarSlotDetails();
-    renderSidebarMiniGrid();
-  }
-
-  function resetSlotFault(slotId) {
-    const slot = slotsData.find((s) => s.id === slotId);
-    if (!slot) return;
-
-    slot.temperature = 31.0;
-    slot.isOverheated = false;
-    ParticleSystem.stopOverheat(slotId);
-    CabinetModel.setAlarmLight(slotId, false);
-
-    if (slot.hasBattery && slot.soc < 100) {
-      slot.isCharging = true;
-      slot.current = 12.0;
-    }
-
-    updateSlotVisuals(slot);
-    updateSidebarSlotDetails();
-    renderSidebarMiniGrid();
-  }
-
-  function checkSafetyLimits(slot) {
-    if (slot.temperature >= 55.0) {
-      if (!slot.isOverheated) {
-        slot.isOverheated = true;
-        slot.isCharging = false;
-        slot.current = 0.0;
-        slot.isEjected = false;
-        CabinetModel.setBatteryEjected(slot.id, false, true);
-
-        // Trigger 3D smoke & alarm light
-        const slotObj = cabinetData.slots.find((s) => s.slotId === slot.id);
-        if (slotObj) {
-          ParticleSystem.startOverheat(slot.id, slotObj.smokeAnchor);
-          CabinetModel.setAlarmLight(slot.id, true);
+        const t = st.slots.find((x) => x.id === physicalSession.receiveSlot);
+        if (t?.isEjected && !t.isLocked && t.temperature <= 45) {
+          action.hidden = false;
+          action.textContent = `👉 [MÔ PHỎNG] Rút pin mới ${physicalSession.newBatteryId} từ Hộc #${t.id} & Đóng hộc`;
+          action.onclick = () => takeNew(st.id, physicalSession);
         }
-
-        CabinetModel.updateKioskScreen("ALARM", `SỰ CỐ QUÁ NHIỆT Ô #${slot.id}`, "ĐÃ NGẮT SẠC & KHÓA CHỐT AN TOÀN", "#ef4444", slot.id);
-      }
-    } else {
-      if (slot.isOverheated && slot.temperature < 50.0) {
-        slot.isOverheated = false;
-        ParticleSystem.stopOverheat(slot.id);
-        CabinetModel.setAlarmLight(slot.id, false);
       }
     }
-    updateSlotVisuals(slot);
-  }
 
-  function updateSlotVisuals(slot) {
-    if (slot.isOverheated) {
-      CabinetModel.setSlotLedColor(slot.id, 0xef4444, 2.8); // Flashing Red
-    } else if (!slot.hasBattery) {
-      CabinetModel.setSlotLedColor(slot.id, 0x64748b, 0.7); // Gray Empty
-    } else if (slot.soc >= 90.0) {
-      CabinetModel.setSlotLedColor(slot.id, 0x84cc16, 2.2); // Lime Green Ready
-    } else if (slot.isCharging) {
-      CabinetModel.setSlotLedColor(slot.id, 0xf59e0b, 1.8); // Amber Charging
-    } else {
-      CabinetModel.setSlotLedColor(slot.id, 0x0284c7, 1.4); // Blue Standby
-    }
+    $("overheat").disabled = !st.leased || !s.hasBattery;
+    $("cool").disabled = !st.leased || !s.hasBattery;
 
-    if (slot.hasBattery) {
-      CabinetModel.updateBatteryDisplay(slot.id, slot.soc, slot.isCharging);
+    const simTimeEl = $("sim-time");
+    if (simTimeEl) {
+      simTimeEl.textContent = `Thời gian mô phỏng ${Math.floor(simSeconds / 60)}:${String(Math.floor(simSeconds % 60)).padStart(2, "0")}`;
     }
   }
 
-  function simulationTick() {
-    if (!autoChargeActive) return;
+  function visuals(stationId, s) {
+    CabinetModel.setBatteryPresence(stationId, s.id, s.hasBattery, false);
+    CabinetModel.setBatteryEjected(stationId, s.id, !!s.isEjected, true);
+    CabinetModel.setSlotLedColor(
+      stationId,
+      s.id,
+      s.isOverheated
+        ? 0xef4444
+        : s.isLocked
+        ? 0xfbbf24
+        : !s.hasBattery
+        ? 0x64748b
+        : s.soc >= 90
+        ? 0x84cc16
+        : 0xf59e0b,
+      1.8
+    );
+    CabinetModel.updateBatteryDisplay(stationId, s.id, s.soc, s.isCharging);
+    CabinetModel.setAlarmLight(stationId, s.id, s.isOverheated);
 
-    slotsData.forEach((slot) => {
-      if (slot.hasBattery && slot.isCharging && !slot.isOverheated) {
-        slot.soc = Math.min(100, slot.soc + 0.35);
+    const emitterKey = `${stationId}_${s.id}`;
+    const stObj = CabinetModel.getStation(stationId);
+    const slotObj = stObj?.slots.find((x) => x.slotId === s.id);
 
-        if (slot.soc >= 98.0) {
-          slot.current = 2.0;
-        } else if (slot.soc >= 80.0) {
-          slot.current = 8.0;
-        } else {
-          slot.current = 15.0;
-        }
+    if (s.isOverheated && slotObj && !ParticleSystem.isOverheating(emitterKey)) {
+      ParticleSystem.startOverheat(emitterKey, slotObj.smokeAnchor);
+    }
+    if (!s.isOverheated) {
+      ParticleSystem.stopOverheat(emitterKey);
+    }
+  }
 
-        if (slot.soc >= 100.0) {
-          slot.isCharging = false;
-          slot.current = 0.0;
-          updateSlotVisuals(slot);
-        }
+  function sendEvent(stationId, event, s, slotId, battery) {
+    const st = stationData[stationId];
+    if (!st) return;
+    st.pending.push({ event, sessionId: s.id, slotNumber: slotId, batteryId: battery });
+    persist(stationId);
+    flush(stationId);
+  }
 
-        updateSlotVisuals(slot);
-      }
+  function insertOld(stationId, s) {
+    const st = stationData[stationId];
+    if (!st || st.pending.some((e) => e.sessionId === s.id && e.event === "OLD_INSERTED")) return;
+    const t = st.slots.find((x) => x.id === s.returnSlot);
+    if (!t?.isDoorOpen || t.hasBattery || t.isLocked) return;
+
+    const old = st.snapshot?.batteries.find((p) => p.maPin === s.oldBatteryId);
+    if (!old) {
+      notice("Không đọc được BMS pin trả.");
+      return;
+    }
+    Object.assign(t, {
+      hasBattery: true,
+      batteryId: s.oldBatteryId,
+      soc: old.soC,
+      soh: old.soH,
+      temperature: old.nhietDo,
+      voltage: old.dienAp,
+      current: 0,
+      isDoorOpen: false,
+      isCharging: false,
     });
-
-    updateSidebarSlotDetails();
-    renderSidebarMiniGrid();
-    MqttSync.publishTelemetry(slotsData);
+    sendEvent(stationId, "OLD_INSERTED", s, t.id, t.batteryId);
+    visuals(stationId, t);
+    render();
   }
 
-  function handleRemoteCommand(cmd) {
-    if (!cmd || !cmd.command) return;
-    const slotId = cmd.slotId || 1;
+  function takeNew(stationId, s) {
+    const st = stationData[stationId];
+    if (!st || st.pending.some((e) => e.sessionId === s.id && e.event === "NEW_TAKEN")) return;
+    const t = st.slots.find((x) => x.id === s.receiveSlot);
+    if (!t?.isEjected || t.isLocked || t.temperature > 45) return;
 
-    switch (cmd.command) {
-      case "START_SWAP":
-        startSwapProcess();
+    Object.assign(t, {
+      hasBattery: false,
+      batteryId: null,
+      soc: 0,
+      current: 0,
+      voltage: 0,
+      isDoorOpen: false,
+      isCharging: false,
+      isEjected: false,
+    });
+    sendEvent(stationId, "NEW_TAKEN", s, t.id, s.newBatteryId);
+    visuals(stationId, t);
+    render();
+  }
+
+  function handleCommand(c) {
+    const targetStation = c.stationId || activeStationId;
+    const st = stationData[targetStation];
+    if (!st || !st.leased) return;
+
+    if (st.commands[c.commandId]) {
+      ack(targetStation, c.commandId);
+      return;
+    }
+
+    let success = true;
+    const s = st.slots.find((t) => t.id === c.slotNumber);
+
+    switch (c.command) {
+      case "UNLOCK_SLOT":
+        success = !!s && !s.isLocked && s.temperature < 55;
+        if (success) {
+          s.isDoorOpen = true;
+          s.current = 0;
+          s.isCharging = false;
+        }
+        break;
+      case "CLOSE_SLOT":
+        if (s) s.isDoorOpen = false;
+        else success = false;
+        break;
+      case "LOCK_SLOT":
+        if (s) {
+          s.isLocked = true;
+          s.isDoorOpen = false;
+          s.current = 0;
+        } else success = false;
+        break;
+      case "EJECT_BATTERY":
+        success =
+          !!s &&
+          s.batteryId === c.batteryId &&
+          !s.isLocked &&
+          s.temperature <= 45 &&
+          s.soc >= 90 &&
+          s.soh >= 80;
+        if (success) {
+          s.isEjected = true;
+          s.isDoorOpen = true;
+          s.current = 0;
+          s.isCharging = false;
+        }
+        break;
+      case "CUT_OFF":
+        st.slots.forEach((t) =>
+          Object.assign(t, {
+            isLocked: true,
+            isDoorOpen: false,
+            isEjected: false,
+            current: 0,
+            isCharging: false,
+          })
+        );
+        break;
+      case "RESTORE_STATION":
+        success = st.slots.every((t) => t.temperature < 35);
+        if (success) {
+          st.slots.forEach((t) =>
+            Object.assign(t, {
+              isLocked: false,
+              isDoorOpen: false,
+              isOverheated: false,
+            })
+          );
+        }
         break;
       case "TRIGGER_OVERHEAT":
-        triggerOverheatFault(slotId, cmd.temperature || 65.0);
+        if (s) {
+          s.temperature = 65;
+          BmsModel.step(s, 0);
+        } else success = false;
         break;
       case "RESET_ALARM":
-        resetSlotFault(slotId);
+        if (s) {
+          s.temperature = 30;
+          s.isOverheated = false;
+          s.isLocked = false;
+          s.isDoorOpen = false;
+          s.isEjected = false;
+        } else success = false;
         break;
+      case "REPLACE_BATTERY":
+        if (s) {
+          Object.assign(s, {
+            batteryId: c.batteryId,
+            hasBattery: true,
+            soc: 100,
+            soh: 100,
+            temperature: 28,
+            isOverheated: false,
+            isLocked: false,
+            isDoorOpen: false,
+            isEjected: false,
+            current: 0,
+          });
+        } else success = false;
+        break;
+      case "QUERY_STATUS":
+        if (st.commands[c.batteryId]) ack(targetStation, c.batteryId);
+        break;
+      default:
+        success = false;
+    }
+
+    st.commands[c.commandId] = {
+      success,
+      sessionId: c.sessionId,
+      slotNumber: c.slotNumber,
+      batteryId: c.batteryId,
+      pending: true,
+    };
+    persist(targetStation);
+    st.slots.forEach((slot) => visuals(targetStation, slot));
+    ack(targetStation, c.commandId);
+    render();
+  }
+
+  function ack(stationId, id) {
+    const st = stationData[stationId];
+    const c = st?.commands[id];
+    if (c) {
+      MqttSync.publish(stationId, "acks", st.slots, {
+        event: "ACK",
+        commandId: id,
+        sessionId: c.sessionId,
+        slotNumber: c.slotNumber,
+        batteryId: c.batteryId,
+        success: c.success,
+      });
     }
   }
 
-  function onMouseMove(event) {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  function flush(stationId) {
+    const ids = stationId ? [stationId] : STATION_IDS;
+    for (const id of ids) {
+      const st = stationData[id];
+      if (!st || !st.leased) continue;
 
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(scene.children, true);
+      MqttSync.publish(id, "telemetry", st.slots);
+      for (const [cmdId, c] of Object.entries(st.commands)) {
+        if (c.pending) ack(id, cmdId);
+      }
+      for (const event of st.pending) {
+        MqttSync.publish(id, "events", st.slots, event);
+      }
+    }
+  }
 
-    let foundSlotId = null;
-    for (let i = 0; i < intersects.length; i++) {
-      let obj = intersects[i].object;
-      while (obj) {
-        if (obj.userData && obj.userData.slotId) {
-          foundSlotId = obj.userData.slotId;
-          break;
+  async function snapshotRefresh(stationId) {
+    const st = stationData[stationId];
+    if (!st) return;
+
+    const next = await MqttSync.json(`device/${stationId}/snapshot`);
+    st.snapshot = next;
+
+    if (MqttSync.leaseId(stationId) && next.status?.ownerId && next.status.ownerId !== MqttSync.clientId()) {
+      st.leased = false;
+      notice(`Trạm ${stationId} đã được một simulator khác tiếp quản.`);
+    }
+
+    if (!st.slots.length) {
+      st.slots = next.slots.map((n) => ({
+        id: n.soThuTu,
+        batteryId: n.maPinHienTai,
+        hasBattery: !!n.maPinHienTai,
+        soc: n.soC,
+        soh: n.soH,
+        temperature: n.nhietDo,
+        voltage: n.dienAp,
+        current: n.dongDien,
+        isCharging: n.dongDien > 0,
+        isDoorOpen: n.cuaDangMo,
+        isLocked: n.khoaBaoTri,
+        isOverheated: n.nhietDo >= 55 || n.trangThaiPin === "LoiQuaNhiet",
+        isEjected: false,
+      }));
+
+      for (const e of st.pending) {
+        const t = st.slots.find((x) => x.id === e.slotNumber);
+        if (!t) continue;
+        if (e.event === "OLD_INSERTED") {
+          const old = next.batteries.find((p) => p.maPin === e.batteryId);
+          if (old) {
+            Object.assign(t, {
+              hasBattery: true,
+              batteryId: e.batteryId,
+              soc: old.soC,
+              soh: old.soH,
+              temperature: old.nhietDo,
+              isDoorOpen: false,
+            });
+          }
         }
-        obj = obj.parent;
+        if (e.event === "NEW_TAKEN") {
+          Object.assign(t, { hasBattery: false, batteryId: null, soc: 0, current: 0, isEjected: false });
+        }
       }
-      if (foundSlotId) break;
+
+      for (const s of next.sessions) {
+        if (s.charged) {
+          const t = st.slots.find((x) => x.id === s.receiveSlot);
+          if (
+            t &&
+            next.commands.some(
+              (c) => c.sessionId === s.id && c.command === "EJECT_BATTERY" && c.status === "Completed"
+            )
+          ) {
+            t.isEjected = true;
+            t.isDoorOpen = true;
+            t.current = 0;
+          }
+        }
+      }
+      st.slots.forEach((slot) => visuals(stationId, slot));
     }
 
-    if (foundSlotId) {
-      hoveredSlotId = foundSlotId;
-      showTooltip(event.clientX, event.clientY, foundSlotId);
-      document.body.style.cursor = "pointer";
-    } else {
-      hoveredSlotId = null;
-      hideTooltip();
-      document.body.style.cursor = "default";
-    }
-  }
+    st.pending = st.pending.filter((e) => {
+      const s = next.sessions.find((x) => x.id === e.sessionId);
+      return !!s && (e.event === "OLD_INSERTED" ? !s.oldInserted : s.state !== "Completed");
+    });
 
-  function onMouseClick(event) {
-    if (event.clientX > window.innerWidth - 370 && !dom.sidebar.classList.contains("collapsed")) {
-      return; // Clicking inside sidebar
-    }
-    if (event.clientY > window.innerHeight - 240 && event.clientX < 460) {
-      return; // Clicking inside kiosk card
-    }
-
-    if (hoveredSlotId) {
-      selectSlot(hoveredSlotId);
-
-      // If in swap workflow and clicked target slot
-      if (kioskState.step === "INSERT_OLD" && hoveredSlotId === kioskState.targetEmptySlotId) {
-        onOldBatteryInserted();
-      } else if (kioskState.step === "EJECT_NEW" && hoveredSlotId === kioskState.targetFullSlotId) {
-        onNewBatteryTaken();
+    for (const c of next.commands) {
+      if (st.commands[c.commandId] && ["Completed", "Failed"].includes(c.status)) {
+        st.commands[c.commandId].pending = false;
       }
     }
+
+    persist(stationId);
+    return next;
   }
 
-  function showTooltip(x, y, slotId) {
-    const slot = slotsData.find((s) => s.id === slotId);
-    if (!slot) return;
+  async function refresh() {
+    if (updating) return;
+    updating = true;
 
-    dom.tooltip.style.display = "block";
-    dom.tooltip.style.left = `${Math.min(x + 16, window.innerWidth - 230)}px`;
-    dom.tooltip.style.top = `${Math.min(y + 16, window.innerHeight - 190)}px`;
+    try {
+      for (const id of STATION_IDS) {
+        await snapshotRefresh(id);
+      }
+      backend = true;
 
-    const statusBadge = slot.isOverheated
-      ? "<span style='color:#ef4444'>🔥 QUÁ NHIỆT</span>"
-      : !slot.hasBattery
-      ? "<span style='color:#64748b'>TRỐNG</span>"
-      : slot.soc >= 90
-      ? "<span style='color:#84cc16'>ĐẦY PIN</span>"
-      : "<span style='color:#f59e0b'>ĐANG SẠC</span>";
+      // Active station commands check for dispensing
+      const activeSt = stationData[activeStationId];
+      if (activeSt?.snapshot) {
+        for (const c of activeSt.snapshot.commands) {
+          if (
+            c.command === "EJECT_BATTERY" &&
+            c.status === "Completed" &&
+            activeSt.snapshot.sessions.some(
+              (s) => s.id === c.sessionId && ["Dispensing", "NeedsAssistance"].includes(s.state)
+            )
+          ) {
+            const t = activeSt.slots.find((x) => x.id === c.slotNumber);
+            if (t?.hasBattery && !t.isLocked) t.isEjected = true;
+          }
+        }
+      }
 
-    dom.tooltip.innerHTML = `
-      <div class="tooltip-title">
-        <span>Khay #${slot.id}</span>
-        <span>${statusBadge}</span>
-      </div>
-      <div class="tooltip-row"><span>Mã pin:</span><span class="val">${slot.hasBattery ? slot.batteryId : "--"}</span></div>
-      <div class="tooltip-row"><span>Dung lượng:</span><span class="val">${slot.hasBattery ? `${slot.soc.toFixed(1)}%` : "--"}</span></div>
-      <div class="tooltip-row"><span>Nhiệt độ:</span><span class="val" style="color:${slot.temperature >= 55 ? "#ef4444" : "#f8fafc"}">${slot.temperature.toFixed(1)}°C</span></div>
-      <div class="tooltip-row"><span>Dòng sạc:</span><span class="val">${slot.current.toFixed(1)} A</span></div>
-    `;
+      if (user) {
+        const all = await api("swaps");
+        session =
+          all.find((s) => !["Completed", "Cancelled", "Expired"].includes(s.state)) ||
+          all[0] ||
+          null;
+
+        if (session && ["Completed", "Cancelled", "Expired"].includes(session.state)) {
+          sessionStorage.removeItem("bss-request");
+        }
+        const wallet = await api("wallet");
+        $("flow-info").dataset.balance = wallet?.SoDuVi ?? 0;
+      }
+
+      const bothLeased = STATION_IDS.every((id) => stationData[id].leased);
+      const connEl = $("connection");
+      if (connEl) {
+        connEl.textContent = bothLeased
+          ? MqttSync.connected()
+            ? "Đồng bộ 2 trạm • Backend + MQTT trực tuyến"
+            : "Backend kết nối • Đang chờ MQTT"
+          : "Đang kết nối thiết bị mô phỏng 2 trạm…";
+      }
+      render();
+    } catch (e) {
+      if (e.status === 401) {
+        user = null;
+        token = null;
+        session = null;
+        sessionStorage.removeItem("bss-token");
+        backend = true;
+        const connEl = $("connection");
+        if (connEl) connEl.textContent = "Backend đã kết nối • cần đăng nhập lại";
+        notice("Phiên đăng nhập hết hạn. Dữ liệu đổi pin vẫn được lưu tại server.");
+      } else {
+        backend = false;
+        const connEl = $("connection");
+        if (connEl) connEl.textContent = "Mất kết nối backend — kiểm tra server";
+        notice(e.message);
+      }
+      render();
+    } finally {
+      updating = false;
+    }
   }
 
-  function hideTooltip() {
-    dom.tooltip.style.display = "none";
+  async function acquire() {
+    try {
+      const leases = await MqttSync.connect(STATION_IDS, handleCommand, (ok, text) => {
+        const connEl = $("connection");
+        if (connEl) connEl.textContent = text;
+      });
+      for (const id of STATION_IDS) {
+        stationData[id].leased = !!leases[id]?.leaseId;
+      }
+    } catch (e) {
+      notice(e.message);
+      setTimeout(() => {
+        if (!STATION_IDS.every((id) => stationData[id].leased)) acquire();
+      }, 5000);
+    }
   }
 
-  function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  }
+  function setupScene() {
+    view = SceneView.init($("canvas-container"));
+    CabinetModel.buildCabinet(view.scene);
+    ParticleSystem.init(view.scene);
 
-  function animate() {
-    requestAnimationFrame(animate);
+    const resize = () => {
+      let w = $("canvas-container").clientWidth;
+      let h = $("canvas-container").clientHeight;
+      view.camera.aspect = w / h;
+      view.camera.updateProjectionMatrix();
+      view.renderer.setSize(w, h);
+    };
+    window.addEventListener("resize", resize);
+    resize();
 
-    const delta = clock.getDelta();
-
-    if (typeof TWEEN !== "undefined") {
-      TWEEN.update();
+    // Camera helper functions
+    function zoomToKiosk(stId) {
+      const posX = stationData[stId]?.posX ?? (stId === "TRAM-BK01" ? -1.55 : 1.55);
+      if (typeof TWEEN !== "undefined" && view) {
+        new TWEEN.Tween(view.camera.position)
+          .to({ x: posX, y: 1.15, z: 2.2 }, 650)
+          .easing(TWEEN.Easing.Cubic.Out)
+          .start();
+        new TWEEN.Tween(view.controls.target)
+          .to({ x: posX, y: 0.95, z: 0.6 }, 650)
+          .easing(TWEEN.Easing.Cubic.Out)
+          .start();
+      }
     }
 
-    ParticleSystem.update(delta);
-    controls.update();
+    function zoomToOverview() {
+      if (typeof TWEEN !== "undefined" && view) {
+        new TWEEN.Tween(view.camera.position)
+          .to({ x: 0, y: 1.6, z: 7.5 }, 650)
+          .easing(TWEEN.Easing.Cubic.Out)
+          .start();
+        new TWEEN.Tween(view.controls.target)
+          .to({ x: 0, y: 0.4, z: 0 }, 650)
+          .easing(TWEEN.Easing.Cubic.Out)
+          .start();
+      }
+    }
 
-    renderer.render(scene, camera);
+    function openKioskModal(stId) {
+      const targetStation = stId || activeStationId;
+      if (targetStation !== activeStationId) {
+        setActiveStation(targetStation, false);
+      }
+      zoomToKiosk(activeStationId);
+      const modal = $("kiosk-modal");
+      if (modal) modal.style.display = "flex";
+      render();
+    }
+
+    function closeKioskModal() {
+      const modal = $("kiosk-modal");
+      if (modal) modal.style.display = "none";
+      zoomToOverview();
+    }
+
+    window.openKioskModal = openKioskModal;
+    window.closeKioskModal = closeKioskModal;
+
+    // 3D Pointer Hover: Change cursor to pointer when hovering over Kiosk Touchscreen or Slots
+    view.renderer.domElement.addEventListener("pointermove", (e) => {
+      let rect = e.currentTarget.getBoundingClientRect();
+      let ray = new THREE.Raycaster();
+      ray.setFromCamera(
+        new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1),
+        view.camera
+      );
+      let isHoverInteractive = false;
+      for (const hit of ray.intersectObjects(view.scene.children, true)) {
+        let obj = hit.object;
+        while (obj) {
+          if (obj.userData?.isKiosk || obj.userData?.slotId) {
+            isHoverInteractive = true;
+            break;
+          }
+          obj = obj.parent;
+        }
+        if (isHoverInteractive) break;
+      }
+      view.renderer.domElement.style.cursor = isHoverInteractive ? "pointer" : "default";
+    });
+
+    // 3D Pointer/Click Raycasting: Touch kiosk or select slot directly in 3D
+    let down = null;
+    view.renderer.domElement.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY }));
+    view.renderer.domElement.addEventListener("pointerup", (e) => {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+      let rect = e.currentTarget.getBoundingClientRect();
+      let ray = new THREE.Raycaster();
+      ray.setFromCamera(
+        new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1),
+        view.camera
+      );
+
+      for (const hit of ray.intersectObjects(view.scene.children, true)) {
+        let obj = hit.object;
+        let isKioskHit = false;
+        let hitStation = null;
+        let hitSlot = null;
+        while (obj) {
+          if (obj.userData?.isKiosk) {
+            isKioskHit = true;
+            hitStation = obj.userData.stationId;
+            break;
+          }
+          if (obj.userData?.stationId) {
+            hitStation = hitStation || obj.userData.stationId;
+            hitSlot = hitSlot || obj.userData.slotId;
+          }
+          obj = obj.parent;
+        }
+
+        if (isKioskHit) {
+          openKioskModal(hitStation || activeStationId);
+          return;
+        }
+
+        if (hitStation) {
+          if (hitStation !== activeStationId) {
+            setActiveStation(hitStation, false);
+          }
+          if (hitSlot) {
+            stationData[hitStation].selectedSlot = hitSlot;
+          }
+          render();
+          return;
+        }
+      }
+    });
+
+    let clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      if (typeof TWEEN !== "undefined") TWEEN.update();
+      ParticleSystem.update(dt);
+      view.controls.update();
+      view.renderer.render(view.scene, view.camera);
+    }
+    animate();
   }
 
-  return {
-    init,
-    selectSlot,
-    startSwapProcess,
-    triggerOverheatFault,
-    resetSlotFault,
-  };
+  async function init() {
+    setupScene();
+
+    // Station Switcher Button listeners (Header & Aside)
+    const btnBk = $("btn-station-bk");
+    if (btnBk) btnBk.onclick = () => setActiveStation("TRAM-BK01", true);
+
+    const btnCg = $("btn-station-cg");
+    if (btnCg) btnCg.onclick = () => setActiveStation("TRAM-CG02", true);
+
+    const asideBk = $("aside-btn-bk");
+    if (asideBk) asideBk.onclick = () => setActiveStation("TRAM-BK01", true);
+
+    const asideCg = $("aside-btn-cg");
+    if (asideCg) asideCg.onclick = () => setActiveStation("TRAM-CG02", true);
+
+    // Kiosk Modal Close & Open listeners
+    const closeBtn = $("close-kiosk-modal");
+    if (closeBtn) closeBtn.onclick = closeKioskModal;
+
+    const modalOverlay = $("kiosk-modal");
+    if (modalOverlay) {
+      modalOverlay.onclick = (e) => {
+        if (e.target === modalOverlay) closeKioskModal();
+      };
+    }
+
+    const asideOpenKiosk = $("aside-open-kiosk");
+    if (asideOpenKiosk) {
+      asideOpenKiosk.onclick = () => openKioskModal(activeStationId);
+    }
+
+    const btnQuickLogin = $("btn-quick-login");
+    if (btnQuickLogin) {
+      btnQuickLogin.onclick = () => {
+        const u = $("username");
+        const p = $("password");
+        if (u) u.value = "driver01";
+        if (p) p.value = "123456";
+        $("login-form")?.dispatchEvent(new Event("submit"));
+      };
+    }
+
+    $("time-scale").onchange = (e) => (scale = Number(e.target.value));
+
+    $("login-form").onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const r = await api("auth/login", "POST", {
+          username: $("username").value,
+          password: $("password").value,
+        });
+        if (r.user.role !== "KhachHang")
+          throw Error("Kiosk yêu cầu tài khoản khách hàng. Quản trị dùng Desktop.");
+        token = r.token;
+        user = r.user;
+        sessionStorage.setItem("bss-token", token);
+        notice("Đăng nhập thành công.");
+        await refresh();
+      } catch (err) {
+        notice(err.message);
+      }
+    };
+
+    $("start-swap").onclick = async () => {
+      const st = stationData[activeStationId];
+      if (!st || !st.leased || !backend) return;
+      let key = sessionStorage.getItem("bss-request") || crypto.randomUUID();
+      sessionStorage.setItem("bss-request", key);
+      try {
+        session = await api("swaps", "POST", { stationId: activeStationId, idempotencyKey: key });
+        notice(`Đã giữ chỗ tại ${activeStationId}. Chờ ngăn nhận pin mở.`);
+        await refresh();
+      } catch (err) {
+        notice(err.message);
+      }
+    };
+
+    $("cancel-swap").onclick = async () => {
+      try {
+        if (session) session = await api(`swaps/${session.id}/cancel`, "POST", {});
+        await refresh();
+      } catch (err) {
+        notice(err.message);
+      }
+    };
+
+    $("logout").onclick = async () => {
+      try {
+        await fetch("/api/v1/auth/logout", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+        });
+      } finally {
+        token = null;
+        user = null;
+        session = null;
+        sessionStorage.removeItem("bss-token");
+        render();
+      }
+    };
+
+    $("overheat").onclick = () => {
+      const st = stationData[activeStationId];
+      if (!st || !st.leased) return;
+      let s = st.slots.find((t) => t.id === st.selectedSlot);
+      if (!s?.hasBattery) return;
+
+      s.temperature = 65;
+      BmsModel.step(s, 0);
+      MqttSync.publish(activeStationId, "alerts", st.slots, {
+        event: "OVERHEAT",
+        slotNumber: s.id,
+        batteryId: s.batteryId,
+      });
+      visuals(activeStationId, s);
+      render();
+    };
+
+    $("cool").onclick = () => {
+      const st = stationData[activeStationId];
+      if (!st || !st.leased) return;
+      let s = st.slots.find((t) => t.id === st.selectedSlot);
+      if (!s) return;
+
+      s.temperature = 30;
+      flush(activeStationId);
+      render();
+    };
+
+    if (token) {
+      try {
+        user = await api("auth/me");
+      } catch {
+        token = null;
+        sessionStorage.removeItem("bss-token");
+      }
+    }
+
+    await refresh();
+    await acquire();
+
+    // 1-second physics & telemetry loop for both stations
+    setInterval(() => {
+      for (const id of STATION_IDS) {
+        const st = stationData[id];
+        if (st.leased) {
+          for (const s of st.slots) {
+            BmsModel.step(s, 1, scale);
+            visuals(id, s);
+          }
+          flush(id);
+        }
+      }
+      simSeconds += scale;
+      render();
+    }, 1000);
+
+    setInterval(refresh, 1000);
+  }
+
+  return { init };
 })();

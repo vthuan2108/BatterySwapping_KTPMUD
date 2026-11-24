@@ -1,4 +1,4 @@
-<UserControl x:Class="BatterySwapping.App.Views.Kiosk.KioskSuccessView"
+﻿<UserControl x:Class="BatterySwapping.App.Views.Kiosk.KioskSuccessView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FontFamily="Segoe UI">

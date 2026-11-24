@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using BatterySwapping.App.Models;
@@ -42,8 +42,16 @@ namespace BatterySwapping.App.Views.Dialogs
             }
         }
 
-        private void BtnSave_Click(object sender, RoutedEventArgs e)
+        private bool _saving;
+        private async void BtnSave_Click(object sender, RoutedEventArgs e)
         {
+            var sourceButton=sender as System.Windows.Controls.Button;
+            if(sourceButton!=null)sourceButton.IsEnabled=false;
+            try {
+
+            if(_saving)return;_saving=true;
+            try {
+
             if (cboCustomers == null || cboCustomers.SelectedItem is not KhachHang customer)
             {
                 MessageBox.Show("Vui lòng chọn khách hàng!", "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -59,17 +67,23 @@ namespace BatterySwapping.App.Views.Dialogs
 
             string method = (cboMethod?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "ChuyenKhoan";
 
-            if (_reportService.TopUpWallet(customer.MaKH, amount, method, out string error))
+            var outcome = await _reportService.TopUpWallet(customer.MaKH, amount, method);
+            if (outcome.Success)
             {
-                MessageBox.Show($"Nạp thành công {amount:N0} đ vào tài khoản khách hàng {customer.HoTen}!", 
+                MessageBox.Show($"Nạp thành công {amount:N0} đ vào tài khoản khách hàng {customer.HoTen}!",
                                 "Giao dịch thành công", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();
             }
             else
             {
-                MessageBox.Show($"Lỗi nạp tiền: {error}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Lỗi nạp tiền: {outcome.Error}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+
+            } finally {_saving=false;}
+
+            } catch(Exception ex){BssApi.Error(ex);}
+            finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)

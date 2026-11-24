@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,7 +23,7 @@ namespace BatterySwapping.App.Views.Admin
             Loaded += (s, e) => LoadCustomers();
         }
 
-        public void LoadCustomers()
+        public async void LoadCustomers()
         {
             if (!Dispatcher.CheckAccess())
             {
@@ -32,11 +32,12 @@ namespace BatterySwapping.App.Views.Admin
             }
             try
             {
-                _allCustomers = _reportService.GetAllCustomers() ?? new();
+                _allCustomers = await _reportService.GetAllCustomers() ?? new();
                 FilterData();
             }
-            catch
+            catch (Exception ex)
             {
+                BssApi.ReportError(ex);
                 // Safe ignore
             }
         }
@@ -50,8 +51,8 @@ namespace BatterySwapping.App.Views.Admin
 
             if (!string.IsNullOrEmpty(keyword))
             {
-                query = query.Where(c => (c != null && c.HoTen != null && c.HoTen.ToLower().Contains(keyword)) || 
-                                         (c != null && c.SoDienThoai != null && c.SoDienThoai.Contains(keyword)) || 
+                query = query.Where(c => (c != null && c.HoTen != null && c.HoTen.ToLower().Contains(keyword)) ||
+                                         (c != null && c.SoDienThoai != null && c.SoDienThoai.Contains(keyword)) ||
                                          (c != null && c.BienSoXe != null && c.BienSoXe.ToLower().Contains(keyword)));
             }
 

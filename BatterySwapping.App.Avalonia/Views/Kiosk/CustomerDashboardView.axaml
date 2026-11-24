@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BatterySwapping.App.Avalonia.Views.Kiosk.CustomerDashboardView">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Tiêu đề & Trạng thái -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <TextBlock Text="💳 TÀI XẾ &amp; VÍ ĐIỆN TỬ CỦA TÔI" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock x:Name="txtStatus" Margin="0,6,0,0" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <!-- 3 Thẻ Thông Tin: Hồ sơ | Ví tiền | Mã QR Định Danh -->
+            <Grid Grid.Row="1" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="260"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Thẻ 1: Thông tin tài xế -->
+                <Border Grid.Column="0" Classes="card" Background="White">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="👤 THÔNG TIN TÀI XẾ" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        <Separator Background="{StaticResource BorderBrush}" Margin="0,10,0,12"/>
+                        <TextBlock x:Name="txtProfile" Text="Đang tải thông tin..." TextWrapping="Wrap" FontSize="13" LineHeight="24"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Thẻ 2: Ví nội bộ & Nạp demo -->
+                <Border Grid.Column="2" Classes="card" Background="White">
+                    <StackPanel>
+                        <TextBlock Text="💰 VÍ NỘI BỘ" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <Separator Background="{StaticResource BorderBrush}" Margin="0,10,0,12"/>
+                        <TextBlock x:Name="txtBalance" Text="0 đ" FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="txtAvailable" Text="Đang giữ chỗ: 0 đ • Có thể sử dụng: 0 đ" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
+
+                        <TextBlock Text="Nạp ví thử nghiệm:" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+                            <Button Content="50.000 đ" Tag="50000" Click="QuickAmount_Click" Classes="outline" Padding="8,4" FontSize="11"/>
+                            <Button Content="100.000 đ" Tag="100000" Click="QuickAmount_Click" Classes="outline" Padding="8,4" FontSize="11"/>
+                            <Button Content="200.000 đ" Tag="200000" Click="QuickAmount_Click" Classes="outline" Padding="8,4" FontSize="11"/>
+                        </StackPanel>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtTopUpAmount" Grid.Column="0" Classes="modern" Text="50000" Height="36"/>
+                            <Button x:Name="btnTopUp" Grid.Column="2" Content="NẠP VÍ" Classes="primary" Click="TopupClick" Height="36" Padding="14,0"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Thẻ 3: Mã QR Check-in Kiosk -->
+                <Border Grid.Column="4" Classes="card" Background="#0F172A">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="📱 QR CHECK-IN KIOSK" FontWeight="Bold" FontSize="13" Foreground="White" HorizontalAlignment="Center"/>
+                        <Border Background="White" CornerRadius="8" Padding="12" Margin="0,12,0,8" HorizontalAlignment="Center">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="⚡ BSS PASS" FontWeight="Bold" FontSize="12" Foreground="#047857" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="txtQrPayload" Text="BSS:KH-1:0901234567" FontSize="10" FontWeight="SemiBold" Foreground="#334155" Margin="0,4,0,4" HorizontalAlignment="Center" TextWrapping="Wrap"/>
+                                <TextBlock Text="[ Quét mã tại camera Kiosk ]" FontSize="9" Foreground="#64748B" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="Đưa trước đầu đọc trạm" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Nút Kích hoạt Đổi pin tại trạm -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="16" Margin="0,0,0,20">
+                <Button Content="⚡ TIẾN HÀNH ĐỔI PIN TẠI TRẠM" Classes="primary" FontSize="15" Padding="24,12" Click="SwapClick"/>
+                <TextBlock Text="Phí dịch vụ: 25.000 đ / lượt đổi pin • Tự động hoàn tất trong 30 giây" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- Lịch sử đổi pin & Nạp ví -->
+            <TabControl Grid.Row="3" Height="320">
+                <TabItem Header="⚡ LỊCH SỬ ĐỔI PIN" FontSize="13" FontWeight="SemiBold">
+                    <Border Classes="card" Padding="0" Margin="0,10,0,0" Background="White">
+                        <DataGrid x:Name="dgSwapHistory" IsReadOnly="True" AutoGenerateColumns="False" GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="MÃ GD" Binding="{Binding MaGD}" FontWeight="Bold" Width="90"/>
+                                <DataGridTextColumn Header="TRẠM" Binding="{Binding MaTram}" Width="110"/>
+                                <DataGridTextColumn Header="PIN ĐÃ TRẢ" Binding="{Binding MaPinTra}" Width="110"/>
+                                <DataGridTextColumn Header="PIN ĐÃ NHẬN" Binding="{Binding MaPinNhan}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="110"/>
+                                <DataGridTextColumn Header="PHÍ DỊCH VỤ" Binding="{Binding PhiFormatted}" FontWeight="Bold" Width="110"/>
+                                <DataGridTextColumn Header="TRẠNG THÁI" Binding="{Binding TrangThai}" FontWeight="SemiBold" Width="120"/>
+                                <DataGridTextColumn Header="THỜI GIAN" Binding="{Binding ThoiGianBatDauFormatted}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="💳 LỊCH SỬ NẠP VÍ" FontSize="13" FontWeight="SemiBold">
+                    <Border Classes="card" Padding="0" Margin="0,10,0,0" Background="White">
+                        <DataGrid x:Name="dgTopUpHistory" IsReadOnly="True" AutoGenerateColumns="False" GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="MÃ NẠP" Binding="{Binding MaNap}" FontWeight="Bold" Width="90"/>
+                                <DataGridTextColumn Header="SỐ TIỀN" Binding="{Binding SoTienFormatted}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="140"/>
+                                <DataGridTextColumn Header="PHƯƠNG THỨC" Binding="{Binding PhuongThuc}" Width="140"/>
+                                <DataGridTextColumn Header="THỜI GIAN" Binding="{Binding ThoiGianFormatted}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

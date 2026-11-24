@@ -1,4 +1,4 @@
--- Existing procedures are maintained only in 02_TriggersAndProcedures.sql.
+﻿-- Existing procedures are maintained only in 02_TriggersAndProcedures.sql.
 USE [BatterySwappingDB];
 GO
 -- 5. PROCEDURE: THÊM MỚI TRẠM ĐỔI PIN VÀ TỰ ĐỘNG KHỞI TẠO CÁC NGĂN TỦ

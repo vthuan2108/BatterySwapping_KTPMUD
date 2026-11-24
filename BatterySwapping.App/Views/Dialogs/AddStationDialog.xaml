@@ -1,4 +1,4 @@
-<Window x:Class="BatterySwapping.App.Views.Dialogs.AddStationDialog"
+﻿<Window x:Class="BatterySwapping.App.Views.Dialogs.AddStationDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Thêm Trạm Đổi Pin Mới Vào Mạng Lưới" Height="480" Width="460"

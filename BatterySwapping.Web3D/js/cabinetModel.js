@@ -1,32 +1,53 @@
 /**
- * cabinetModel.js - V2 (Real-world VinFast / Gogoro Style BSS Station)
- * 3D Model Generator for BSS 8-Slot Battery Swapping Station
- * Featuring:
- * - Vibrant Electric Blue metallic enclosure with white border styling
+ * cabinetModel.js - V3 (Multi-Station 3D Architecture)
+ * Supports multiple BSS Battery Swapping Station Cabinets in a unified 3D scene:
+ * - Station 1: TRAM-BK01 (ĐH Bách Khoa Hà Nội) at x = -2.2
+ * - Station 2: TRAM-CG02 (Cầu Giấy) at x = +2.2
+ *
+ * Each station features:
+ * - Custom metallic enclosure with VinFast / modern EV aesthetics
+ * - Backlit illuminated overhead signboard with station ID & name
  * - Integrated Security Camera at top-right
  * - Center Brand Emblem (V / BSS)
- * - Embedded Touchscreen Kiosk Display on cabinet with real-time dynamic texture
+ * - Independent embedded Touchscreen Kiosk Display with real-time dynamic texture
  * - 8 Receptacle Slots with illuminated LED perimeter rings
  * - Highly detailed front-facing Modular Battery Packs with horizontal ergonomic handles
+ * - OLED mini displays on each battery pack
  * - Eject / Slide-out physical animations
+ * - Smoke & alarm anchor points per slot
  */
 
 const CabinetModel = (function () {
   let materials = {};
-  let slotObjects = [];
-  let kioskScreenMesh = null;
-  let kioskCanvas = null;
-  let kioskCtx = null;
-  let kioskTexture = null;
+  const stations = {}; // keyed by stationId
+  let floorInitialized = false;
+
+  const DEFAULT_CONFIGS = [
+    {
+      id: "TRAM-BK01",
+      name: "Trạm ĐH Bách Khoa Hà Nội",
+      shortName: "TRAM-BK01 • ĐH BÁCH KHOA",
+      subName: "Cổng Parabol Giải Phóng, Hai Bà Trưng",
+      posX: -1.55,
+      bodyColor: 0x006ec7, // VinFast Electric Blue Metallic
+      accentColor: "#38bdf8",
+      neonColor: 0x0284c7,
+      ledColor: 0x84cc16,
+    },
+    {
+      id: "TRAM-CG02",
+      name: "Trạm Đổi Pin Cầu Giấy",
+      shortName: "TRAM-CG02 • CẦU GIẤY",
+      subName: "144 Xuân Thủy, Cầu Giấy, Hà Nội",
+      posX: 1.55,
+      bodyColor: 0x0284c7, // Sleek Modern Cyan Metallic
+      accentColor: "#10b981",
+      neonColor: 0x10b981,
+      ledColor: 0x10b981,
+    },
+  ];
 
   function initMaterials() {
-    // VinFast / Electric Blue Metallic
-    materials.cabinetBlue = new THREE.MeshStandardMaterial({
-      color: 0x006ec7,
-      metalness: 0.65,
-      roughness: 0.3,
-    });
-
     // Dark trim / Accent
     materials.cabinetDark = new THREE.MeshStandardMaterial({
       color: 0x0a1120,
@@ -84,98 +105,219 @@ const CabinetModel = (function () {
     });
   }
 
-  // Realtime Kiosk Screen on Cabinet Front
-  function initKioskScreenTexture() {
-    kioskCanvas = document.createElement("canvas");
-    kioskCanvas.width = 512;
-    kioskCanvas.height = 340;
-    kioskCtx = kioskCanvas.getContext("2d");
+  function initSceneGround(scene) {
+    if (floorInitialized) return;
+    floorInitialized = true;
 
-    kioskTexture = new THREE.CanvasTexture(kioskCanvas);
-    kioskTexture.needsUpdate = true;
-    updateKioskScreen("STANDBY", "CHÀO MỪNG ĐẾN VỚI TRẠM ĐỔI PIN", "Bấm 'Bắt đầu đổi pin' hoặc Quét QR", "#10b981");
+    // Wide floor accommodating both stations
+    const floorGeo = new THREE.PlaneGeometry(28, 20);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.85,
+      metalness: 0.15,
+    });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -1.88;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    const gridHelper = new THREE.GridHelper(26, 52, 0x0284c7, 0x1e293b);
+    gridHelper.position.y = -1.87;
+    scene.add(gridHelper);
   }
 
-  function updateKioskScreen(stepCode, mainText, subText, accentColor = "#38bdf8", slotNumber = null) {
-    if (!kioskCtx) return;
+  // Draw Station Backlit Neon Billboard atop cabinet
+  function createStationSignboard(cfg) {
+    const signGroup = new THREE.Group();
+    signGroup.position.set(0, 2.38, 0.05);
 
-    kioskCtx.fillStyle = "#050b17";
-    kioskCtx.fillRect(0, 0, kioskCanvas.width, kioskCanvas.height);
+    // Sign box frame
+    const boxGeo = new THREE.BoxGeometry(2.1, 0.36, 0.08);
+    const boxMesh = new THREE.Mesh(boxGeo, materials.cabinetDark);
+    signGroup.add(boxMesh);
 
-    // Header bar
-    kioskCtx.fillStyle = "#0284c7";
-    kioskCtx.fillRect(0, 0, kioskCanvas.width, 50);
+    // Canvas texture for glowing sign
+    const signCanvas = document.createElement("canvas");
+    signCanvas.width = 512;
+    signCanvas.height = 96;
+    const sCtx = signCanvas.getContext("2d");
 
-    kioskCtx.fillStyle = "#ffffff";
-    kioskCtx.font = "bold 22px sans-serif";
-    kioskCtx.textAlign = "center";
-    kioskCtx.fillText("⚡ BSS SMART KIOSK • TRAM-BK01", kioskCanvas.width / 2, 34);
+    // Background with glowing border
+    sCtx.fillStyle = "#030712";
+    sCtx.fillRect(0, 0, 512, 96);
+    sCtx.strokeStyle = cfg.accentColor;
+    sCtx.lineWidth = 4;
+    sCtx.strokeRect(4, 4, 504, 88);
 
-    // Outer border
-    kioskCtx.strokeStyle = accentColor;
-    kioskCtx.lineWidth = 6;
-    kioskCtx.strokeRect(3, 3, kioskCanvas.width - 6, kioskCanvas.height - 6);
+    // Header badge
+    sCtx.fillStyle = cfg.accentColor;
+    sCtx.font = "bold 16px sans-serif";
+    sCtx.textAlign = "center";
+    sCtx.fillText("⚡ VINFAST / BSS SMART NETWORK", 256, 26);
 
-    // Main Content based on step
-    if (stepCode === "STANDBY") {
-      // Draw QR Code representation
-      drawMockQrCode(kioskCtx, 60, 80, 140);
+    // Main Station Name
+    sCtx.fillStyle = "#ffffff";
+    sCtx.font = "bold 32px sans-serif";
+    sCtx.fillText(cfg.shortName, 256, 64);
 
-      kioskCtx.fillStyle = "#f8fafc";
-      kioskCtx.font = "bold 24px sans-serif";
-      kioskCtx.textAlign = "left";
-      kioskCtx.fillText("QUÉT MÃ QR", 230, 115);
+    // Subtitle
+    sCtx.fillStyle = "#94a3b8";
+    sCtx.font = "14px sans-serif";
+    sCtx.fillText(cfg.subName, 256, 85);
 
-      kioskCtx.fillStyle = "#94a3b8";
-      kioskCtx.font = "16px sans-serif";
-      kioskCtx.fillText("hoặc chọn trên màn hình", 230, 145);
-      kioskCtx.fillText("để bắt đầu chu trình", 230, 170);
+    const signTex = new THREE.CanvasTexture(signCanvas);
+    const signMat = new THREE.MeshStandardMaterial({
+      map: signTex,
+      emissive: new THREE.Color(cfg.neonColor),
+      emissiveMap: signTex,
+      emissiveIntensity: 0.65,
+      roughness: 0.2,
+      metalness: 0.1,
+    });
 
-      kioskCtx.fillStyle = "#38bdf8";
-      kioskCtx.font = "bold 18px monospace";
-      kioskCtx.fillText("Phí đổi: 25.000 đ/lần", 230, 205);
+    const signFace = new THREE.Mesh(new THREE.PlaneGeometry(2.04, 0.32), signMat);
+    signFace.position.set(0, 0, 0.042);
+    signGroup.add(signFace);
 
-      // Status pill at bottom
-      kioskCtx.fillStyle = "rgba(16, 185, 129, 0.2)";
-      kioskCtx.fillRect(30, 255, kioskCanvas.width - 60, 55);
-      kioskCtx.fillStyle = "#10b981";
-      kioskCtx.font = "bold 20px sans-serif";
-      kioskCtx.textAlign = "center";
-      kioskCtx.fillText("✔ SẴN SÀNG PHỤC VỤ (8 NGĂN SẠC)", kioskCanvas.width / 2, 290);
+    // Top Neon Glow Light Strip
+    const neonLight = new THREE.PointLight(cfg.neonColor, 1.2, 4.0);
+    neonLight.position.set(0, 0.1, 0.25);
+    signGroup.add(neonLight);
+
+    return signGroup;
+  }
+
+  // Realtime Kiosk Screen for each station
+  function createStationKioskScreen(stationData, cfg) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 340;
+    const ctx = canvas.getContext("2d");
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    stationData.kioskCanvas = canvas;
+    stationData.kioskCtx = ctx;
+    stationData.kioskTexture = texture;
+
+    updateKioskScreen(
+      cfg.id,
+      "STANDBY",
+      cfg.shortName,
+      "Bấm 'Bắt đầu đổi pin' hoặc Quét QR",
+      cfg.accentColor
+    );
+
+    const screenFrameGeo = new THREE.BoxGeometry(0.88, 0.62, 0.03);
+    const screenFrame = new THREE.Mesh(screenFrameGeo, materials.cabinetDark);
+    screenFrame.position.set(0, 0.95, 1.15 / 2 + 0.015);
+
+    const screenMat = new THREE.MeshBasicMaterial({ map: texture });
+    const screenGeo = new THREE.PlaneGeometry(0.82, 0.54);
+    const screenMesh = new THREE.Mesh(screenGeo, screenMat);
+    screenMesh.position.set(0, 0, 0.018);
+    screenFrame.add(screenMesh);
+
+    screenFrame.userData = { stationId: cfg.id, isKiosk: true };
+    screenMesh.userData = { stationId: cfg.id, isKiosk: true };
+
+    stationData.kioskScreenMesh = screenMesh;
+    return screenFrame;
+  }
+
+  function updateKioskScreen(stationId, stepCode, mainText, subText, accentColor = "#38bdf8", slotNumber = null) {
+    const st = stations[stationId];
+    if (!st || !st.kioskCtx) return;
+    const ctx = st.kioskCtx;
+    const canvas = st.kioskCanvas;
+
+    // Dark high-tech background
+    ctx.fillStyle = "#050b17";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Top Header Banner
+    ctx.fillStyle = "#0c1527";
+    ctx.fillRect(0, 0, canvas.width, 48);
+
+    // Accent Line
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(0, 48, canvas.width, 3);
+
+    // Station Name in header
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = "bold 16px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("⚡ " + (st.name || stationId), 16, 31);
+
+    // Step Status Tag
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(canvas.width - 130, 10, 115, 28);
+    ctx.fillStyle = "#050b17";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(stepCode, canvas.width - 72, 29);
+
+    if (slotNumber) {
+      // Big highlighted slot circle
+      ctx.fillStyle = accentColor;
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2, 135, 52, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#050b17";
+      ctx.font = "bold 44px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`${slotNumber}`, canvas.width / 2, 150);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 20px sans-serif";
+      ctx.fillText(mainText, canvas.width / 2, 225);
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "16px sans-serif";
+      ctx.fillText(subText, canvas.width / 2, 260);
     } else {
-      // Active Swap Step Display
-      kioskCtx.fillStyle = accentColor;
-      kioskCtx.font = "bold 24px sans-serif";
-      kioskCtx.textAlign = "center";
-      kioskCtx.fillText(mainText, kioskCanvas.width / 2, 110);
+      // Mock QR code on left side for standby
+      drawMockQrCode(ctx, 30, 72, 150);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("QUÉT MÃ QR APP", 30 + 75, 246);
 
-      if (slotNumber) {
-        // Big slot badge
-        kioskCtx.fillStyle = "rgba(255, 255, 255, 0.1)";
-        kioskCtx.fillRect(kioskCanvas.width / 2 - 80, 135, 160, 90);
-        kioskCtx.strokeStyle = accentColor;
-        kioskCtx.lineWidth = 4;
-        kioskCtx.strokeRect(kioskCanvas.width / 2 - 80, 135, 160, 90);
+      // Main Instruction Text on right
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 20px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(mainText, 205, 105);
 
-        kioskCtx.fillStyle = "#ffffff";
-        kioskCtx.font = "bold 48px monospace";
-        kioskCtx.fillText(`Ô #${slotNumber}`, kioskCanvas.width / 2, 200);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "14px sans-serif";
+      ctx.fillText("Nhấp chuột vào màn hình để mở Kiosk", 205, 135);
+
+      // Interactive button on 3D kiosk screen
+      ctx.fillStyle = accentColor;
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(205, 160, 280, 52, 10);
+        ctx.fill();
+      } else {
+        ctx.fillRect(205, 160, 280, 52);
       }
 
-      kioskCtx.fillStyle = "#94a3b8";
-      kioskCtx.font = "18px sans-serif";
-      kioskCtx.textAlign = "center";
-      kioskCtx.fillText(subText, kioskCanvas.width / 2, 275);
+      ctx.fillStyle = "#050b17";
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("👆 CHẠM ĐỂ ĐỔI PIN", 205 + 140, 192);
 
-      // Progress dots
-      kioskCtx.fillStyle = accentColor;
-      kioskCtx.beginPath();
-      kioskCtx.arc(kioskCanvas.width / 2, 310, 8, 0, Math.PI * 2);
-      kioskCtx.fill();
+      ctx.fillStyle = "#38bdf8";
+      ctx.font = "13px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("⚡ Tự động mở hộc & kiểm định BMS", 205, 246);
     }
 
-    if (kioskTexture) {
-      kioskTexture.needsUpdate = true;
+    if (st.kioskTexture) {
+      st.kioskTexture.needsUpdate = true;
     }
   }
 
@@ -184,13 +326,10 @@ const CabinetModel = (function () {
     ctx.fillRect(x, y, size, size);
 
     ctx.fillStyle = "#050b17";
-    // Finder patterns
     drawFinder(ctx, x + 8, y + 8, 36);
     drawFinder(ctx, x + size - 44, y + 8, 36);
     drawFinder(ctx, x + 8, y + size - 44, 36);
 
-    // Random pattern dots
-    ctx.fillStyle = "#050b17";
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (Math.sin(r * 4.2 + c * 2.8) > 0.1) {
@@ -209,45 +348,67 @@ const CabinetModel = (function () {
     ctx.fillRect(fx + 12, fy + 12, fsize - 24, fsize - 24);
   }
 
-  function buildCabinet(scene) {
+  // Build a single station cabinet at specific posX
+  function buildStationCabinet(scene, cfg) {
     initMaterials();
-    initKioskScreenTexture();
+    initSceneGround(scene);
 
-    const cabinetGroup = new THREE.Group();
-    cabinetGroup.name = "BSS_Cabinet";
+    const stationGroup = new THREE.Group();
+    stationGroup.name = `Station_${cfg.id}`;
+    stationGroup.position.set(cfg.posX, 0, 0);
+
+    const stationData = {
+      id: cfg.id,
+      name: cfg.name,
+      shortName: cfg.shortName,
+      posX: cfg.posX,
+      group: stationGroup,
+      slots: [],
+    };
+    stations[cfg.id] = stationData;
 
     // Overall Tower Dimension (Sleek VinFast Proportions)
     const towerW = 2.2;
     const towerH = 4.2;
     const towerD = 1.15;
 
+    // Cabinet body material with station-specific color
+    const cabinetBodyMat = new THREE.MeshStandardMaterial({
+      color: cfg.bodyColor,
+      metalness: 0.65,
+      roughness: 0.3,
+    });
+
     // 1. Base plinth
     const plinthGeo = new THREE.BoxGeometry(towerW + 0.15, 0.25, towerD + 0.15);
     const plinthMesh = new THREE.Mesh(plinthGeo, materials.cabinetDark);
     plinthMesh.position.y = -1.75;
     plinthMesh.receiveShadow = true;
-    cabinetGroup.add(plinthMesh);
+    stationGroup.add(plinthMesh);
 
-    // 2. Main Tower Enclosure (VinFast Blue)
+    // 2. Main Tower Enclosure
     const towerGeo = new THREE.BoxGeometry(towerW, towerH - 0.25, towerD);
-    const towerMesh = new THREE.Mesh(towerGeo, materials.cabinetBlue);
+    const towerMesh = new THREE.Mesh(towerGeo, cabinetBodyMat);
     towerMesh.position.y = 0.2;
     towerMesh.castShadow = true;
     towerMesh.receiveShadow = true;
-    cabinetGroup.add(towerMesh);
+    stationGroup.add(towerMesh);
 
-    // 3. Top Canopy Cap (Slanted aerodynamic roof)
+    // 3. Top Canopy Cap
     const roofGeo = new THREE.BoxGeometry(towerW + 0.05, 0.2, towerD + 0.05);
-    const roofMesh = new THREE.Mesh(roofGeo, materials.cabinetBlue);
+    const roofMesh = new THREE.Mesh(roofGeo, cabinetBodyMat);
     roofMesh.position.y = towerH / 2 + 0.15;
-    cabinetGroup.add(roofMesh);
+    stationGroup.add(roofMesh);
 
-    // 4. White Accent Frame Line on front face (matching VinFast design)
+    // 4. Backlit Overhead Signboard on Roof
+    const signboard = createStationSignboard(cfg);
+    stationGroup.add(signboard);
+
+    // 5. White Accent Frame Line on front face
     const frontZ = towerD / 2 + 0.005;
     const stripeMat = materials.whiteStripe;
     const stripeThick = 0.035;
 
-    // Outer white perimeter loop
     const topStripe = new THREE.Mesh(new THREE.BoxGeometry(towerW - 0.2, stripeThick, 0.01), stripeMat);
     topStripe.position.set(0, 1.9, frontZ);
     const btmStripe = new THREE.Mesh(new THREE.BoxGeometry(towerW - 0.2, stripeThick, 0.01), stripeMat);
@@ -257,20 +418,18 @@ const CabinetModel = (function () {
     const rightStripe = new THREE.Mesh(new THREE.BoxGeometry(stripeThick, 3.4, 0.01), stripeMat);
     rightStripe.position.set((towerW - 0.2) / 2, 0.2, frontZ);
 
-    cabinetGroup.add(topStripe);
-    cabinetGroup.add(btmStripe);
-    cabinetGroup.add(leftStripe);
-    cabinetGroup.add(rightStripe);
+    stationGroup.add(topStripe);
+    stationGroup.add(btmStripe);
+    stationGroup.add(leftStripe);
+    stationGroup.add(rightStripe);
 
-    // 5. Brand Logo V at Top Center
+    // 6. Brand Logo V at Top Center
     const logoGroup = new THREE.Group();
     logoGroup.position.set(0, 1.55, frontZ + 0.01);
-    // Silver shield background
     const shieldGeo = new THREE.BoxGeometry(0.38, 0.32, 0.02);
     const shieldMesh = new THREE.Mesh(shieldGeo, materials.cabinetDark);
     logoGroup.add(shieldMesh);
 
-    // Silver V-wings
     const wingGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.22, 16);
     const leftWing = new THREE.Mesh(wingGeo, materials.cameraSilver);
     leftWing.position.set(-0.06, 0.02, 0.02);
@@ -280,83 +439,49 @@ const CabinetModel = (function () {
     rightWing.rotation.z = Math.PI / 5;
     logoGroup.add(leftWing);
     logoGroup.add(rightWing);
-    cabinetGroup.add(logoGroup);
+    stationGroup.add(logoGroup);
 
-    // 6. Security Camera at Top Right
+    // 7. Security Camera at Top Right
     const camGroup = new THREE.Group();
     camGroup.position.set(0.72, 1.55, frontZ + 0.01);
-
     const camRingGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.04, 32);
     camRingGeo.rotateX(Math.PI / 2);
     const camRing = new THREE.Mesh(camRingGeo, materials.cameraSilver);
-
     const camLensGeo = new THREE.SphereGeometry(0.06, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
     camLensGeo.rotateX(Math.PI / 2);
     const camLens = new THREE.Mesh(camLensGeo, materials.cameraLens);
     camLens.position.z = 0.02;
-
     camGroup.add(camRing);
     camGroup.add(camLens);
-    cabinetGroup.add(camGroup);
+    stationGroup.add(camGroup);
 
-    // 7. Embedded Touchscreen Kiosk Display
-    const screenFrameGeo = new THREE.BoxGeometry(0.88, 0.62, 0.03);
-    const screenFrame = new THREE.Mesh(screenFrameGeo, materials.cabinetDark);
-    screenFrame.position.set(0, 0.95, frontZ + 0.01);
+    // 8. Embedded Touchscreen Kiosk Display
+    const screenFrame = createStationKioskScreen(stationData, cfg);
+    stationGroup.add(screenFrame);
 
-    const screenMat = new THREE.MeshBasicMaterial({ map: kioskTexture });
-    const screenGeo = new THREE.PlaneGeometry(0.82, 0.54);
-    kioskScreenMesh = new THREE.Mesh(screenGeo, screenMat);
-    kioskScreenMesh.position.set(0, 0, 0.018);
-    screenFrame.add(kioskScreenMesh);
-    cabinetGroup.add(screenFrame);
-
-    // Brand Name Text: "SMART BSS" near bottom
+    // 9. Brand Name Text near bottom
     const brandCanvas = document.createElement("canvas");
     brandCanvas.width = 512;
     brandCanvas.height = 100;
     const bCtx = brandCanvas.getContext("2d");
     bCtx.fillStyle = "#ffffff";
-    bCtx.font = "bold 52px sans-serif";
+    bCtx.font = "bold 44px sans-serif";
     bCtx.textAlign = "center";
-    bCtx.letterSpacing = "6px";
-    bCtx.fillText("S M A R T   B S S", 256, 65);
+    bCtx.fillText(`BSS • ${cfg.id}`, 256, 65);
     const brandTex = new THREE.CanvasTexture(brandCanvas);
     const brandMat = new THREE.MeshBasicMaterial({ map: brandTex, transparent: true });
     const brandMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.24), brandMat);
     brandMesh.position.set(0, -1.35, frontZ + 0.01);
-    cabinetGroup.add(brandMesh);
+    stationGroup.add(brandMesh);
 
-    // 8. Ground Floor
-    const floorGeo = new THREE.PlaneGeometry(16, 16);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.85,
-      metalness: 0.15,
-    });
-    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.rotation.x = -Math.PI / 2;
-    floorMesh.position.y = -1.88;
-    floorMesh.receiveShadow = true;
-    scene.add(floorMesh);
-
-    const gridHelper = new THREE.GridHelper(14, 28, 0x0284c7, 0x1e293b);
-    gridHelper.position.y = -1.87;
-    scene.add(gridHelper);
-
-    // ==============================================================
-    // 9. 8 Receptacle Battery Slots (2 Columns x 4 Rows)
-    // Placed on lower half of cabinet (matching reference photo)
-    // ==============================================================
+    // 10. 8 Receptacle Battery Slots (2 Columns x 4 Rows)
     const colX = [-0.52, 0.52];
     const rowY = [0.35, -0.15, -0.65, -1.15];
     const slotW = 0.72;
     const slotH = 0.40;
     const slotD = 0.85;
 
-    slotObjects = [];
     let slotCounter = 1;
-
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 2; c++) {
         const slotId = slotCounter++;
@@ -366,9 +491,9 @@ const CabinetModel = (function () {
 
         const slotGroup = new THREE.Group();
         slotGroup.position.set(posX, posY, posZ);
-        slotGroup.name = `Slot_${slotId}`;
+        slotGroup.name = `${cfg.id}_Slot_${slotId}`;
 
-        // Slot Receptacle Bezel (Outer rounded border)
+        // Slot Receptacle Bezel
         const bezelGeo = new THREE.BoxGeometry(slotW + 0.04, slotH + 0.04, 0.04);
         const bezelMesh = new THREE.Mesh(bezelGeo, materials.cabinetDark);
         bezelMesh.position.z = -0.01;
@@ -380,7 +505,7 @@ const CabinetModel = (function () {
         cavMesh.position.z = -slotD / 2;
         slotGroup.add(cavMesh);
 
-        // Gold Charging Terminals at back of slot
+        // Gold Charging Terminals
         const pin1 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.06, 16), materials.goldPin);
         pin1.rotation.x = Math.PI / 2;
         pin1.position.set(-0.12, -0.08, -slotD + 0.03);
@@ -389,17 +514,16 @@ const CabinetModel = (function () {
         slotGroup.add(pin1);
         slotGroup.add(pin2);
 
-        // LED Perimeter Ring (Matching the glowing lime-green/cyan border in photo)
+        // LED Perimeter Ring
         const ledRingMat = new THREE.MeshStandardMaterial({
-          color: 0x84cc16,
-          emissive: 0x84cc16,
+          color: cfg.ledColor,
+          emissive: cfg.ledColor,
           emissiveIntensity: 2.2,
           roughness: 0.1,
         });
 
         const ringGroup = new THREE.Group();
         ringGroup.position.z = 0.02;
-
         const rw = slotW - 0.02;
         const rh = slotH - 0.02;
         const rt = 0.022;
@@ -419,8 +543,8 @@ const CabinetModel = (function () {
         ringGroup.add(rRight);
         slotGroup.add(ringGroup);
 
-        // Internal Spot / Pointlight for the slot
-        const slotLight = new THREE.PointLight(0x84cc16, 1.2, 1.2);
+        // Internal PointLight
+        const slotLight = new THREE.PointLight(cfg.ledColor, 1.2, 1.2);
         slotLight.position.set(0, 0, -0.2);
         slotGroup.add(slotLight);
 
@@ -429,46 +553,38 @@ const CabinetModel = (function () {
         alarmLight.position.set(0, 0, 0.4);
         slotGroup.add(alarmLight);
 
-        // ==============================================================
-        // Detailed Front-Facing Battery Pack 3D
-        // Clearly visible from front with horizontal handle like in photo!
-        // ==============================================================
+        // Battery Pack 3D
         const batteryGroup = new THREE.Group();
         batteryGroup.position.set(0, 0, 0);
-        batteryGroup.name = `Battery_${slotId}`;
+        batteryGroup.name = `${cfg.id}_Battery_${slotId}`;
 
         const batW = slotW - 0.08;
         const batH = slotH - 0.08;
         const batD = slotD - 0.05;
 
-        // Battery main chassis (slides into slot)
         const batBodyGeo = new THREE.BoxGeometry(batW, batH, batD);
         const batBodyMesh = new THREE.Mesh(batBodyGeo, materials.batteryBlue);
         batBodyMesh.position.z = -batD / 2 + 0.02;
         batteryGroup.add(batBodyMesh);
 
-        // Battery Front Face Cap (Prominent faceplate facing user)
         const faceGeo = new THREE.BoxGeometry(batW + 0.01, batH + 0.01, 0.04);
         const faceMesh = new THREE.Mesh(faceGeo, materials.batteryBlue);
         faceMesh.position.z = 0.02;
         batteryGroup.add(faceMesh);
 
-        // Upper and Lower indentations for grip
-        const indentMat = materials.batteryHandle;
-        const upperIndent = new THREE.Mesh(new THREE.BoxGeometry(batW * 0.75, 0.06, 0.03), indentMat);
+        const upperIndent = new THREE.Mesh(new THREE.BoxGeometry(batW * 0.75, 0.06, 0.03), materials.batteryHandle);
         upperIndent.position.set(0, 0.08, 0.035);
-        const lowerIndent = new THREE.Mesh(new THREE.BoxGeometry(batW * 0.75, 0.06, 0.03), indentMat);
+        const lowerIndent = new THREE.Mesh(new THREE.BoxGeometry(batW * 0.75, 0.06, 0.03), materials.batteryHandle);
         lowerIndent.position.set(0, -0.08, 0.035);
         batteryGroup.add(upperIndent);
         batteryGroup.add(lowerIndent);
 
-        // Big Horizontal Handle (Bar handle right in center like photo!)
         const handleBarGeo = new THREE.BoxGeometry(batW * 0.68, 0.055, 0.055);
         const handleBar = new THREE.Mesh(handleBarGeo, materials.batteryHandle);
         handleBar.position.set(0, 0, 0.055);
         batteryGroup.add(handleBar);
 
-        // Battery Mini OLED / SOC Indicator on handle center
+        // Battery Mini OLED Display
         const oledCanvas = document.createElement("canvas");
         oledCanvas.width = 128;
         oledCanvas.height = 64;
@@ -488,18 +604,19 @@ const CabinetModel = (function () {
         batteryGroup.add(oledMesh);
 
         // Tag user data for raycaster interaction
-        faceMesh.userData = { slotId: slotId, type: "battery" };
-        handleBar.userData = { slotId: slotId, type: "handle" };
-        cavMesh.userData = { slotId: slotId, type: "slot" };
+        faceMesh.userData = { stationId: cfg.id, slotId: slotId, type: "battery" };
+        handleBar.userData = { stationId: cfg.id, slotId: slotId, type: "handle" };
+        cavMesh.userData = { stationId: cfg.id, slotId: slotId, type: "slot" };
 
         slotGroup.add(batteryGroup);
 
-        // Smoke Anchor (Right at the slot front rim)
-        const smokeAnchor = new THREE.Vector3(posX, posY, posZ + 0.15);
+        // Smoke Anchor (World coordinate Vector3)
+        const smokeAnchor = new THREE.Vector3(cfg.posX + posX, posY, posZ + 0.15);
 
-        cabinetGroup.add(slotGroup);
+        stationGroup.add(slotGroup);
 
-        slotObjects.push({
+        stationData.slots.push({
+          stationId: cfg.id,
           slotId: slotId,
           group: slotGroup,
           batteryGroup: batteryGroup,
@@ -513,18 +630,37 @@ const CabinetModel = (function () {
           isEjected: false,
           hasBattery: true,
           normalZ: 0,
-          ejectedZ: 0.38, // Pops forward 38cm when ejected/ready to pull
+          ejectedZ: 0.38,
         });
       }
     }
 
-    scene.add(cabinetGroup);
-    return { cabinetGroup, slots: slotObjects };
+    scene.add(stationGroup);
+    return stationData;
   }
 
-  // Eject (pop forward) or Insert (dock back) animation
-  function setBatteryEjected(slotId, isEjected, animate = true) {
-    const slot = slotObjects.find((s) => s.slotId === slotId);
+  // Build both stations
+  function buildCabinet(scene, configs = DEFAULT_CONFIGS) {
+    const list = Array.isArray(configs) ? configs : [configs];
+    list.forEach((cfg) => buildStationCabinet(scene, cfg));
+    return {
+      stations,
+      slots: stations["TRAM-BK01"] ? stations["TRAM-BK01"].slots : Object.values(stations)[0]?.slots || [],
+    };
+  }
+
+  function resolveSlot(stationIdOrSlotId, maybeSlotId) {
+    if (typeof stationIdOrSlotId === "string" && typeof maybeSlotId === "number") {
+      const st = stations[stationIdOrSlotId];
+      return st?.slots.find((s) => s.slotId === maybeSlotId);
+    }
+    // Backward compatibility: single slotId passed
+    const slotId = typeof stationIdOrSlotId === "number" ? stationIdOrSlotId : maybeSlotId;
+    return getAllSlots().find((s) => s.slotId === slotId);
+  }
+
+  function setBatteryEjected(stationId, slotId, isEjected, animate = true) {
+    const slot = resolveSlot(stationId, slotId);
     if (!slot) return;
 
     slot.isEjected = isEjected;
@@ -541,9 +677,8 @@ const CabinetModel = (function () {
       .start();
   }
 
-  // Presence of battery inside slot (empty vs loaded)
-  function setBatteryPresence(slotId, hasBattery, animate = true) {
-    const slot = slotObjects.find((s) => s.slotId === slotId);
+  function setBatteryPresence(stationId, slotId, hasBattery, animate = true) {
+    const slot = resolveSlot(stationId, slotId);
     if (!slot) return;
 
     slot.hasBattery = hasBattery;
@@ -555,16 +690,13 @@ const CabinetModel = (function () {
     }
 
     if (hasBattery) {
-      // Pin cắm vào: hiện từ phía trước bay vào hộc
       slot.batteryGroup.visible = true;
       slot.batteryGroup.position.set(0, 0, 0.9);
-
       new TWEEN.Tween(slot.batteryGroup.position)
         .to({ z: slot.normalZ }, 850)
         .easing(TWEEN.Easing.Back.Out)
         .start();
     } else {
-      // Pin rút ra: trượt ra ngoài xa rồi biến mất
       new TWEEN.Tween(slot.batteryGroup.position)
         .to({ z: 1.1 }, 650)
         .easing(TWEEN.Easing.Cubic.In)
@@ -575,9 +707,8 @@ const CabinetModel = (function () {
     }
   }
 
-  // Update LED perimeter ring color
-  function setSlotLedColor(slotId, hexColor, intensity = 2.2) {
-    const slot = slotObjects.find((s) => s.slotId === slotId);
+  function setSlotLedColor(stationId, slotId, hexColor, intensity = 2.2) {
+    const slot = resolveSlot(stationId, slotId);
     if (!slot) return;
 
     slot.ledRingMat.color.setHex(hexColor);
@@ -588,41 +719,52 @@ const CabinetModel = (function () {
     slot.slotLight.intensity = intensity * 0.6;
   }
 
-  // Update Battery Mini OLED Display
-  function updateBatteryDisplay(slotId, soc, isCharging) {
-    const slot = slotObjects.find((s) => s.slotId === slotId);
+  function updateBatteryDisplay(stationId, slotId, soc, isCharging) {
+    const slot = resolveSlot(stationId, slotId);
     if (!slot || !slot.batteryOledMesh || !slot.oledCtx) return;
 
     const ctx = slot.oledCtx;
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, 128, 64);
 
-    ctx.fillStyle = isCharging ? "#f59e0b" : (soc >= 90 ? "#10b981" : "#38bdf8");
+    ctx.fillStyle = isCharging ? "#f59e0b" : soc >= 90 ? "#10b981" : "#38bdf8";
     ctx.font = "bold 26px monospace";
     ctx.textAlign = "center";
     ctx.fillText(`${Math.round(soc)}%`, 64, 34);
 
     ctx.font = "bold 14px sans-serif";
-    ctx.fillStyle = isCharging ? "#fbbf24" : (soc >= 90 ? "#34d399" : "#94a3b8");
-    ctx.fillText(isCharging ? "⚡ CHARGE" : (soc >= 90 ? "READY" : "OK"), 64, 54);
+    ctx.fillStyle = isCharging ? "#fbbf24" : soc >= 90 ? "#34d399" : "#94a3b8";
+    ctx.fillText(isCharging ? "⚡ CHARGE" : soc >= 90 ? "READY" : "OK", 64, 54);
 
     slot.batteryOledMesh.material.map.needsUpdate = true;
   }
 
-  function setAlarmLight(slotId, active) {
-    const slot = slotObjects.find((s) => s.slotId === slotId);
+  function setAlarmLight(stationId, slotId, active) {
+    const slot = resolveSlot(stationId, slotId);
     if (!slot) return;
     slot.alarmLight.intensity = active ? 3.5 : 0;
   }
 
+  function getSlots(stationId = "TRAM-BK01") {
+    return stations[stationId]?.slots || Object.values(stations)[0]?.slots || [];
+  }
+
+  function getAllSlots() {
+    return Object.values(stations).flatMap((st) => st.slots);
+  }
+
   return {
     buildCabinet,
+    buildStationCabinet,
     setBatteryEjected,
     setBatteryPresence,
     setSlotLedColor,
     updateBatteryDisplay,
     updateKioskScreen,
     setAlarmLight,
-    getSlots: () => slotObjects,
+    getSlots,
+    getAllSlots,
+    getStation: (id) => stations[id],
+    getStationConfigs: () => DEFAULT_CONFIGS,
   };
 })();

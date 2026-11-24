@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="BatterySwapping.App.Avalonia.Views.LoginWindow"
+        Title="Đăng Nhập - Hệ Thống Trạm Đổi Pin Xe Máy Điện (BSS)"
+        Width="460" Height="680"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource LightBgBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="28,20" RowDefinitions="Auto,*,Auto">
+
+            <!-- Tiêu đề & Logo -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,16" HorizontalAlignment="Center">
+                <Border Width="64" Height="64" CornerRadius="32" Background="#DCFCE7" HorizontalAlignment="Center" Margin="0,0,0,10">
+                    <TextBlock Text="⚡" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource PrimaryDarkBrush}"/>
+                </Border>
+                <TextBlock Text="BATTERY SWAPPING SYSTEM" FontSize="18" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Học phần: Kỹ thuật Phần mềm Ứng dụng (KTPMUD)" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,3,0,0"/>
+                <TextBlock Text="Hệ thống Quản lý Mạng lưới Tủ Đổi Pin Tự Động" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+            </StackPanel>
+
+            <!-- Form Đăng nhập -->
+            <Border Grid.Row="1" Classes="card" Margin="0,0,0,12">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Tên đăng nhập hoặc Số điện thoại" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBox x:Name="txtUsername" Classes="modern" Text="admin"/>
+
+                    <TextBlock Text="Mật khẩu (bỏ trống nếu dùng Kiosk)" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBox x:Name="txtPassword" Classes="modern" PasswordChar="*" Text="admin123"/>
+
+                    <!-- Thông báo lỗi nếu có -->
+                    <TextBlock x:Name="lblError" Text="" Foreground="{StaticResource DangerBrush}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="False"/>
+
+                    <!-- Nút Đăng nhập -->
+                    <Button x:Name="btnLogin" Content="ĐĂNG NHẬP" Classes="primary" HorizontalAlignment="Stretch" Height="42" Click="BtnLogin_Click"/>
+
+                    <!-- Nút Vào thẳng Kiosk đổi pin -->
+                    <Button x:Name="btnKioskDirect" Content="Mở Màn Hình Kiosk Tại Trạm" Classes="outline" HorizontalAlignment="Stretch" Height="38" Click="BtnKioskDirect_Click"/>
+
+                    <!-- Các nút đăng nhập nhanh Demo -->
+                    <TextBlock Text="Đăng nhập nhanh (Một chạm):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0"/>
+                    <Grid ColumnDefinitions="*,*,*">
+                        <Button Grid.Column="0" Content="Admin" Classes="outline" Margin="0,0,3,0" Padding="6,6" FontSize="12" Click="BtnQuickAdmin_Click"/>
+                        <Button Grid.Column="1" Content="Kỹ thuật" Classes="outline" Margin="3,0,3,0" Padding="6,6" FontSize="12" Click="BtnQuickTech_Click"/>
+                        <Button Grid.Column="2" Content="Kiosk" Classes="outline" Margin="3,0,0,0" Padding="6,6" FontSize="12" Click="BtnQuickKiosk_Click"/>
+                    </Grid>
+
+                    <!-- Gợi ý tài khoản demo -->
+                    <Border Background="#F1F5F9" CornerRadius="6" Padding="10,8" Margin="0,8,0,0">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Tài khoản hệ thống demo:" FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="• Admin: admin / admin123 (hoặc 123456)" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="• Kỹ thuật: tech_bk01 / tech123 (hoặc tech01 / 123456)" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="• Kiosk Khách hàng: SĐT 0912345678" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Cấu hình Backend API -->
+            <Expander Grid.Row="2" Header="Cấu hình kết nối Backend API" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                <StackPanel Spacing="8" Margin="0,6,0,0">
+                    <TextBox x:Name="txtConnString" Classes="modern" FontSize="12" Height="34"/>
+                    <Button x:Name="btnTestConnection" Content="Kiểm tra kết nối backend" Classes="outline" HorizontalAlignment="Stretch" Click="BtnTestConnection_Click"/>
+                    <TextBlock x:Name="lblConnStatus" Text="" FontSize="11" Foreground="{StaticResource PrimaryDarkBrush}" IsVisible="False"/>
+                </StackPanel>
+            </Expander>
+        </Grid>
+    </ScrollViewer>
+</Window>
