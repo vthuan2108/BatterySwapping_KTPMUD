@@ -4,31 +4,33 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BSS — Mô phỏng 3D Mạng Lưới 2 Trạm Đổi Pin</title>
-  <link rel="stylesheet" href="css/integrated.css?v=20261124_v6_topup_fix">
+  <link rel="stylesheet" href="css/integrated.css?v=20261124_v7_clean_saas">
   <link rel="icon" href="data:,">
 </head>
 <body>
   <header>
-    <div>
-      <strong>⚡ BSS / HỆ THỐNG MÔ PHỎNG 2 TRẠM ĐỔI PIN (BÁCH KHOA &amp; CẦU GIẤY)</strong>
-      <small>Mô phỏng 3D thời gian thực • Đồng bộ BMS &amp; MQTT 2 chiều với App Desktop</small>
+    <div class="brand-wrapper">
+      <div class="brand-icon-badge">⚡</div>
+      <div>
+        <div class="brand-title">BSS / HỆ THỐNG MÔ PHỎNG 2 TRẠM ĐỔI PIN</div>
+        <div class="brand-subtitle">Đồng bộ BMS thời gian thực • MQTT hai chiều với App Quản trị Desktop</div>
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div class="header-controls">
       <div id="station-switcher" class="station-switcher" role="tablist" aria-label="Chọn trạm đổi pin">
-        <button id="btn-station-bk" class="station-tab active" role="tab" aria-selected="true">🏢 Trạm 1: Bách Khoa (TRAM-BK01)</button>
-        <button id="btn-station-cg" class="station-tab cg" role="tab" aria-selected="false">🏢 Trạm 2: Cầu Giấy (TRAM-CG02)</button>
+        <button id="btn-station-bk" class="station-tab active" role="tab" aria-selected="true">🏢 Trạm 1: Bách Khoa (BK01)</button>
+        <button id="btn-station-cg" class="station-tab cg" role="tab" aria-selected="false">🏢 Trạm 2: Cầu Giấy (CG02)</button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;background:#070c18;padding:4px 10px;border-radius:8px;border:1px solid #273548">
-        <label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:4px">Tốc độ vật lý giả lập:
-          <select id="time-scale" aria-label="Tốc độ mô phỏng" style="padding:3px 6px;font-size:12px">
-            <option value="1">×1</option>
-            <option value="10">×10</option>
-            <option value="60">×60</option>
-          </select>
-        </label>
-        <span id="sim-time" style="font-size:12px;color:#38bdf8;font-weight:600">⏱️ 00:00</span>
+      <div class="header-tool-badge">
+        <span>Tốc độ:</span>
+        <select id="time-scale" aria-label="Tốc độ mô phỏng">
+          <option value="1">1×</option>
+          <option value="10">10×</option>
+          <option value="60">60×</option>
+        </select>
+        <span id="sim-time" class="sim-time-text">⏱️ 00:00</span>
       </div>
-      <div id="connection" role="status" aria-live="polite">Đang kết nối…</div>
+      <div id="connection" class="status-pill" role="status" aria-live="polite">● Đang kết nối…</div>
     </div>
   </header>
 
@@ -38,8 +40,8 @@
 
       <!-- Floating Hint guiding natural click on Kiosk -->
       <div class="scene-hint">
-        <span style="font-size:16px">👆</span>
-        <span>Nhấp chuột vào <strong>Màn hình Kiosk</strong> trên trạm 3D để đăng nhập &amp; đổi pin</span>
+        <span style="font-size:15px">👆</span>
+        <span>Nhấp chuột vào <strong>Màn hình Kiosk</strong> trên trạm 3D hoặc nút bên phải để bắt đầu</span>
       </div>
 
       <!-- Interactive 3D Kiosk Modal -->
@@ -65,17 +67,17 @@
                   </p>
 
                   <form id="login-form">
-                    <label style="font-size:12px">Tài khoản
+                    <label>Tài khoản
                       <input id="username" autocomplete="username" placeholder="Nhập tên đăng nhập...">
                     </label>
-                    <label style="font-size:12px">Mật khẩu
+                    <label>Mật khẩu
                       <input id="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu...">
                     </label>
-                    <button type="submit" style="background:#10b981;font-weight:bold;border-color:#059669;color:#ffffff;padding:10px 14px;border-radius:8px;margin-top:6px;width:100%">⚡ ĐĂNG NHẬP VÀO KIOSK</button>
+                    <button type="submit" style="background:#10b981;font-weight:bold;border:none;color:#ffffff;padding:11px 14px;border-radius:9px;margin-top:6px;width:100%;cursor:pointer">⚡ ĐĂNG NHẬP VÀO KIOSK</button>
                   </form>
                 </div>
 
-                <!-- Cột phải: Tài khoản mẫu đặt ngay bên cạnh theo yêu cầu -->
+                <!-- Cột phải: Tài khoản mẫu -->
                 <div class="kiosk-demo-col">
                   <div class="kiosk-demo-box">
                     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
@@ -89,19 +91,19 @@
                     <div class="demo-acc-card">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
                         <span style="font-size:12px;color:#94a3b8">Tài khoản:</span>
-                        <code style="color:#34d399;font-weight:bold;font-size:13px;background:#064e3b;padding:2px 8px;border-radius:4px">driver01</code>
+                        <code style="color:#34d399;font-weight:bold;font-size:13px;background:rgba(6,78,59,0.5);padding:2px 8px;border-radius:4px">driver01</code>
                       </div>
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                         <span style="font-size:12px;color:#94a3b8">Mật khẩu:</span>
-                        <code style="color:#f8fafc;font-weight:bold;font-size:13px;background:#1e293b;padding:2px 8px;border-radius:4px">123456</code>
+                        <code style="color:#f8fafc;font-weight:bold;font-size:13px;background:rgba(30,41,59,0.8);padding:2px 8px;border-radius:4px">123456</code>
                       </div>
                       <button id="btn-quick-fill-kiosk" type="button" class="btn-quick-fill">
                         👉 Tự động điền tài khoản này
                       </button>
                     </div>
 
-                    <div style="margin-top:10px;font-size:11px;color:#64748b;line-height:1.4">
-                      • Ví: <strong>150.000 đ</strong> • Đang giữ: <strong>PIN-001</strong><br>
+                    <div style="margin-top:10px;font-size:11px;color:#94a3b8;line-height:1.4">
+                      • Ví: <strong style="color:#34d399">150.000 đ</strong> • Đang giữ: <strong>PIN-001</strong><br>
                       • Tài khoản kỹ thuật / admin dùng trên App Desktop.
                     </div>
                   </div>
@@ -109,7 +111,6 @@
               </div>
             </div>
 
-            <!-- Giao diện thao tác đổi pin khi chưa đăng nhập là form, sau khi đăng nhập sẽ hiển thị ở cột định hướng bên phải -->
             <p id="modal-notice" role="status" aria-live="polite" style="margin:12px 0 0 0;font-size:13px;color:#fbbf24;min-height:18px"></p>
           </div>
         </div>
@@ -119,25 +120,25 @@
     <aside>
       <!-- 1. BẢNG ĐỊNH HƯỚNG QUY TRÌNH KIOSK (Hiện che bên phải khi đăng nhập Kiosk) -->
       <div id="aside-kiosk-view" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #1e293b;padding-bottom:10px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border-subtle);padding-bottom:10px;margin-bottom:12px">
           <div>
             <div class="eyebrow" style="color:#38bdf8">⚡ BẢNG ĐỊNH HƯỚNG KIOSK</div>
             <h2 id="kiosk-aside-title" style="margin:2px 0 0 0;font-size:17px;color:#f8fafc">Trạm 1: Bách Khoa</h2>
           </div>
-          <button id="btn-close-kiosk-aside" type="button" class="btn-close" title="Tạm ẩn Kiosk / Xem BMS" style="width:30px;height:30px">✕</button>
+          <button id="btn-close-kiosk-aside" type="button" class="btn-close" title="Tạm ẩn Kiosk / Xem BMS">✕</button>
         </div>
 
         <!-- Thông tin khách hàng & số dư ví -->
         <div class="kiosk-user-badge">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:24px">👤</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:26px">👤</span>
             <div>
               <div id="kiosk-user-name" style="font-weight:bold;font-size:14px;color:#f8fafc">Khách hàng</div>
               <div id="wallet-balance" style="font-size:13px;color:#34d399;font-weight:600">Đang tải số dư ví…</div>
-              <button id="btn-kiosk-topup" type="button" style="margin-top:4px;padding:3px 8px;font-size:11px;background:#065f46;border:1px solid #059669;color:#34d399;border-radius:4px;cursor:pointer;font-weight:600">➕ Nạp nhanh 100.000 đ</button>
+              <button id="btn-kiosk-topup" type="button" style="margin-top:4px;padding:4px 10px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.35);color:#34d399;border-radius:6px;cursor:pointer;font-weight:600">➕ Nạp nhanh 100.000 đ</button>
             </div>
           </div>
-          <button id="logout" type="button" style="padding:4px 10px;font-size:12px;background:#334155;border:none;border-radius:6px;color:#cbd5e1;cursor:pointer">Đăng xuất</button>
+          <button id="logout" type="button" style="padding:5px 12px;font-size:12px;background:rgba(51,65,85,0.6);border:1px solid var(--border-card);border-radius:7px;color:#cbd5e1;cursor:pointer">Đăng xuất</button>
         </div>
 
         <!-- Thẻ các bước định hướng đổi pin -->
@@ -151,83 +152,91 @@
           <!-- Nút mô phỏng thao tác vật lý ngay trong bảng định hướng -->
           <button id="kiosk-physical-action" class="btn-swap-physical" style="display:none;margin-top:10px"></button>
 
-          <button id="cancel-swap" hidden style="margin-top:10px;width:100%;background:#334155;border:none;border-radius:6px;padding:8px;font-size:12px">Hủy / Yêu cầu hỗ trợ</button>
+          <button id="cancel-swap" hidden style="margin-top:10px;width:100%;background:rgba(51,65,85,0.6);border:1px solid var(--border-card);border-radius:8px;padding:9px;font-size:12px;color:#cbd5e1;cursor:pointer">Hủy / Yêu cầu hỗ trợ</button>
         </div>
 
         <p id="notice" role="status" aria-live="polite" style="margin:10px 0 0 0;font-size:13px;min-height:18px"></p>
 
         <!-- Nút chuyển đổi nhanh về xem BMS -->
-        <button id="btn-toggle-bms-view" type="button" style="width:100%;margin-top:14px;background:#14243a;border:1px solid #334155;color:#94a3b8;padding:8px;font-size:12px;border-radius:6px;cursor:pointer">
+        <button id="btn-toggle-bms-view" type="button" style="width:100%;margin-top:14px;background:rgba(30,41,59,0.5);border:1px solid var(--border-card);color:#94a3b8;padding:9px;font-size:12px;border-radius:8px;cursor:pointer">
           📊 Tạm ẩn Kiosk để xem thông số BMS
         </button>
       </div>
 
       <!-- 2. BẢNG THÔNG SỐ BMS & CẢM BIẾN (Mặc định khi xem trạm) -->
       <div id="aside-bms-view">
-        <div class="eyebrow">THIẾT BỊ / BMS GIẢ LẬP</div>
-        <div style="margin:8px 0 14px 0">
-          <div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:6px">CHỌN TRẠM ĐIỀU KHIỂN &amp; XEM BMS:</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-            <button id="aside-btn-bk" class="station-tab active" style="text-align:center;padding:8px 4px;font-size:12px">Trạm 1: Bách Khoa<br><small style="color:#7dd3fc">TRAM-BK01</small></button>
-            <button id="aside-btn-cg" class="station-tab cg" style="text-align:center;padding:8px 4px;font-size:12px">Trạm 2: Cầu Giấy<br><small style="color:#34d399">TRAM-CG02</small></button>
+        <div class="station-header-box">
+          <div class="eyebrow">THIẾT BỊ / BMS GIẢ LẬP</div>
+          <div style="margin:8px 0 12px 0">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <button id="aside-btn-bk" class="station-tab active" style="justify-content:center;padding:7px 4px;font-size:11px">Trạm 1: Bách Khoa<br><small style="color:#7dd3fc">TRAM-BK01</small></button>
+              <button id="aside-btn-cg" class="station-tab cg" style="justify-content:center;padding:7px 4px;font-size:11px">Trạm 2: Cầu Giấy<br><small style="color:#34d399">TRAM-CG02</small></button>
+            </div>
+            <button id="aside-open-kiosk" type="button" class="btn-primary-kiosk">
+              <span>🖥️</span> Mở Kiosk Đổi Pin Trạm Này
+            </button>
           </div>
-          <button id="aside-open-kiosk" type="button" style="width:100%;margin-top:8px;padding:10px;background:#0284c7;color:#ffffff;font-weight:bold;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-            <span>🖥️</span> Mở Kiosk Đổi Pin Trạm Này
-          </button>
+          <h2 id="station-title" class="station-title">TRAM-BK01</h2>
+          <p id="station-address" class="station-address">Cổng Parabol Giải Phóng, P. Bách Khoa, Hai Bà Trưng, Hà Nội</p>
         </div>
-        <h2 id="station-title">TRAM-BK01</h2>
-        <small id="station-address" style="color:#94a3b8;display:block;margin-bottom:10px">Cổng Parabol Giải Phóng, P. Bách Khoa, Hai Bà Trưng, Hà Nội</small>
+
+        <div class="slot-grid-label">DANH SÁCH 8 NGĂN TỦ (CHỌN ĐỂ XEM BMS)</div>
         <div id="slots-grid" class="slot-grid" aria-label="Chọn ngăn pin"></div>
-        <h3 id="slot-title">Ngăn 1</h3>
-        <dl id="metrics"></dl>
-        <section class="faults" aria-label="Công cụ giả lập thiết bị">
-          <h3>CÔNG CỤ DEMO THIẾT BỊ</h3>
-          <p class="muted">Các thao tác sau giả lập hành động vật lý; không phải nút hoàn tất giao dịch.</p>
-          <button id="physical-action" class="primary" hidden></button>
-          <button id="replacement-action" class="primary" hidden></button>
-          <button id="overheat">Gây lỗi quá nhiệt 65°C</button>
-          <button id="cool">Bật làm mát giả lập</button>
-          <p class="muted">Từ 55°C: tự làm mát và khóa ngăn ít nhất 5 phút thực. Hai lần đầu tự phục hồi khi dưới 35°C và máy chủ xác nhận. Từ lần thứ 3 khóa lỗi màu đỏ, cần quản trị viên xử lý; không cắm/rút pin khi khóa.</p>
-          <details>
-            <summary>Reset Simulation — quản trị viên</summary>
-            <p class="muted">Đặt lại pin tại trạm đang chọn với thông số ngẫu nhiên được lưu trên máy chủ. Giữ nguyên tài khoản khách hàng, ví và lịch sử. Trạm có phiên đổi pin hoặc tác vụ bảo trì đang chạy sẽ từ chối reset.</p>
-            <form id="reset-form">
-              <label for="reset-username">Tài khoản Admin</label>
-              <input id="reset-username" autocomplete="username" required>
-              <label for="reset-password">Mật khẩu Admin</label>
-              <input id="reset-password" type="password" autocomplete="current-password" required>
-              <button id="reset-simulation" type="submit">Reset Simulation</button>
-              <p id="reset-status" role="status" aria-live="polite"></p>
+
+        <div class="metrics-card">
+          <div id="slot-title" class="metrics-header">Ngăn 1</div>
+          <dl id="metrics"></dl>
+        </div>
+
+        <section class="tools-card" aria-label="Công cụ giả lập thiết bị">
+          <div class="tools-title">CÔNG CỤ DEMO &amp; GIẢ LẬP SỰ CỐ</div>
+          <p class="muted">Các nút dưới đây giả lập sự cố phần cứng thời gian thực; không can thiệp logic máy chủ.</p>
+          <div class="tools-grid">
+            <button id="overheat" class="btn-danger">⚠️ Lỗi quá nhiệt 65°C</button>
+            <button id="cool" class="btn-success">❄️ Bật làm mát</button>
+          </div>
+          <button id="physical-action" class="btn-swap-physical" hidden style="margin-top:6px"></button>
+          <button id="replacement-action" class="btn-swap-physical" hidden style="margin-top:6px"></button>
+
+          <details style="margin-top:10px">
+            <summary>⚙️ Reset Simulation (Dành cho Admin)</summary>
+            <p class="muted">Đặt lại trạng thái pin tại trạm với thông số BMS ngẫu nhiên. Giữ nguyên tài khoản và ví.</p>
+            <form id="reset-form" style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+              <label for="reset-username" style="font-size:11px;color:#94a3b8">Tài khoản Admin
+                <input id="reset-username" autocomplete="username" required style="width:100%;padding:7px 10px;background:rgba(30,41,59,0.7);border:1px solid var(--border-card);border-radius:6px;color:#fff">
+              </label>
+              <label for="reset-password" style="font-size:11px;color:#94a3b8">Mật khẩu Admin
+                <input id="reset-password" type="password" autocomplete="current-password" required style="width:100%;padding:7px 10px;background:rgba(30,41,59,0.7);border:1px solid var(--border-card);border-radius:6px;color:#fff">
+              </label>
+              <button id="reset-simulation" type="submit" style="padding:8px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Xác nhận Reset Simulation</button>
+              <p id="reset-status" role="status" aria-live="polite" style="margin:4px 0 0 0;font-size:11px;color:#fbbf24"></p>
             </form>
           </details>
+
+          <details style="margin-top:6px">
+            <summary>💡 Hướng dẫn &amp; Thao tác</summary>
+            <p class="muted">
+              • Chuột trái: Xoay góc nhìn 3D quanh trạm.<br>
+              • Chuột phải: Di chuyển vị trí góc nhìn.<br>
+              • Cuộn chuột: Phóng to / Thu nhỏ.<br>
+              • Nhấp trực tiếp vào hộc pin hoặc màn hình Kiosk trên mô hình 3D để tương tác nhanh.
+            </p>
+          </details>
         </section>
-        <details>
-          <summary>Hỗ trợ đăng nhập demo</summary>
-          <p>Tài khoản mẫu driver01 / 123456 chỉ tồn tại nếu đã nạp dữ liệu demo.</p>
-          <button id="btn-quick-login" type="button">Điền tài khoản demo (vẫn cần đăng nhập)</button>
-        </details>
-        <details>
-          <summary>Giả định mô hình &amp; Đồng bộ 2 trạm</summary>
-          <p>• Hai trạm có 8 ngăn; dung lượng pin lấy từ dữ liệu máy chủ. SoC tăng theo dòng sạc, dung lượng, sức khỏe pin và số giây đã trôi qua.<br>
-          • Mỗi trạm kết nối MQTT và API độc lập, đồng bộ trực tiếp với App Desktop Quản trị viên.<br>
-          • Bạn có thể nhấp trực tiếp vào tủ hoặc ngăn pin trong không gian 3D để đổi trạm.</p>
-        </details>
-        <p class="muted">Kéo chuột để xoay • Cuộn để zoom • Nhấp hộc pin để xem BMS.<br>Tốc độ chỉ thay đổi thời gian vật lý, không thay đổi thời hạn giao dịch.</p>
-        <a href="/api-docs" target="_blank" rel="noopener">Tài liệu API cục bộ</a>
       </div>
     </aside>
   </main>
 
-  <script src="js/three.min.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/OrbitControls.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/tween.umd.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/mqtt.min.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/cabinetModel.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/particleSystem.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/bmsModel.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/mqttSync.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/sceneView.js?v=20261124_v6_topup_fix"></script>
-  <script src="js/simulatorController.js?v=20261124_v6_topup_fix"></script>
+  <script src="js/three.min.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/OrbitControls.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/tween.umd.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/mqtt.min.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/cabinetModel.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/particleSystem.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/bmsModel.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/mqttSync.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/sceneView.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/simulatorController.js?v=20261124_v7_clean_saas"></script>
   <script>
     window.addEventListener('DOMContentLoaded', () => SimulatorController.init());
   </script>

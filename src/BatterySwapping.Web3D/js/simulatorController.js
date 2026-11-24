@@ -195,7 +195,8 @@ const SimulatorController = (() => {
     // Update aside header
     const titleEl = $("station-title");
     if (titleEl) {
-      titleEl.innerHTML = `${st.shortName} <span class="station-badge ${st.id === 'TRAM-BK01' ? 'badge-bk' : 'badge-cg'}">${backend && MqttSync.connected() && st.snapshot?.status?.online ? "Trực tuyến" : "Chưa đồng bộ"}</span>`;
+      const isOnline = backend && MqttSync.connected() && st.snapshot?.status?.online;
+      titleEl.innerHTML = `${st.shortName} <span class="station-status-pill ${isOnline ? "online" : "offline"}">${isOnline ? "● Trực tuyến" : "● Chưa đồng bộ"}</span>`;
     }
     const addrEl = $("station-address");
     if (addrEl) addrEl.textContent = st.address;
@@ -236,11 +237,30 @@ const SimulatorController = (() => {
       gridEl.replaceChildren(
         ...st.slots.map((t) => {
           let b = document.createElement("button");
-          b.textContent = `${t.id} · ${t.hasBattery ? Math.round(t.soc) + "%" : "—"}`;
-          b.className = t.id === st.selectedSlot ? "selected" : "";
           const isEmergencyOrOverheated =
             t.temperature >= 55 || BmsModel.hardFault(t) || t.requiresAdmin;
           const isCoolingLocked = BmsModel.locked(t) && !isEmergencyOrOverheated;
+          let statusColor = isEmergencyOrOverheated
+            ? "#ef4444"
+            : isCoolingLocked
+            ? "#fbbf24"
+            : !t.hasBattery
+            ? "#64748b"
+            : t.soc >= 90
+            ? "#10b981"
+            : "#f59e0b";
+
+          b.className = "slot-btn" + (t.id === st.selectedSlot ? " selected" : "");
+          b.innerHTML = `
+            <div class="slot-header">
+              <span class="slot-id">#${t.id}</span>
+              <span class="slot-dot" style="background:${statusColor}"></span>
+            </div>
+            <div class="slot-soc" style="color:${t.hasBattery ? (t.soc >= 90 ? "#34d399" : "#fbbf24") : "#94a3b8"}">
+              ${t.hasBattery ? Math.round(t.soc) + "%" : "Trống"}
+            </div>
+            <div class="slot-sub">${t.hasBattery ? t.temperature.toFixed(0) + "°C" : "—"}</div>
+          `;
           b.style.borderColor = isEmergencyOrOverheated
             ? "#ef4444"
             : isCoolingLocked
@@ -790,6 +810,19 @@ const SimulatorController = (() => {
     return next;
   }
 
+  function updateConnectionBadge(text, isOnline) {
+    const connEl = $("connection");
+    if (!connEl) return;
+    connEl.textContent = text;
+    if (isOnline === true || text.includes("trực tuyến") || text.includes("đã kết nối") || text.includes("ONLINE")) {
+      connEl.className = "status-pill";
+    } else if (text.includes("Mất kết nối") || text.includes("không kết nối") || text.includes("lỗi") || text.includes("hết hạn") || text.includes("OFFLINE")) {
+      connEl.className = "status-pill offline";
+    } else {
+      connEl.className = "status-pill warning";
+    }
+  }
+
   async function refresh() {
     if (updating) return;
     updating = true;
@@ -833,13 +866,14 @@ const SimulatorController = (() => {
       }
 
       const bothLeased = STATION_IDS.every((id) => stationData[id].leased);
-      const connEl = $("connection");
-      if (connEl) {
-        connEl.textContent = bothLeased
-          ? MqttSync.connected()
-            ? "Đồng bộ 2 trạm • Backend + MQTT trực tuyến"
-            : "Backend kết nối • Đang chờ MQTT"
-          : "Đang kết nối thiết bị mô phỏng 2 trạm…";
+      if (bothLeased) {
+        if (MqttSync.connected()) {
+          updateConnectionBadge("● TELEMETRY ONLINE (2 TRẠM)", true);
+        } else {
+          updateConnectionBadge("● ĐANG CHỜ MQTT", false);
+        }
+      } else {
+        updateConnectionBadge("● ĐANG KẾT NỐI SIMULATOR…", false);
       }
       render();
     } catch (e) {
@@ -849,13 +883,11 @@ const SimulatorController = (() => {
         session = null;
         sessionStorage.removeItem("bss-token");
         backend = true;
-        const connEl = $("connection");
-        if (connEl) connEl.textContent = "Backend đã kết nối • cần đăng nhập lại";
+        updateConnectionBadge("● CẦN ĐĂNG NHẬP LẠI", false);
         notice("Phiên đăng nhập hết hạn. Dữ liệu đổi pin vẫn được lưu tại server.");
       } else {
         backend = false;
-        const connEl = $("connection");
-        if (connEl) connEl.textContent = "Mất kết nối backend — kiểm tra server";
+        updateConnectionBadge("● MẤT KẾT NỐI BACKEND", false);
         notice(e.message);
       }
       render();
@@ -867,8 +899,7 @@ const SimulatorController = (() => {
   async function acquire() {
     try {
       const leases = await MqttSync.connect(STATION_IDS, handleCommand, (ok, text) => {
-        const connEl = $("connection");
-        if (connEl) connEl.textContent = text;
+        updateConnectionBadge(ok ? "● TELEMETRY ONLINE (2 TRẠM)" : "● " + text.toUpperCase(), ok);
       });
       for (const id of STATION_IDS) {
         stationData[id].leased = !!leases[id]?.leaseId;
