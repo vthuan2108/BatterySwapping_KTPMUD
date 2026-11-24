@@ -1,0 +1,17 @@
+{
+  "solution": {
+    "path": "BatterySwappingSystem.sln",
+    "projects": [
+      "src\\BatterySwapping.ApiClient\\BatterySwapping.ApiClient.csproj",
+      "src\\BatterySwapping.App.Avalonia\\BatterySwapping.App.Avalonia.csproj",
+      "src\\BatterySwapping.App.Wpf\\BatterySwapping.App.Wpf.csproj",
+      "src\\BatterySwapping.Contracts\\BatterySwapping.Contracts.csproj",
+      "src\\BatterySwapping.Core\\BatterySwapping.Core.csproj",
+      "src\\BatterySwapping.Server\\BatterySwapping.Server.csproj",
+      "src\\BatterySwapping.Simulator\\BatterySwapping.Simulator.csproj",
+      "tests\\BatterySwapping.ArchitectureTests\\BatterySwapping.ArchitectureTests.csproj",
+      "tests\\BatterySwapping.Tests\\BatterySwapping.Tests.csproj",
+      "tests\\BatterySwapping.UiTests\\BatterySwapping.UiTests.csproj"
+    ]
+  }
+}

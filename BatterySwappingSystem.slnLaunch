@@ -3,11 +3,11 @@
     "Name": "BSS Local - Server + WPF",
     "Projects": [
       {
-        "Path": "BatterySwapping.Server\\BatterySwapping.Server.csproj",
+        "Path": "src\\BatterySwapping.Server\\BatterySwapping.Server.csproj",
         "Action": "Start"
       },
       {
-        "Path": "BatterySwapping.App\\BatterySwapping.App.csproj",
+        "Path": "src\\BatterySwapping.App.Wpf\\BatterySwapping.App.Wpf.csproj",
         "Action": "Start"
       }
     ]

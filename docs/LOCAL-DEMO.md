@@ -56,9 +56,9 @@ SoC tính theo Ah và dung lượng hiệu dụng; nhiệt dùng I²R với mô 
 
 ```powershell
 dotnet build BatterySwappingSystem.sln --no-restore -c Release
-dotnet run --project BatterySwapping.ArchitectureTests --no-build -c Release
-node BatterySwapping.Web3D/tests/bms.test.js
-dotnet run --project BatterySwapping.UiTests --no-build -c Release
+dotnet run --project tests/BatterySwapping.ArchitectureTests --no-build -c Release
+node tests/BatterySwapping.Web3D.Tests/bms.test.js
+dotnet run --project tests/BatterySwapping.UiTests --no-build -c Release
 ```
 
 Kiểm thử tích hợp: dùng `scripts/Test-Integration.ps1`. Chỉ script đó tạo/nạp dữ liệu database `BssArchitectureTests_20261121`; runner từ chối database ứng dụng. Script yêu cầu dừng phiên launcher trước khi chạy, rồi chạy backend/broker kiểm thử và tự dừng khi kết thúc. Sau đó chuẩn bị lại cấu hình mặc định nếu muốn demo trên database ứng dụng.

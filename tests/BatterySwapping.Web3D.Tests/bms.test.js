@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const Bms = require('../js/bmsModel.js');
+const Bms = require('../../src/BatterySwapping.Web3D/js/bmsModel.js');
 let s={hasBattery:true,soc:50,soh:96,temperature:28,voltage:72,current:15,isCharging:true,isLocked:false,isOverheated:false};
 Bms.step(s,60,1);assert(Math.abs(s.soc-(50+0.8333333/0.96))<0.01,'charge follows amp-hours');
 s.temperature=65;Bms.step(s,1,60);assert.equal(s.current,0);assert.equal(s.isLocked,true);

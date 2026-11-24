@@ -1,27 +1,27 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BatterySwapping.App", "BatterySwapping.App\BatterySwapping.App.csproj", "{9714F82C-34A1-4AE2-88B6-0A32EFA4E147}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BatterySwapping.App.Wpf", "src\BatterySwapping.App.Wpf\BatterySwapping.App.Wpf.csproj", "{9714F82C-34A1-4AE2-88B6-0A32EFA4E147}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BatterySwapping.Simulator", "BatterySwapping.Simulator\BatterySwapping.Simulator.csproj", "{9378BAAE-73A6-4A6C-998B-1C69B022FAA5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BatterySwapping.Simulator", "src\BatterySwapping.Simulator\BatterySwapping.Simulator.csproj", "{9378BAAE-73A6-4A6C-998B-1C69B022FAA5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Tests", "BatterySwapping.Tests\BatterySwapping.Tests.csproj", "{6C4AB2FE-D1A0-4CD0-BFB0-81A9D70617E0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Tests", "tests\BatterySwapping.Tests\BatterySwapping.Tests.csproj", "{6C4AB2FE-D1A0-4CD0-BFB0-81A9D70617E0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Contracts", "BatterySwapping.Contracts\BatterySwapping.Contracts.csproj", "{DDFE2F24-FA85-4680-9F02-DC171FB18F18}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Contracts", "src\BatterySwapping.Contracts\BatterySwapping.Contracts.csproj", "{DDFE2F24-FA85-4680-9F02-DC171FB18F18}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Core", "BatterySwapping.Core\BatterySwapping.Core.csproj", "{B75A291C-88A2-4747-90C9-0FE0684602A0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Core", "src\BatterySwapping.Core\BatterySwapping.Core.csproj", "{B75A291C-88A2-4747-90C9-0FE0684602A0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Server", "BatterySwapping.Server\BatterySwapping.Server.csproj", "{7115244B-13C4-4ADD-BE0C-F2E3083E5F59}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Server", "src\BatterySwapping.Server\BatterySwapping.Server.csproj", "{7115244B-13C4-4ADD-BE0C-F2E3083E5F59}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.Client", "BatterySwapping.Client\BatterySwapping.Client.csproj", "{776A50FE-FA80-468D-96C2-A5C5E400D52A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.ApiClient", "src\BatterySwapping.ApiClient\BatterySwapping.ApiClient.csproj", "{776A50FE-FA80-468D-96C2-A5C5E400D52A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.ArchitectureTests", "BatterySwapping.ArchitectureTests\BatterySwapping.ArchitectureTests.csproj", "{BE25FCB6-DDC3-452A-B97D-03B8B6C046F8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.ArchitectureTests", "tests\BatterySwapping.ArchitectureTests\BatterySwapping.ArchitectureTests.csproj", "{BE25FCB6-DDC3-452A-B97D-03B8B6C046F8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.UiTests", "BatterySwapping.UiTests\BatterySwapping.UiTests.csproj", "{91A5483D-41D1-4C2E-A119-51B534A094B5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.UiTests", "tests\BatterySwapping.UiTests\BatterySwapping.UiTests.csproj", "{91A5483D-41D1-4C2E-A119-51B534A094B5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.App.Avalonia", "BatterySwapping.App.Avalonia\BatterySwapping.App.Avalonia.csproj", "{7DC1F0BA-8FB1-4574-81D3-8E59C95C2653}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BatterySwapping.App.Avalonia", "src\BatterySwapping.App.Avalonia\BatterySwapping.App.Avalonia.csproj", "{7DC1F0BA-8FB1-4574-81D3-8E59C95C2653}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

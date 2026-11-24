@@ -28,11 +28,11 @@ GO
  if($LASTEXITCODE -ne 0){throw 'Nap fixture that bai.'}
  & (Join-Path $PSScriptRoot 'Prepare-Local.ps1') -Database BssArchitectureTests_20261121
  & (Join-Path $PSScriptRoot 'Start-Local.ps1') -NoBrowser -NoDesktop
- dotnet run --project (Join-Path $projectRoot 'BatterySwapping.Tests') --no-build -c Release -- --integration
+ dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.Tests') --no-build -c Release -- --integration
  if($LASTEXITCODE -ne 0){throw 'Kiem thu API/MQTT that bai.'}
- dotnet run --project (Join-Path $projectRoot 'BatterySwapping.ArchitectureTests') --no-build -c Release
+ dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.ArchitectureTests') --no-build -c Release
  if($LASTEXITCODE -ne 0){throw 'Kiem thu mat khau that bai.'}
- node (Join-Path $projectRoot 'BatterySwapping.Web3D/tests/bms.test.js')
+ node (Join-Path $projectRoot 'tests/BatterySwapping.Web3D.Tests/bms.test.js')
  if($LASTEXITCODE -ne 0){throw 'Kiem thu BMS that bai.'}
 } finally {
  & (Join-Path $PSScriptRoot 'Stop-Local.ps1')

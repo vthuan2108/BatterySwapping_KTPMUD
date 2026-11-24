@@ -12,7 +12,7 @@ using MQTTnet;
 using MQTTnet.Protocol;
 
 if(!args.Contains("--integration")){Console.WriteLine("Run with --integration against prepared BssArchitectureTests_* fixture. Unit tests: BatterySwapping.ArchitectureTests.");return;}
-string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../"));
+string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));
 var settings=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,".runtime/server.json"))).RootElement;
 string cs=settings.GetProperty("ConnectionStrings").GetProperty("Bss").GetString()!;
 if(!cs.Contains("Database=BssArchitectureTests_",StringComparison.OrdinalIgnoreCase))throw new Exception("Integration tests refuse to use the application database.");
@@ -106,7 +106,7 @@ async Task RestartServer()
 {
     string pidFile=Path.Combine(root,".runtime/processes.json");
     var processes=JsonNode.Parse(File.ReadAllText(pidFile))!.AsArray();
-    string exe=Path.GetFullPath(Path.Combine(root,"BatterySwapping.Server/bin/Release/net8.0/BatterySwapping.Server.exe"));
+    string exe=Path.GetFullPath(Path.Combine(root,"src/BatterySwapping.Server/bin/Release/net8.0/BatterySwapping.Server.exe"));
     var entry=processes.First(n=>string.Equals(n?["Path"]?.GetValue<string>(),exe,StringComparison.OrdinalIgnoreCase))!;
     using(var running=Process.GetProcessById(entry["Id"]!.GetValue<int>()))
     {

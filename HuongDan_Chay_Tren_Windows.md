@@ -48,10 +48,10 @@ Mở thư mục `BatterySwappingSystem/` bằng VS Code, mở Terminal (`Ctrl + 
 
 ```powershell
 # Chạy ứng dụng giao diện Kiosk/Admin
-dotnet run --project BatterySwapping.App/BatterySwapping.App.csproj
+dotnet run --project src/BatterySwapping.App.Wpf/BatterySwapping.App.Wpf.csproj
 
 # Mở thêm 1 tab Terminal mới và chạy bộ mô phỏng IoT Simulator:
-dotnet run --project BatterySwapping.Simulator/BatterySwapping.Simulator.csproj
+dotnet run --project src/BatterySwapping.Simulator/BatterySwapping.Simulator.csproj
 ```
 
 ---
@@ -109,7 +109,7 @@ dotnet run --project BatterySwapping.Simulator/BatterySwapping.Simulator.csproj
 3. Bấm **"Tạo Trạm Mới"**: Hệ thống tự động khởi tạo trạm cùng 8 ngăn tủ trống trong cùng một Transaction an toàn (ACID) và cập nhật ngay vào danh sách trạm trên giao diện.
 
 ### Kịch bản 8: Demo Web 3D Digital Twin Simulator (Bản sao số 3D Tương tác)
-1. Vào thư mục `BatterySwapping.Web3D/` $\to$ Nhấp đúp file **`run_web3d.bat`** (trên Windows) hoặc chạy `./run_web3d.sh` (trên Ubuntu).
+1. Vào thư mục `src/BatterySwapping.Web3D/` $\to$ Nhấp đúp file **`run_web3d.bat`** (trên Windows) hoặc chạy `./run_web3d.sh` (trên Ubuntu).
 2. Trình duyệt tự động mở giao diện 3D tại `http://localhost:5000`:
    - Dùng **Chuột trái** xoay tháp tủ 360°, **Chuột phải** lia vị trí, **Con lăn** phóng to xem từng chi tiết pin.
    - Thử click vào **Ngăn #01** $\to$ Bấm **"🚪 Mở Cửa Khay"** $\to$ Cánh cửa mở xoay mượt mà 85°.
