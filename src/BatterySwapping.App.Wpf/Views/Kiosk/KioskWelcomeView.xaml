@@ -27,7 +27,7 @@
                 <TextBlock Text="Vui lòng nhập Số điện thoại hoặc quét Mã QR trên App người dùng" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,4,0,20"/>
 
                 <TextBlock Text="Số điện thoại / Mã định danh QR" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                <TextBox x:Name="txtPhoneOrQr" Style="{StaticResource ModernTextBoxStyle}" Text="0987654321" Height="44" FontSize="16" Margin="0,0,0,10"/>
+                <TextBox x:Name="txtPhoneOrQr" Style="{StaticResource ModernTextBoxStyle}" Text="" Height="44" FontSize="16" Margin="0,0,0,10"/>
 
                 <!-- Thông báo lỗi nếu có -->
                 <TextBlock x:Name="lblKioskError" Text="" Foreground="{StaticResource DangerBrush}" FontSize="12" FontWeight="Bold" Margin="0,0,0,12" TextWrapping="Wrap" Visibility="Collapsed"/>
@@ -38,26 +38,11 @@
                 <!-- Chọn nhanh tài xế demo để kiểm thử đồ án -->
                 <TextBlock Text="Chọn nhanh tài khoản tài xế demo:" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
 
-                <Button Style="{StaticResource OutlineButtonStyle}" Margin="0,0,0,6" Click="BtnQuickDriver_Click" Tag="0987654321">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="👤 Nguyễn Văn An" FontWeight="Bold"/>
-                        <TextBlock Text=" (Ví: 150.000 đ • Trả PIN-009 [18%])" Foreground="{StaticResource PrimaryDarkBrush}"/>
-                    </StackPanel>
-                </Button>
 
-                <Button Style="{StaticResource OutlineButtonStyle}" Margin="0,0,0,6" Click="BtnQuickDriver_Click" Tag="0912345678">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="👤 Trần Thị Bình" FontWeight="Bold"/>
-                        <TextBlock Text=" (Ví: 50.000 đ • Trả PIN-010 [12%])" Foreground="{StaticResource PrimaryDarkBrush}"/>
-                    </StackPanel>
-                </Button>
 
-                <Button Style="{StaticResource OutlineButtonStyle}" Click="BtnQuickDriver_Click" Tag="0905112233">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="👤 Lê Hoàng Cường" FontWeight="Bold"/>
-                        <TextBlock Text=" (Ví: 10.000 đ • Test lỗi không đủ tiền ví)" Foreground="{StaticResource DangerBrush}"/>
-                    </StackPanel>
-                </Button>
+
+
+
             </StackPanel>
         </Border>
     </Grid>

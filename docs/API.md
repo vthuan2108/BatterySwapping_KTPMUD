@@ -1,3 +1,5 @@
+> **Cập nhật nghiệp vụ:** xem [hợp đồng và luồng mới](BUSINESS-WORKFLOWS.md). Các API cộng ví trực tiếp và đăng nhập định danh đã bị bỏ; dùng payments và đăng nhập mật khẩu.
+
 # Hợp đồng đang triển khai — v1
 
 Địa chỉ cục bộ `http://127.0.0.1:5080`. REST JSON dùng camelCase cho DTO; các kết quả SQL dictionary (`wallet`, `alerts`) giữ tên cột gốc. Client C# deserialize không phân biệt hoa thường. API bảo vệ yêu cầu `Authorization: Bearer <token>`; token trả từ đăng nhập. Thiết bị dùng lease riêng, không dùng token tài khoản.
@@ -14,7 +16,21 @@
 | GET/POST `/api/v1/batteries` | POST: `{maPin,loaiPin,dungLuongThietKe,soC,soH,nhietDo,...}` | GET danh sách; POST pin đã thêm; POST chỉ Admin |
 | GET `/api/v1/customers` | — | Danh sách khách hàng; Admin |
 | GET `/api/v1/wallet` | — | Khách hàng của tài khoản, gồm `SoDuVi`, `ReservedBalance` |
-| POST `/api/v1/wallet/topup` | `{customerId,amount,method}` | 200 thông báo nạp ví demo; Admin |
+| POST `/api/v1/payments` | `{amount,requestId,customerId?}` |202 yêu cầu Pending; khách chỉ dùng ví mình, admin được chọn khách |
+| GET `/api/v1/payments` | — | Yêu cầu cá nhân; admin xem toàn bộ |
+| POST `/api/v1/payments/{id}/result` | `{result}` | Admin; Succeeded/Failed/Cancelled, kết quả cuối bất biến |
+| GET `/api/v1/policy`, `/api/v1/pricing` | — | `{fee,supportedBatteryType}` |
+| PUT `/api/v1/policy` | `{fee,supportedBatteryType}` | Admin; chỉ tác động phiên mới |
+| POST `/api/v1/customers/create` | `{username,password,name,phone,email,licensePlate,requestId}` | Admin; hồ sơ ví0, chưa có pin |
+| GET `/api/v1/inventory` | — | Vị trí tài sản và giữ chỗ, admin/kỹ thuật |
+| GET `/api/v1/consistency` | — | Admin; bất nhất cần đối soát |
+| POST `/api/v1/handovers` | `{customerId,batteryId,note,requestId}` | Admin; bàn giao ban đầu có chống lặp |
+| GET `/api/v1/handovers` | — | Admin; lịch sử bàn giao |
+| POST `/api/v1/maintenance` | `{stationId,slotNumber,action,newBatteryId,note,requestId}` |202 phiếu và commandId; admin/kỹ thuật |
+| GET `/api/v1/maintenance` | — | Admin/kỹ thuật; lịch sử phiếu |
+| POST `/api/v1/maintenance/{id}/retry` | `{}` |202; chỉ phiếu Failed có phản hồi rõ ràng |
+| POST `/api/v1/swaps/{id}/return-old` | `{}` |202; trả pin cũ cho phiên chưa thu phí, admin/kỹ thuật |
+| GET `/api/v1/me/history/swaps`, `/api/v1/me/history/topups` | — | Lịch sử của chính khách đăng nhập |
 | POST `/api/v1/swaps` | `{stationId,idempotencyKey}` | 202 SwapSession; khách hàng sử dụng ví của chính mình |
 | GET `/api/v1/swaps` | — | Danh sách phiên; khách hàng chỉ thấy phiên của mình |
 | GET `/api/v1/swaps/{id}` | — | 200 SwapSession, kiểm tra chủ sở hữu |
@@ -24,8 +40,8 @@
 | GET `/api/v1/commands/{id}` | — | DeviceCommand, kỹ thuật/Admin |
 | GET `/api/v1/commands` | — | Tối đa 200 lệnh gần nhất, kỹ thuật/Admin |
 | GET `/api/v1/alerts` | — | Cảnh báo, kỹ thuật/Admin |
-| GET `/api/v1/reports/summary` | — | Thống kê, kỹ thuật/Admin |
-| GET `/api/v1/history/swaps` | — | Lịch sử đổi pin, kỹ thuật/Admin |
+| GET `/api/v1/reports/summary` | — | Thống kê, Admin |
+| GET `/api/v1/history/swaps` | — | Lịch sử đổi pin, Admin |
 | GET `/api/v1/history/topups` | — | Lịch sử nạp ví, Admin |
 
 Ví dụ response tạo phiên:
@@ -57,3 +73,5 @@ Lệnh:
 ```
 
 Lệnh được hỗ trợ: UNLOCK_SLOT, CLOSE_SLOT, LOCK_SLOT, EJECT_BATTERY, CUT_OFF, RESTORE_STATION, RESET_ALARM, REPLACE_BATTERY, TRIGGER_OVERHEAT, QUERY_STATUS. Sau 10 giây thiếu ACK, lệnh thành Unconfirmed và gửi QUERY_STATUS. Không tự thực hiện lại thao tác nhả pin. QUERY_STATUS đối soát kết quả đã lưu tại simulator.
+
+RESET_ALARM và REPLACE_BATTERY phải gửi qua phiếu bảo trì, không nhận từ API commands tổng quát. Sự kiện OLD_RETURNED xác nhận pin cũ được lấy và cửa đóng; phiên kết thúc Cancelled không thu phí.

@@ -55,7 +55,7 @@
                 </StackPanel>
 
                 <!-- Nút Hủy -->
-                <Button Grid.Column="2" Content="✕ HỦY ĐỔI PIN" Style="{StaticResource DangerButtonStyle}" 
+                <Button Grid.Column="2" Content="✕ HỦY ĐỔI PIN" Style="{StaticResource DangerButtonStyle}"
                         Background="#374151" Foreground="#F87171" FontSize="12" Padding="14,8" Click="BtnCancel_Click"/>
             </Grid>
         </Border>
@@ -228,9 +228,9 @@
                             <TextBlock x:Name="txtStepTitle" Text="CỬA KHAY TỦ ĐANG MỞ..." FontSize="22" FontWeight="Bold" Foreground="#34D399" HorizontalAlignment="Center"/>
 
                             <!-- Mô tả chi tiết hành động -->
-                            <TextBlock x:Name="txtStepDescription" 
-                                       Text="Xin mời Quý khách cắm viên pin cũ vào khay và ĐÓNG CHẶT CỬA TỦ." 
-                                       FontSize="15" Foreground="#D1D5DB" HorizontalAlignment="Center" TextAlignment="Center" 
+                            <TextBlock x:Name="txtStepDescription"
+                                       Text="Xin mời Quý khách cắm viên pin cũ vào khay và ĐÓNG CHẶT CỬA TỦ."
+                                       FontSize="15" Foreground="#D1D5DB" HorizontalAlignment="Center" TextAlignment="Center"
                                        Margin="0,10,0,22" TextWrapping="Wrap" LineHeight="24" MaxWidth="520"/>
 
                             <!-- Hộp thông số Telemetry BMS khi quét pin -->
@@ -251,25 +251,15 @@
                             </Border>
 
                             <!-- Nút bấm mô phỏng cắm pin cũ & đóng ngăn (Bước AwaitingOldBattery) -->
-                            <Button x:Name="btnSimulateOld" 
-                                    Content="⚡ [Mô phỏng: Cắm pin cũ &amp; Đóng ngăn]" 
-                                    Style="{StaticResource PrimaryButtonStyle}" 
-                                    Background="#0284C7" Height="50" FontSize="15" FontWeight="Bold" 
-                                    Click="BtnSimulateOld_Click" Width="420" HorizontalAlignment="Center"
-                                    Margin="0,0,0,10" Visibility="Collapsed"/>
+
 
                             <!-- Nút bấm mô phỏng rút pin mới & hoàn tất (Bước Dispensing) -->
-                            <Button x:Name="btnSimulateNew" 
-                                    Content="⚡ [Mô phỏng: Rút pin mới &amp; Hoàn tất]" 
-                                    Style="{StaticResource PrimaryButtonStyle}" 
-                                    Background="#059669" Height="50" FontSize="15" FontWeight="Bold" 
-                                    Click="BtnSimulateNew_Click" Width="420" HorizontalAlignment="Center"
-                                    Margin="0,0,0,10" Visibility="Collapsed"/>
+
 
                             <!-- Nút bấm tương tác cảm ứng -->
-                            <Button x:Name="btnAction" Content="MỞ TỦ MÔ PHỎNG 3D" 
-                                    Style="{StaticResource OutlineButtonStyle}" 
-                                    BorderBrush="#38BDF8" Foreground="#38BDF8" Height="42" FontSize="14" FontWeight="SemiBold" 
+                            <Button x:Name="btnAction" Content="MỞ TỦ MÔ PHỎNG 3D"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    BorderBrush="#38BDF8" Foreground="#38BDF8" Height="42" FontSize="14" FontWeight="SemiBold"
                                     Click="BtnAction_Click" Width="420" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -277,7 +267,7 @@
                     <!-- Chân trang Kiosk Touchscreen -->
                     <Border Grid.Row="2" Background="#111827" CornerRadius="8" Padding="14,10" Margin="0,16,0,0">
                         <Grid>
-                            <TextBlock Text="Đơn giá cố định: 25.000 VNĐ / lượt đổi pin" FontSize="12" Foreground="#9CA3AF" VerticalAlignment="Center"/>
+                            <TextBlock Text="Phí được chốt theo phiên từ backend" FontSize="12" Foreground="#9CA3AF" VerticalAlignment="Center"/>
                             <TextBlock HorizontalAlignment="Right" Text="Tổng đài khẩn cấp: 1900-8888 (24/7)" FontSize="12" Foreground="#38BDF8" VerticalAlignment="Center"/>
                         </Grid>
                     </Border>
@@ -286,7 +276,7 @@
         </Grid>
 
         <!-- FOOTER -->
-        <TextBlock Grid.Row="3" Text="HỆ THỐNG MẠNG LƯỚI TỦ ĐỔI PIN TỰ ĐỘNG CHO XE MÁY ĐIỆN • HỌC PHẦN KTPMUD - ĐHBK HÀ NỘI" 
+        <TextBlock Grid.Row="3" Text="HỆ THỐNG MẠNG LƯỚI TỦ ĐỔI PIN TỰ ĐỘNG CHO XE MÁY ĐIỆN • HỌC PHẦN KTPMUD - ĐHBK HÀ NỘI"
                    FontSize="11" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,0,0,12"/>
     </Grid>
 </UserControl>

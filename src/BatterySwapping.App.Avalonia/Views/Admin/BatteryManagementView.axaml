@@ -26,7 +26,7 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Content="➕ Thêm Pin Mới" Classes="primary" Click="BtnAddBattery_Click"/>
-                <Button Content="🔄 Làm mới" Classes="outline" Click="BtnRefresh_Click"/>
+                <Button Content="Phiếu bảo trì" Classes="outline" Click="MaintenanceHistoryClick" Margin="0,0,8,0"/><Button Content="🔄 Làm mới" Classes="outline" Click="BtnRefresh_Click"/>
             </StackPanel>
         </Grid>
 
@@ -130,7 +130,7 @@
                 <Border Grid.Row="1" x:Name="bdrDiagnosticResult" CornerRadius="8" Padding="12" Margin="0,0,0,10" Background="#FEF2F2">
                     <StackPanel>
                         <TextBlock x:Name="txtDiagnosticTitle" Text="🚨 BÁO ĐỘNG SỰ CỐ" FontWeight="Bold" FontSize="13" Foreground="{StaticResource DangerBrush}"/>
-                        <TextBlock x:Name="txtDiagnosticDesc" Text="SoC 100% • SoH 100% • Nhiệt độ 58.0°C. Cần làm mát khẩn cấp!" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                        <TextBlock x:Name="txtDiagnosticDesc" Text="Đang lấy thông số BMS từ backend." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
 
@@ -142,11 +142,11 @@
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                         <TextBlock Text="Mã pin mới thay thế (nếu cần):" VerticalAlignment="Center" FontSize="12"/>
-                        <TextBox x:Name="txtNewPinCode" Width="140" Classes="modern" Text="PIN-NEW01"/>
+                        <ComboBox x:Name="txtNewPinCode" Width="180"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                        <Button x:Name="btnCoolAndReset" Content="❄️ Bảo dưỡng / Hạ nhiệt về 25°C" Classes="primary" Click="BtnCoolAndReset_Click"/>
+                        <Button x:Name="btnCoolAndReset" Content="❄️ Yêu cầu làm mát và kiểm tra an toàn" Classes="primary" Click="BtnCoolAndReset_Click"/>
                         <Button x:Name="btnReplaceBattery" Content="🔄 Thay thế bằng pin mới" Classes="outline" Click="BtnReplaceBattery_Click"/>
                     </StackPanel>
                 </Grid>

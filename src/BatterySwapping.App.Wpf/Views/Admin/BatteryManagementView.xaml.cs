@@ -79,6 +79,7 @@ namespace BatterySwapping.App.Views.Admin
             FilterData();
         }
 
+        private void MaintenanceHistoryClick(object sender,RoutedEventArgs e)=>new MaintenanceHistoryWindow().Show();
         private void BtnRefresh_Click(object sender, RoutedEventArgs e)
         {
             LoadBatteries();

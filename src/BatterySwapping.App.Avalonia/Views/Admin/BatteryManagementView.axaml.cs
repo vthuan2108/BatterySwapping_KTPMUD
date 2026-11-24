@@ -1,3 +1,4 @@
+using BatterySwapping.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -74,6 +75,7 @@ public partial class BatteryManagementView : UserControl
         FilterData();
     }
 
+    private void MaintenanceHistoryClick(object? sender,RoutedEventArgs e)=>new MaintenanceHistoryWindow().Show();
     private void BtnRefresh_Click(object? sender, RoutedEventArgs e)
     {
         LoadBatteries();
@@ -104,7 +106,8 @@ public partial class BatteryManagementView : UserControl
         txtInspectPinId.Text = pin.MaPin;
         if (txtNewPinCode != null)
         {
-            txtNewPinCode.Text = $"PIN-0{DateTime.Now:ss}";
+            txtNewPinCode.ItemTemplate=new global::Avalonia.Controls.Templates.FuncDataTemplate<BatteryInventoryItem>((p,_)=>new TextBlock{Text=p?.BatteryId});
+            txtNewPinCode.ItemsSource=(await BssApi.Client.Get<System.Collections.Generic.List<BatteryInventoryItem>>("inventory")).Where(p=>p.Location=="Warehouse"&&!p.Reserved).ToList();
         }
 
         var result = await _batteryService.InspectBattery(pin.MaPin);
@@ -147,8 +150,8 @@ public partial class BatteryManagementView : UserControl
 
         try
         {
-            string stationId = "TRAM-BK01";
-            int slotNumber = 1;
+            string stationId = "";
+            int slotNumber = 0;
 
             var stations = await _stationService.GetAllStations();
             foreach (var st in stations)
@@ -163,8 +166,9 @@ public partial class BatteryManagementView : UserControl
                 }
             }
 
+            if(slotNumber==0)throw new InvalidOperationException("Pin chưa ở trong ngăn tủ; không thể bảo trì tại trạm.");
             string tech = AuthService.CurrentUser?.HoTen ?? "Kỹ thuật viên Trạm";
-            var outcome = await _batteryService.MaintainBattery(stationId, slotNumber, _selectedPin.MaPin, tech, "Bảo dưỡng nhiệt độ BMS về 25°C");
+            var outcome = await _batteryService.MaintainBattery(stationId, slotNumber, _selectedPin.MaPin, tech, "Yêu cầu xử lý nhiệt và kiểm tra an toàn qua thiết bị");
 
             if (txtDiagnosticDesc != null)
             {
@@ -187,7 +191,7 @@ public partial class BatteryManagementView : UserControl
     private async void BtnReplaceBattery_Click(object? sender, RoutedEventArgs e)
     {
         if (_selectedPin == null) return;
-        string newPin = txtNewPinCode?.Text?.Trim() ?? "";
+        string newPin = (txtNewPinCode?.SelectedItem as BatteryInventoryItem)?.BatteryId ?? "";
         if (string.IsNullOrWhiteSpace(newPin))
         {
             if (txtDiagnosticDesc != null) txtDiagnosticDesc.Text = "Vui lòng nhập mã pin mới thay thế!";
@@ -199,8 +203,8 @@ public partial class BatteryManagementView : UserControl
 
         try
         {
-            string stationId = "TRAM-BK01";
-            int slotNumber = 1;
+            string stationId = "";
+            int slotNumber = 0;
 
             var stations = await _stationService.GetAllStations();
             foreach (var st in stations)
@@ -215,6 +219,7 @@ public partial class BatteryManagementView : UserControl
                 }
             }
 
+            if(slotNumber==0)throw new InvalidOperationException("Pin chưa ở trong ngăn tủ; không thể bảo trì tại trạm.");
             string tech = AuthService.CurrentUser?.HoTen ?? "Kỹ thuật viên Trạm";
             var outcome = await _batteryService.ReplaceBattery(stationId, slotNumber, _selectedPin.MaPin, newPin, tech, "Thay thế pin chai/hỏng");
 

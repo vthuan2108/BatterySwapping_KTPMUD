@@ -33,7 +33,7 @@ Tài khoản seed: `admin`, `tech01`, `driver01`, `driver02`, mật khẩu `1234
 1. Mở Web3D cho trạm BK01; chờ trạng thái Backend + MQTT. Đăng nhập `driver01` trên Web3D hoặc Desktop Kiosk; bắt đầu phiên ở một nơi, không tạo hai phiên độc lập.
 2. Backend giữ chỗ phí, hai ngăn và pin. Chờ xác nhận mở ngăn; cắm đúng pin cũ bằng nút thao tác vật lý trên Web3D.
 3. Backend kiểm tra BMS, trừ phí một lần và gửi lệnh cấp pin. Chỉ rút pin khi Web3D hiển thị nút cho phép. Hoàn tất khi server nhận sự kiện ngăn trống/cửa đóng.
-4. Chọn một pin trên Web3D, gây quá nhiệt 65°C. Đối chiếu đúng trạm/ngăn/pin trên Desktop. Dùng bảo trì hoặc xử lý cảnh báo; chỉ thông báo thành công sau ACK an toàn.
+4. Chọn một pin trên Web3D, gây quá nhiệt 65°C. Đối chiếu đúng trạm/ngăn/pin trên Desktop. Tạo phiếu bảo trì để xử lý cảnh báo; chỉ thông báo thành công sau ACK an toàn.
 5. Ngắt toàn trạm từ Desktop; tất cả ngăn khóa và dòng về 0. Khôi phục chỉ sau khi toàn bộ trạm đủ mát. Có thể gọi `POST /api/v1/stations/{id}/commands` với `RESTORE_STATION` bằng tài khoản kỹ thuật/Admin.
 6. Ngắt simulator: sau 5 giây trạm offline và chặn cấp pin. Sau khi đã nhận pin cũ, phiên chuyển cần hỗ trợ, giữ tài sản và dữ liệu phí. Phiên đã chốt phí có thể đối soát qua `POST /api/v1/swaps/{id}/resume` bằng tài khoản kỹ thuật/Admin, không thu phí lại.
 
@@ -70,3 +70,7 @@ Log server/broker ở `.runtime/*.log`. Log lệnh có commandId/sessionId. Ki�
 API/MQTT/SQL và công thức BMS có kiểm thử tự động. Cần xác nhận trực quan WebGL, camera và toàn bộ tương tác WPF trên máy người dùng; công cụ trình duyệt của phiên triển khai không được cấp quyền Chrome. Chưa thực hiện thao tác tắt Internet của hệ điều hành; runtime được cấu hình chỉ dùng endpoint/asset cục bộ.
 
 Đã kiểm chứng tự động: 22 ca API/MQTT, bao gồm khởi động lại tiến trình server trước nhận pin và sau trừ phí; 6 kiểm tra nạp XAML WPF cũ; kiểm tra PBKDF2 và mô hình BMS. Mô hình Web3D hiện biểu diễn tủ 8 ngăn.
+
+## Quy trình mới
+
+Xem [BUSINESS-WORKFLOWS.md](BUSINESS-WORKFLOWS.md): tạo hồ sơ ví0, bàn giao từ kho, nạp qua yêu cầu chờ và cổng giả lập, thay pin đăng ký sẵn. Kiểm tra bất nhất dữ liệu cũ trước demo; không tự sửa quyền giữ pin bằng seed.

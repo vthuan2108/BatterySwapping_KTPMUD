@@ -46,6 +46,7 @@
                     <Button x:Name="btnNavKiosk" Content="🖥️  Đổi pin tại trạm" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavKiosk_Click"/>
                     <Button x:Name="btnNavDashboard" Content="🏭  Vận hành trạm" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavDashboard_Click"/>
                     <Button x:Name="btnNavBatteries" Content="🔋  Quản Lý Danh Mục Pin" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavBatteries_Click"/>
+                    <Button x:Name="btnNavBusiness" Content="Hồ sơ, kho và thanh toán" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavBusiness_Click"/>
                     <Button x:Name="btnNavCustomers" Content="👥  Khách Hàng &amp; Ví Tiền" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavCustomers_Click"/>
                     <Button x:Name="btnNavTransactions" Content="📜  Giao dịch đổi pin" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavTransactions_Click"/>
                     <Button x:Name="btnNavAlerts" Content="🚨  An toàn và bảo trì" Style="{StaticResource MenuNavButtonStyle}" Click="BtnNavAlerts_Click"/>

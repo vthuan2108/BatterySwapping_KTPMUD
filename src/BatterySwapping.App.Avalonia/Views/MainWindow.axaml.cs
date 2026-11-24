@@ -46,14 +46,7 @@ public partial class MainWindow : Window
         };
 
         // Kết nối sự kiện đổi pin từ Kiosk
-        _walletView.StartSwap += () =>
-        {
-            mainContentArea.Content = _dashboardView;
-            if (lblSystemStatus != null)
-            {
-                lblSystemStatus.Text = "Kiosk: Chuyển tới giao diện buồng sạc tủ để thực hiện đổi pin.";
-            }
-        };
+        _walletView.StartSwap += () => mainContentArea.Content=new SwapWorkflowView();
 
         // Lắng nghe sự cố an toàn khẩn cấp thời gian thực (Non-blocking In-App Alert Banner)
         _safetyMonitor.OnEmergencyAlertTriggered += OnEmergencySafetyAlertTriggered;
@@ -113,7 +106,7 @@ public partial class MainWindow : Window
         btnNavOverview.IsVisible = staff && policy.WalletAdministration;
         btnNavDashboard.IsVisible = staff;
         btnNavBatteries.IsVisible = staff;
-        btnNavCustomers.IsVisible = staff && policy.WalletAdministration;
+        btnNavCustomers.IsVisible = staff && policy.WalletAdministration;btnNavBusiness.IsVisible=staff&&policy.WalletAdministration;
         btnNavTransactions.IsVisible = staff || policy.Kiosk;
         btnNavAlerts.IsVisible = staff;
         btnNavWallet.IsVisible = policy.Kiosk || !staff;
@@ -121,7 +114,7 @@ public partial class MainWindow : Window
         if (staff)
         {
             _safetyMonitor.StartMonitoring(2000);
-            mainContentArea.Content = policy.WalletAdministration ? _overviewView : _dashboardView;
+            mainContentArea.Content = policy.WalletAdministration ? _overviewView : _alertsView;
         }
         else
         {
@@ -174,6 +167,7 @@ public partial class MainWindow : Window
         _batteryView.LoadBatteries();
     }
 
+    private void BtnNavBusiness_Click(object? sender,RoutedEventArgs e){if(AuthService.CurrentUser?.VaiTro=="Admin")mainContentArea.Content=new BusinessOperationsView();}
     private void BtnNavCustomers_Click(object? sender, RoutedEventArgs e)
     {
         mainContentArea.Content = _customerView;
@@ -182,8 +176,8 @@ public partial class MainWindow : Window
 
     private void BtnNavTransactions_Click(object? sender, RoutedEventArgs e)
     {
-        mainContentArea.Content = _transactionView;
-        _transactionView.LoadData();
+        mainContentArea.Content = AuthService.CurrentUser?.VaiTro=="Admin"?_transactionView:new SwapWorkflowView();
+        if(AuthService.CurrentUser?.VaiTro=="Admin")_transactionView.LoadData();
     }
 
     private void BtnNavAlerts_Click(object? sender, RoutedEventArgs e)

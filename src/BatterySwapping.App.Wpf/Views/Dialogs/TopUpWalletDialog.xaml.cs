@@ -42,6 +42,7 @@ namespace BatterySwapping.App.Views.Dialogs
             }
         }
 
+    string? paymentKey;string paymentBody="";
         private bool _saving;
         private async void BtnSave_Click(object sender, RoutedEventArgs e)
         {
@@ -67,10 +68,11 @@ namespace BatterySwapping.App.Views.Dialogs
 
             string method = (cboMethod?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "ChuyenKhoan";
 
-            var outcome = await _reportService.TopUpWallet(customer.MaKH, amount, method);
+            string body=customer.MaKH+":"+amount;if(body!=paymentBody){paymentKey=null;paymentBody=body;}paymentKey??=Guid.NewGuid().ToString();
+            var outcome = await _reportService.TopUpWallet(customer.MaKH, amount, method,paymentKey);
             if (outcome.Success)
-            {
-                MessageBox.Show($"Nạp thành công {amount:N0} đ vào tài khoản khách hàng {customer.HoTen}!",
+            {paymentKey=null;
+                MessageBox.Show($"Đã tạo yêu cầu nạp {amount:N0} đ cho {customer.HoTen}. Ví chỉ tăng sau xác nhận tại cổng thanh toán giả lập.",
                                 "Giao dịch thành công", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();

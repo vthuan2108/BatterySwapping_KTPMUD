@@ -95,7 +95,7 @@
                         <TextBox x:Name="txtNote" Style="{StaticResource ModernTextBoxStyle}" Text="Kiểm tra BMS định kỳ, làm mát và thử tải hoàn tất." Margin="0,0,0,12"/>
 
                         <!-- Lựa chọn hành động bảo dưỡng -->
-                        <Button x:Name="btnMaintain" Content="🛠️ Hoàn tất Bảo Dưỡng / Reset Lỗi Quá Nhiệt" Style="{StaticResource PrimaryButtonStyle}" Click="BtnMaintain_Click" Margin="0,0,0,12"/>
+                        <Button x:Name="btnMaintain" Content="🛠️ Yêu cầu xử lý và chờ thiết bị xác nhận" Style="{StaticResource PrimaryButtonStyle}" Click="BtnMaintain_Click" Margin="0,0,0,12"/>
 
                         <Separator Background="#E2E8F0" Margin="0,0,0,12"/>
 
@@ -106,8 +106,8 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBox x:Name="txtNewPinId" Grid.Column="0" Style="{StaticResource ModernTextBoxStyle}" Text="PIN-015" Margin="0,0,8,0"/>
-                            <Button Grid.Column="1" Content="🔄 Thay Pin Mới (100%)" Style="{StaticResource OutlineButtonStyle}" Click="BtnReplace_Click" FontWeight="Bold"/>
+                            <ComboBox x:Name="txtNewPinId" Grid.Column="0" DisplayMemberPath="BatteryId" Margin="0,0,8,0"/>
+                            <Button Grid.Column="1" Content="🔄 Thay bằng pin kho" Style="{StaticResource OutlineButtonStyle}" Click="BtnReplace_Click" FontWeight="Bold"/>
                         </Grid>
                     </StackPanel>
                 </Border>

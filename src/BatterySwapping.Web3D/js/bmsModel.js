@@ -11,8 +11,9 @@ const BmsModel = (() => {
     if(slot.soc>=100){slot.current=0;slot.isCharging=false;}
     // 28 C ambient, I²R heating, lumped thermal mass and passive/fan cooling.
     const heat=slot.current*slot.current*0.08;
-    const equilibrium=28+heat/2.5;
-    slot.temperature=equilibrium+(slot.temperature-equilibrium)*Math.exp(-2.5*dt/9000);
+    const cooling=slot.isCooling?250:2.5;
+    const equilibrium=28+heat/cooling;
+    slot.temperature=equilibrium+(slot.temperature-equilibrium)*Math.exp(-cooling*dt/9000);
     slot.voltage=67.2+12.8*(slot.soc/100)+slot.current*0.04;
     if(slot.temperature>=55){slot.current=0;slot.isCharging=false;slot.isLocked=true;slot.isOverheated=true;}
   }

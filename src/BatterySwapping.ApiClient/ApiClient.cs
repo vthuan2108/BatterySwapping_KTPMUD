@@ -11,17 +11,13 @@ public sealed class ApiClient : IDisposable
     public ApiClient(string? baseUrl=null) => http=new HttpClient {BaseAddress=new Uri(baseUrl??Environment.GetEnvironmentVariable("BSS_API_URL")??"http://127.0.0.1:5080"),Timeout=TimeSpan.FromSeconds(12)};
     public async Task<T> Get<T>(string path,CancellationToken ct=default) => await Read<T>(await http.GetAsync("/api/v1/"+path,ct),ct);
     public async Task<T> Post<T>(string path,object value,CancellationToken ct=default) => await Read<T>(await http.PostAsJsonAsync("/api/v1/"+path,value,ct),ct);
+    public async Task<T> Put<T>(string path,object value,CancellationToken ct=default) => await Read<T>(await http.PutAsJsonAsync("/api/v1/"+path,value,ct),ct);
     public async Task Login(string username,string password,CancellationToken ct=default)
     {
         var r=await Post<LoginResponse>("auth/login",new LoginRequest(username,password),ct);
         User=r.User;http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",r.Token);
     }
-    public async Task KioskLogin(string identifier, CancellationToken ct = default)
-    {
-        var r = await Post<LoginResponse>("auth/kiosk", new KioskAuthRequest(identifier), ct);
-        User = r.User;
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", r.Token);
-    }
+    public Task KioskLogin(string identifier,CancellationToken ct=default) => throw new InvalidOperationException("Đăng nhập bằng tài khoản và mật khẩu; QR/RFID chỉ dùng nhận diện.");
     public async Task Logout()
     {
         try {using var r=await http.PostAsJsonAsync("/api/v1/auth/logout",new{});}

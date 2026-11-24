@@ -20,7 +20,7 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="🛠️ Kiểm Định / Bảo Trì" Style="{StaticResource OutlineButtonStyle}" Click="BtnMaintainSelected_Click" Margin="0,0,8,0" FontWeight="SemiBold"/>
                 <Button x:Name="btnAddBattery" Content="➕ Thêm Pin Mới" Style="{StaticResource PrimaryButtonStyle}" Click="BtnAddBattery_Click" Margin="0,0,8,0"/>
-                <Button Content="🔄 Làm mới" Style="{StaticResource OutlineButtonStyle}" Click="BtnRefresh_Click"/>
+                <Button Content="Phiếu bảo trì" Style="{StaticResource OutlineButtonStyle}" Click="MaintenanceHistoryClick" Margin="0,0,8,0"/><Button Content="🔄 Làm mới" Style="{StaticResource OutlineButtonStyle}" Click="BtnRefresh_Click"/>
             </StackPanel>
         </Grid>
 

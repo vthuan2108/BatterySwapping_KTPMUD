@@ -40,8 +40,6 @@ public partial class KioskSwappingView:UserControl
             txtStepDescription.Text=$"Trả {session.OldBatteryId} vào ngăn #{session.ReturnSlot}; nhận {session.NewBatteryId} tại ngăn #{session.ReceiveSlot}.\n{(session.Charged?"Phí đã được chốt một lần.":"Phí và pin đã được giữ chỗ.")} Thao tác cắm/rút pin trên tủ Web3D.\n{session.Note}";
             boxDetails.Visibility=Visibility.Visible;lblDetailHeader.Text=$"PHIÊN {session.Id[..8]}";lblDetail1.Text=$"Pin trả: {session.OldBatteryId}";lblDetail2.Text=$"Pin nhận: {session.NewBatteryId}";lblDetail3.Text=$"Phí: {session.Fee:N0} đ";lblDetail4.Text=$"Trạng thái: {session.State}";
             btnAction.Content="MỞ TỦ MÔ PHỎNG 3D";
-            btnSimulateOld.Visibility = (session.State == "AwaitingOldBattery") ? Visibility.Visible : Visibility.Collapsed;
-            btnSimulateNew.Visibility = (session.State == "Dispensing") ? Visibility.Visible : Visibility.Collapsed;
             if(session.State is "Cancelled" or "Expired"){finished=true;timer.Stop();OnCancelled?.Invoke();}
             if(session.State=="Completed")
             {
@@ -51,30 +49,6 @@ public partial class KioskSwappingView:UserControl
         }
         catch(Exception ex){txtStepTitle.Text="CHƯA XÁC NHẬN ĐƯỢC TRẠNG THÁI";txtStepDescription.Text=ex.Message+"\nPhiên được lưu tại server; không tự khởi tạo lại giao dịch.";}
         finally{reading=false;}
-    }
-    async void BtnSimulateOld_Click(object sender, RoutedEventArgs e)
-    {
-        if(session==null||reading)return;
-        try
-        {
-            btnSimulateOld.IsEnabled=false;
-            session=await BssApi.Client.Post<SwapSession>($"swaps/{session.Id}/events",new SwapEventRequest("OLD_INSERTED"));
-            await Refresh();
-        }
-        catch(Exception ex){BssApi.Error(ex);}
-        finally{btnSimulateOld.IsEnabled=true;}
-    }
-    async void BtnSimulateNew_Click(object sender, RoutedEventArgs e)
-    {
-        if(session==null||reading)return;
-        try
-        {
-            btnSimulateNew.IsEnabled=false;
-            session=await BssApi.Client.Post<SwapSession>($"swaps/{session.Id}/events",new SwapEventRequest("NEW_TAKEN"));
-            await Refresh();
-        }
-        catch(Exception ex){BssApi.Error(ex);}
-        finally{btnSimulateNew.IsEnabled=true;}
     }
     void BtnAction_Click(object sender,RoutedEventArgs e)=>Process.Start(new ProcessStartInfo(BssApi.Url+"/?station="+Uri.EscapeDataString(station)){UseShellExecute=true});
     async void BtnCancel_Click(object sender,RoutedEventArgs e)

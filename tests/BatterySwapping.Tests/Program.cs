@@ -60,39 +60,52 @@ try{
     Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.LichSuDoiPin WHERE GhiChu=@id",("@id",s.Id))))==1,"duplicate physical event cannot duplicate payment");
     Check(new BssEngine(new SqlStore(cs)).GetSession(s.Id)?.State=="Completed","sessions survive engine recreation");
 
-    // Test Kiosk authentication & in-app simulation events
-    var kioskResp = await raw.PostAsJsonAsync("/api/v1/auth/kiosk", new KioskAuthRequest("0987654321"));
-    Check(kioskResp.IsSuccessStatusCode, "kiosk login with existing driver phone succeeds");
-    var kioskUser = (await kioskResp.Content.ReadFromJsonAsync<LoginResponse>())!.User;
-    Check(kioskUser.Role == "KhachHang" && kioskUser.CustomerId == 1, "kiosk login returns correct customer");
-
-    using var kioskClient = new ApiClient();
-    await kioskClient.KioskLogin("0901234567");
-    Check(kioskClient.User?.Role == "KhachHang" && kioskClient.User?.CustomerId > 0, "kiosk login provisions and authenticates 0901234567");
-
-    var simSwapKey = Guid.NewGuid().ToString("N");
-    var simSession = await kioskClient.Post<SwapSession>("swaps", new StartSwap("TRAM-BK01", simSwapKey));
-    Check(simSession.State == "AwaitingOldBattery", "kiosk started swap in AwaitingOldBattery");
-
-    var oldEvResp = await raw.PostAsJsonAsync($"/api/v1/swaps/{simSession.Id}/events", new SwapEventRequest("OLD_INSERTED"));
-    var oldEvBody = await oldEvResp.Content.ReadAsStringAsync();
-    Check(oldEvResp.IsSuccessStatusCode, "simulated OLD_INSERTED event accepted: " + oldEvBody);
-    var simSessionDispensing = (await oldEvResp.Content.ReadFromJsonAsync<SwapSession>())!;
-    Check(simSessionDispensing.State == "Dispensing" && simSessionDispensing.OldInserted, "OLD_INSERTED transitions session to Dispensing");
-
-    var newEvResp = await raw.PostAsJsonAsync($"/api/v1/swaps/{simSession.Id}/events", new SwapEventRequest("NEW_TAKEN"));
-    Check(newEvResp.IsSuccessStatusCode, "simulated NEW_TAKEN event accepted");
-    var simSessionCompleted = (await newEvResp.Content.ReadFromJsonAsync<SwapSession>())!;
-    Check(simSessionCompleted.State == "Completed", "NEW_TAKEN completes swap session");
-
+    var beforeAccounts=store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.TaiKhoan")));
+    Check((await raw.PostAsJsonAsync("/api/v1/auth/kiosk",new KioskAuthRequest("0987654321"))).StatusCode==HttpStatusCode.NotFound,"identifier cannot issue login token");
+    Check((await raw.PostAsJsonAsync($"/api/v1/swaps/{s.Id}/events",new SwapEventRequest("OLD_INSERTED"))).StatusCode==HttpStatusCode.NotFound,"HTTP cannot forge physical swap events");
+    Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.TaiKhoan")))==beforeAccounts,"identifier cannot provision customer");
+    var payment=await driver.Post<PaymentRequest>("payments",new CreatePaymentRequest(10000,Guid.NewGuid().ToString()));
+    Check(payment.Status=="Pending","topup request starts pending");
+    try{await tech.Post<PaymentRequest>($"payments/{payment.Id}/result",new PaymentResultRequest("Succeeded"));throw new Exception("technician payment bypass");}catch(InvalidOperationException){Check(true,"technician cannot confirm payment");}
+    await admin.Post<PaymentRequest>($"payments/{payment.Id}/result",new PaymentResultRequest("Succeeded"));
+    await admin.Post<PaymentRequest>($"payments/{payment.Id}/result",new PaymentResultRequest("Succeeded"));
+    Check(store.Read(db=>Convert.ToDecimal(db.Scalar("SELECT SoDuVi FROM dbo.KhachHang WHERE MaKH=1")))==135000,"payment callback credits once");
+    try{await other.Post<PaymentRequest>("payments",new CreatePaymentRequest(10000,Guid.NewGuid().ToString(),1));throw new Exception("otherwallet bypass");}catch(InvalidOperationException){Check(true,"customer cannot create payment for someone else");}
+    var recovery=await driver.Post<SwapSession>("swaps",new StartSwap("TRAM-BK01",Guid.NewGuid().ToString("N")));
+    await device.ExecuteUntil("UNLOCK_SLOT",recovery.Id);
+    device.Change(recovery.ReturnSlot,t=>t with{BatteryId=recovery.OldBatteryId,Temperature=60,IsDoorOpen=false,IsLocked=true,Current=0});
+    await device.Event(recovery,"OLD_INSERTED",false);
+    await Wait(async()=>(await driver.Get<SwapSession>($"swaps/{recovery.Id}")).State=="NeedsAssistance");
+    Check(store.Read(db=>db.Scalar("SELECT MaPinDangMuon FROM dbo.KhachHang WHERE MaKH=1"))==null,"received old battery leaves customer custody before charge");
+    var cooling=await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",recovery.ReturnSlot,"RESET_ALARM",null,"Làm mát pin trả",Guid.NewGuid().ToString()));
+    await device.ExecuteUntil("RESET_ALARM",null);
+    await Wait(async()=>(await tech.Get<DeviceCommand>($"commands/{cooling.CommandId}")).Status=="Completed");
+    await tech.Post<SwapSession>($"swaps/{recovery.Id}/return-old",new{});
+    await device.ExecuteUntil("RETURN_OLD_BATTERY",recovery.Id);
+    await RestartServer();
+    await device.Event(recovery,"OLD_RETURNED");
+    await Wait(async()=>(await driver.Get<SwapSession>($"swaps/{recovery.Id}")).State=="Cancelled");
+    Check(store.Read(db=>Convert.ToDecimal(db.Scalar("SELECT SoDuVi FROM dbo.KhachHang WHERE MaKH=1")))==135000,"return old battery after restart does not charge wallet");
+    Check((string?)store.Read(db=>db.Scalar("SELECT MaPinDangMuon FROM dbo.KhachHang WHERE MaKH=1"))==recovery.OldBatteryId,"return old battery restores custody only after device event");
     int hotSlot=4;device.Change(hotSlot,t=>t with {Temperature=65,Current=0,IsLocked=true});await device.Publish("alerts");
     await Wait(()=>Task.FromResult(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.NganTu n JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE n.MaTram='TRAM-BK01' AND n.SoThuTu=4 AND n.KhoaBaoTri=1 AND p.DongDien=0")))==1));
     Check(true,"overheat telemetry triggers SQL cutoff and lock");
-    var reset=await tech.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("RESET_ALARM",hotSlot));
+    device.Change(hotSlot,t=>t with{Temperature=30,Current=0,IsLocked=true});await device.Publish("telemetry");
+    await Wait(()=>Task.FromResult(store.Read(db=>Convert.ToDecimal(db.Scalar("SELECT NhietDo FROM dbo.Pin WHERE MaPin=(SELECT MaPinHienTai FROM dbo.NganTu WHERE MaTram='TRAM-BK01' AND SoThuTu=4)")))<35));
+    try{await admin.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("RESTORE_STATION"));throw new Exception("unresolvedalert bypass");}catch(InvalidOperationException){Check(true,"cooled pin still requires closing alert before station restore");}
+    var reset=await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",hotSlot,"RESET_ALARM",null,"Kiểm tra quá nhiệt",Guid.NewGuid().ToString()));
     Check(reset.Status=="Pending","reset stays pending before device acknowledgement");
     await device.ExecuteUntil("RESET_ALARM",null);
     await Wait(async()=>(await tech.Get<DeviceCommand>($"commands/{reset.CommandId}")).Status=="Completed");
     Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.CanhBaoIoT WHERE MaTram='TRAM-BK01' AND MaNgan=4 AND DaXuLy=0")))==0,"safe acknowledgement resolves alert");
+    string replacement="TEST-REPLACE";
+    store.Write(db=>db.Exec("INSERT dbo.Pin(MaPin,LoaiPin,SoC,SoH,NhietDo,TrangThai) VALUES(@p,N'Lithium LFP 72V-30Ah',94,91,28,N'DaDay')",("@p",replacement)));
+    string oldPin=device.Slots.Single(t=>t.SlotNumber==hotSlot).BatteryId!;
+    var replace=await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",hotSlot,"REPLACE_BATTERY",replacement,"Thay pin kho có sẵn",Guid.NewGuid().ToString()));
+    try{await admin.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("UNLOCK_SLOT",hotSlot));throw new Exception("maintenance lock bypass");}catch(InvalidOperationException){Check(true,"raw slot control cannot bypass maintenance reservation");}
+    await device.ExecuteUntil("REPLACE_BATTERY",null);
+    Check(store.Read(db=>(string?)db.Scalar("SELECT Location FROM dbo.BssBatteryLocations WHERE BatteryId=@p",("@p",oldPin)))=="Quarantine","replaced battery moves to quarantine");
+    Check(store.Read(db=>Convert.ToDecimal(db.Scalar("SELECT SoH FROM dbo.Pin WHERE MaPin=@p",("@p",replacement))))==91,"replacement preserves registered BMS instead of inventing 100 percent");
     var cutoff=await admin.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("CUT_OFF"));await device.ExecuteUntil("CUT_OFF",null);
     await Wait(async()=>(await admin.Get<DeviceCommand>($"commands/{cutoff.CommandId}")).Status=="Completed");
     Check(device.Slots.All(t=>t.Current==0&&t.IsLocked),"station cutoff protects all slots");
@@ -116,7 +129,7 @@ async Task RestartServer()
     var info=new ProcessStartInfo(exe){WorkingDirectory=root,UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};
     info.Environment["BSS_SETTINGS"]=Path.Combine(root,".runtime/server.json");
     var restarted=Process.Start(info)!;
-    restarted.OutputDataReceived+=(_,_)=>{};restarted.ErrorDataReceived+=(_,_)=>{};restarted.BeginOutputReadLine();restarted.BeginErrorReadLine();
+    restarted.OutputDataReceived+=(_,e)=>{if(e.Data?.Contains("Rejected")==true)Console.WriteLine(e.Data);};restarted.ErrorDataReceived+=(_,e)=>{if(e.Data!=null)Console.WriteLine(e.Data);};restarted.BeginOutputReadLine();restarted.BeginErrorReadLine();
     entry["Id"]=restarted.Id;entry["Start"]=restarted.StartTime.ToUniversalTime().ToString("O");File.WriteAllText(pidFile,processes.ToJsonString());
     await Wait(async()=>{try{return (await raw.GetFromJsonAsync<JsonElement>("/health")).GetProperty("mqtt").GetBoolean();}catch{return false;}},15000);
     await admin.Login("admin","123456");await driver.Login("driver01","123456");await other.Login("driver02","123456");await tech.Login("tech01","123456");
@@ -154,15 +167,27 @@ sealed class TestDevice(HttpClient http,List<NganTu> slots):IAsyncDisposable
         while(true){var c=await commands.Reader.ReadAsync(timeout.Token);switch(c.Command){
             case "UNLOCK_SLOT":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=true,Current=0});break;
             case "CLOSE_SLOT":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=false});break;
+            case "REPLACE_BATTERY":
+                var snapshot=await http.GetFromJsonAsync<JsonElement>("/api/v1/device/TRAM-BK01/snapshot");
+                var p=snapshot.GetProperty("batteries").EnumerateArray().Single(p=>p.GetProperty("maPin").GetString()==c.BatteryId);
+                Change(c.SlotNumber!.Value,t=>t with{BatteryId=c.BatteryId,Soc=p.GetProperty("soC").GetDecimal(),Soh=p.GetProperty("soH").GetDecimal(),Temperature=p.GetProperty("nhietDo").GetDecimal(),Voltage=p.GetProperty("dienAp").GetDecimal(),Current=0,IsDoorOpen=false,IsLocked=false});break;
+            case "RETURN_OLD_BATTERY":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=true,IsLocked=false,Current=0});break;
             case "EJECT_BATTERY":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=true,Current=0});break;
             case "RESET_ALARM":Change(c.SlotNumber!.Value,t=>t with{Temperature=30,IsLocked=false,IsDoorOpen=false,Current=0});break;
             case "CUT_OFF":for(int i=0;i<data.Count;i++)data[i]=data[i] with{Current=0,IsLocked=true,IsDoorOpen=false};break;
         }
         await Publish("acks","ACK",c.CommandId,null,c.SlotNumber,c.BatteryId);
-        if(c.Command==name&&(session==null||c.SessionId==session)){await Task.Delay(200);return;}}
+        if(c.Command==name&&(session==null||c.SessionId==session)){
+            for(int attempt=0;attempt<60;attempt++){
+                var snap=await http.GetFromJsonAsync<JsonElement>("/api/v1/device/TRAM-BK01/snapshot");
+                if(snap.GetProperty("commands").EnumerateArray().Any(x=>x.GetProperty("commandId").GetString()==c.CommandId && x.GetProperty("status").GetString()=="Completed"))return;
+                await Task.Delay(150);
+            }
+            throw new Exception("ACK was not persisted: "+c.Command);
+        }}
     }
     public Task Event(SwapSession s,string name,bool change=true){
-        int slot=name=="OLD_INSERTED"?s.ReturnSlot:s.ReceiveSlot;string battery=name=="OLD_INSERTED"?s.OldBatteryId:s.NewBatteryId;
+        int slot=name is "OLD_INSERTED" or "OLD_RETURNED"?s.ReturnSlot:s.ReceiveSlot;string battery=name is "OLD_INSERTED" or "OLD_RETURNED"?s.OldBatteryId:s.NewBatteryId;
         if(change)Change(slot,t=>name=="OLD_INSERTED"?t with{BatteryId=battery,Soc=18,Soh=95,Temperature=30,IsDoorOpen=false,Current=0}:t with{BatteryId=null,Soc=0,IsDoorOpen=false,Current=0});
         return Publish("events",name,null,s,slot,battery);
     }

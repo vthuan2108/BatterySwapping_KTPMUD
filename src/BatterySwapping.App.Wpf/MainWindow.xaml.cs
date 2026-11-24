@@ -33,7 +33,7 @@ namespace BatterySwapping.App
             foreach(var button in new[]{btnNavOverview,btnNavDashboard,btnNavBatteries,btnNavAlerts})button.Visibility=staff?Visibility.Visible:Visibility.Collapsed;
             btnNavOverview.Visibility=staff&&policy.WalletAdministration?Visibility.Visible:Visibility.Collapsed;
             if(staff&&!policy.WalletAdministration){btnNavDashboard.Content="🏭  Giám sát tủ và BMS";btnNavBatteries.Content="🔋  Kiểm định pin";btnNavTransactions.Content="📜  Phiên cần hỗ trợ";}
-            btnNavCustomers.Visibility=staff&&policy.WalletAdministration?Visibility.Visible:Visibility.Collapsed;
+            btnNavCustomers.Visibility=staff&&policy.WalletAdministration?Visibility.Visible:Visibility.Collapsed;btnNavBusiness.Visibility=btnNavCustomers.Visibility;
             btnNavKiosk.Visibility=policy.Kiosk||!staff?Visibility.Visible:Visibility.Collapsed;
             btnNavWallet.Visibility=policy.Kiosk?Visibility.Visible:Visibility.Collapsed;
             btnNavTransactions.Visibility=staff||policy.Kiosk?Visibility.Visible:Visibility.Collapsed;
@@ -117,12 +117,12 @@ namespace BatterySwapping.App
                     _alertsView.LoadAlerts();
 
                     MessageBox.Show(
-                        $"🚨 CẢNH BÁO AN TOÀN IOT KHẨN CẤP!\n\n" +
+                        $"CẢNH BÁO THIẾT BỊ\n\n" +
                         $"• Trạm: {alert.MaTram} - Ngăn tủ #{alert.MaNgan}\n" +
                         $"• Pin: {alert.MaPin}\n" +
-                        $"• Nhiệt độ đo được: {alert.GiaTriDo:F1} °C (> 55°C)\n" +
-                        $"• Tình trạng: Hệ thống đã TỰ ĐỘNG NGẮT SẠC và KHÓA CHẶT TỦ để chống cháy nổ!",
-                        "BÁO ĐỘNG CHÁY NỔ",
+                        $"• Giá trị ghi nhận: {alert.GiaTriDo:F1}\n" +
+                        $"• Kiểm tra loại cảnh báo, trạng thái ngăn và số liệu mới nhất tại An toàn và bảo trì.",
+                        "Cảnh báo cần kiểm tra",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error
                     );
@@ -133,12 +133,7 @@ namespace BatterySwapping.App
 
         #region Kiosk Workflow Management
 
-        public void OpenKioskMode()
-        {
-            var welcomeView = new KioskWelcomeView();
-            welcomeView.OnCustomerValidated += WelcomeView_OnCustomerValidated;
-            mainContentArea.Content = welcomeView;
-        }
+        public void OpenKioskMode(){if(AuthService.CurrentUser?.VaiTro=="KhachHang")mainContentArea.Content=new SwapWorkflowView();}
 
         private void WelcomeView_OnCustomerValidated(KhachHang customer)
         {
@@ -180,6 +175,7 @@ namespace BatterySwapping.App
             mainContentArea.Content = _batteryView;
         }
 
+        private void BtnNavBusiness_Click(object sender,RoutedEventArgs e){if(AuthService.CurrentUser?.VaiTro=="Admin")mainContentArea.Content=new BusinessOperationsView();}
         private void BtnNavCustomers_Click(object sender, RoutedEventArgs e)
         {
             if (AuthService.CurrentUser?.VaiTro != "Admin") return;

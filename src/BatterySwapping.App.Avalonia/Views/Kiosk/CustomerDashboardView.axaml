@@ -84,7 +84,7 @@
             <!-- Nút Kích hoạt Đổi pin tại trạm -->
             <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="16" Margin="0,0,0,20">
                 <Button Content="⚡ TIẾN HÀNH ĐỔI PIN TẠI TRẠM" Classes="primary" FontSize="15" Padding="24,12" Click="SwapClick"/>
-                <TextBlock Text="Phí dịch vụ: 25.000 đ / lượt đổi pin • Tự động hoàn tất trong 30 giây" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBlock Text="Phí được chốt theo phiên • Chỉ hoàn tất sau xác nhận thiết bị" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
             </StackPanel>
 
             <!-- Lịch sử đổi pin & Nạp ví -->
@@ -109,10 +109,10 @@
                     <Border Classes="card" Padding="0" Margin="0,10,0,0" Background="White">
                         <DataGrid x:Name="dgTopUpHistory" IsReadOnly="True" AutoGenerateColumns="False" GridLinesVisibility="Horizontal">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="MÃ NẠP" Binding="{Binding MaNap}" FontWeight="Bold" Width="90"/>
-                                <DataGridTextColumn Header="SỐ TIỀN" Binding="{Binding SoTienFormatted}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="140"/>
-                                <DataGridTextColumn Header="PHƯƠNG THỨC" Binding="{Binding PhuongThuc}" Width="140"/>
-                                <DataGridTextColumn Header="THỜI GIAN" Binding="{Binding ThoiGianFormatted}" Width="*"/>
+                                <DataGridTextColumn Header="MÃ NẠP" Binding="{Binding Id}" FontWeight="Bold" Width="90"/>
+                                <DataGridTextColumn Header="SỐ TIỀN" Binding="{Binding Amount}" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Width="140"/>
+                                <DataGridTextColumn Header="TRẠNG THÁI" Binding="{Binding Status}" Width="140"/>
+                                <DataGridTextColumn Header="THỜI GIAN" Binding="{Binding CreatedAt}" Width="*"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Border>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BSS — Mô phỏng 3D Mạng Lưới 2 Trạm Đổi Pin</title>
-  <link rel="stylesheet" href="css/integrated.css?v=20261122_4">
+  <link rel="stylesheet" href="css/integrated.css?v=20261124_business">
   <link rel="icon" href="data:,">
 </head>
 <body>
@@ -19,7 +19,7 @@
         <button id="btn-station-cg" class="station-tab cg" role="tab" aria-selected="false">🏢 Trạm 2: Cầu Giấy (TRAM-CG02)</button>
       </div>
       <div style="display:flex;align-items:center;gap:8px;background:#070c18;padding:4px 10px;border-radius:8px;border:1px solid #273548">
-        <label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:4px">Tốc độ:
+        <label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:4px">Tốc độ vật lý giả lập:
           <select id="time-scale" aria-label="Tốc độ mô phỏng" style="padding:3px 6px;font-size:12px">
             <option value="1">×1</option>
             <option value="10">×10</option>
@@ -58,19 +58,12 @@
             <div id="kiosk-login-section">
               <h3 id="flow-title" style="margin:0 0 6px 0;font-size:16px">Đăng nhập tài khoản khách hàng</h3>
               <p id="flow-desc" style="color:#94a3b8;font-size:13px;margin:0 0 14px 0">
-                Nhập số điện thoại/tài khoản hoặc quét mã QR/RFID để sử dụng ví đổi pin tự động.
+                Đăng nhập bằng tài khoản và mật khẩu. QR/RFID chỉ nhận diện hồ sơ, không thay thế xác thực.
               </p>
 
-              <div style="background:#1e293b;border:1px dashed #475569;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
-                <span style="font-size:13px;color:#cbd5e1">👤 Tài xế mẫu: <strong>driver01</strong> (Ví: 150.000 đ)</span>
-                <button id="btn-quick-login" type="button" style="background:#0284c7;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:bold;color:#ffffff;cursor:pointer">
-                  ⚡ Đăng nhập nhanh
-                </button>
-              </div>
-
               <form id="login-form">
-                <label>Tài khoản / SĐT<input id="username" value="driver01" autocomplete="username"></label>
-                <label>Mật khẩu<input id="password" type="password" value="123456" autocomplete="current-password"></label>
+                <label>Tài khoản<input id="username"  autocomplete="username"></label>
+                <label>Mật khẩu<input id="password" type="password"  autocomplete="current-password"></label>
                 <button type="submit" style="background:#10b981;font-weight:bold;border-color:#059669;color:#ffffff">Đăng nhập</button>
               </form>
             </div>
@@ -82,7 +75,7 @@
                   <span style="font-size:26px">👤</span>
                   <div>
                     <div id="kiosk-user-name" style="font-weight:bold;font-size:15px;color:#f8fafc">Khách hàng</div>
-                    <div id="wallet-balance" style="font-size:13px;color:#34d399;font-weight:600">Ví hiện tại: 150.000 đ</div>
+                    <div id="wallet-balance" style="font-size:13px;color:#34d399;font-weight:600">Đang tải số dư ví…</div>
                   </div>
                 </div>
                 <button id="logout" type="button" style="padding:5px 12px;font-size:12px;background:#334155;border:none;border-radius:6px;color:#cbd5e1;cursor:pointer">Đăng xuất</button>
@@ -91,10 +84,10 @@
               <div id="swap-step-card" class="swap-step-card">
                 <div id="step-badge" class="step-badge">BƯỚC 1: SẴN SÀNG</div>
                 <h3 id="step-main-text" style="margin:10px 0 4px 0;font-size:16px">Sẵn sàng thực hiện đổi pin</h3>
-                <p id="flow-info" style="font-size:13px;color:#94a3b8;margin:0 0 14px 0">Phí dịch vụ cố định: 25.000 đ / lượt đổi pin.</p>
+                <p id="flow-info" style="font-size:13px;color:#94a3b8;margin:0 0 14px 0">Đang tải phí dịch vụ từ backend.</p>
 
-                <button id="start-swap" class="btn-swap-start">⚡ BẮT ĐẦU ĐỔI PIN (25.000 đ)</button>
-                <button id="physical-action" class="primary" hidden style="margin-top:10px;padding:12px;font-size:14px"></button>
+                <button id="start-swap" class="btn-swap-start">⚡ BẮT ĐẦU ĐỔI PIN</button>
+
                 <button id="cancel-swap" hidden style="margin-top:10px;width:100%;background:#334155;border:none;border-radius:6px;padding:8px">Hủy / Yêu cầu hỗ trợ</button>
               </div>
             </div>
@@ -122,11 +115,20 @@
       <div id="slots-grid" class="slot-grid" aria-label="Chọn ngăn pin"></div>
       <h3 id="slot-title">Ngăn 1</h3>
       <dl id="metrics"></dl>
-      <section class="faults">
+      <section class="faults" aria-label="Công cụ giả lập thiết bị">
+        <h3>CÔNG CỤ DEMO THIẾT BỊ</h3>
+        <p class="muted">Các thao tác sau giả lập hành động vật lý; không phải nút hoàn tất giao dịch.</p>
+        <button id="physical-action" class="primary" hidden></button>
+        <button id="replacement-action" class="primary" hidden></button>
         <button id="overheat">Gây lỗi quá nhiệt 65°C</button>
-        <button id="cool">Mô phỏng làm mát về 30°C</button>
+        <button id="cool">Bật làm mát giả lập</button>
         <p class="muted">Làm mát chưa mở khóa. Kỹ thuật viên xác nhận reset trên Desktop.</p>
       </section>
+      <details>
+        <summary>Hỗ trợ đăng nhập demo</summary>
+        <p>Tài khoản mẫu driver01 / 123456 chỉ tồn tại nếu đã nạp dữ liệu demo.</p>
+        <button id="btn-quick-login" type="button">Điền tài khoản demo (vẫn cần đăng nhập)</button>
+      </details>
       <details>
         <summary>Giả định mô hình &amp; Đồng bộ 2 trạm</summary>
         <p>• Trạm 1 (BK01) và Trạm 2 (CG02) đều có 8 ngăn với pin Lithium LFP 72V/30Ah.<br>
@@ -138,16 +140,16 @@
     </aside>
   </main>
 
-  <script src="js/three.min.js?v=20261122_3"></script>
-  <script src="js/OrbitControls.js?v=20261122_3"></script>
-  <script src="js/tween.umd.js?v=20261122_3"></script>
-  <script src="js/mqtt.min.js?v=20261122_3"></script>
-  <script src="js/cabinetModel.js?v=20261122_3"></script>
-  <script src="js/particleSystem.js?v=20261122_3"></script>
-  <script src="js/bmsModel.js?v=20261122_3"></script>
-  <script src="js/mqttSync.js?v=20261122_3"></script>
-  <script src="js/sceneView.js?v=20261122_3"></script>
-  <script src="js/simulatorController.js?v=20261122_3"></script>
+  <script src="js/three.min.js?v=20261124_business"></script>
+  <script src="js/OrbitControls.js?v=20261124_business"></script>
+  <script src="js/tween.umd.js?v=20261124_business"></script>
+  <script src="js/mqtt.min.js?v=20261124_business"></script>
+  <script src="js/cabinetModel.js?v=20261124_business"></script>
+  <script src="js/particleSystem.js?v=20261124_business"></script>
+  <script src="js/bmsModel.js?v=20261124_business"></script>
+  <script src="js/mqttSync.js?v=20261124_business"></script>
+  <script src="js/sceneView.js?v=20261124_business"></script>
+  <script src="js/simulatorController.js?v=20261124_business"></script>
   <script>
     window.addEventListener('DOMContentLoaded', () => SimulatorController.init());
   </script>

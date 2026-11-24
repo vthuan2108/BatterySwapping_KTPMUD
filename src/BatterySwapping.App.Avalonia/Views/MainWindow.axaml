@@ -44,7 +44,8 @@
                         <Button x:Name="btnNavOverview" Content="📊  Tổng quan" Classes="menunav" Click="BtnNavOverview_Click"/>
                         <Button x:Name="btnNavDashboard" Content="🏭  Vận hành trạm" Classes="menunav" Click="BtnNavDashboard_Click"/>
                         <Button x:Name="btnNavBatteries" Content="🔋  Quản lý danh mục pin" Classes="menunav" Click="BtnNavBatteries_Click"/>
-                        <Button x:Name="btnNavCustomers" Content="👥  Khách hàng &amp; Ví" Classes="menunav" Click="BtnNavCustomers_Click"/>
+                        <Button x:Name="btnNavBusiness" Content="Hồ sơ, kho và thanh toán" Classes="menunav" Click="BtnNavBusiness_Click"/>
+                    <Button x:Name="btnNavCustomers" Content="👥  Khách hàng &amp; Ví" Classes="menunav" Click="BtnNavCustomers_Click"/>
                         <Button x:Name="btnNavTransactions" Content="📜  Giao dịch đổi pin" Classes="menunav" Click="BtnNavTransactions_Click"/>
                         <Button x:Name="btnNavAlerts" Content="🚨  An toàn &amp; Bảo trì" Classes="menunav" Click="BtnNavAlerts_Click"/>
                         <Button x:Name="btnNavWallet" Content="💳  Kiosk / Ví cá nhân" Classes="menunav" Click="BtnNavWallet_Click"/>

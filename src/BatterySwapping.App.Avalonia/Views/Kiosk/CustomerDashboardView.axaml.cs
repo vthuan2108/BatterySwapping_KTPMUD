@@ -77,7 +77,7 @@ public partial class CustomerDashboardView : UserControl
 
             if (dgTopUpHistory != null)
             {
-                dgTopUpHistory.ItemsSource = await BssApi.Client.Get<List<GiaoDichVi>>("me/history/topups");
+                dgTopUpHistory.ItemsSource = await BssApi.Client.Get<List<PaymentRequest>>("payments");
             }
 
             if (txtStatus != null)
@@ -129,9 +129,9 @@ public partial class CustomerDashboardView : UserControl
 
         try
         {
-            await BssApi.Client.Post<JsonElement>("wallet/self-topup", new SelfTopupRequest(value, _requestKey));
+            await BssApi.Client.Post<JsonElement>("payments", new CreatePaymentRequest(value, _requestKey));
             _requestKey = null;
-            if (txtStatus != null) txtStatus.Text = $"✔ Đã nạp thành công {value:N0} đ vào ví demo!";
+            if (txtStatus != null) txtStatus.Text = $"Đã tạo yêu cầu nạp {value:N0} đ; chờ xác nhận thanh toán.";
             await Reload();
         }
         catch (Exception ex)

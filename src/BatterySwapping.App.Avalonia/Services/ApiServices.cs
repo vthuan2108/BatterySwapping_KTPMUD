@@ -56,6 +56,16 @@ public static class BssApi
     }
 
     // Safe non-blocking error notification replacing modal dialog cascade
+    static readonly Dictionary<string,string> MaintenanceKeys=new();
+    public static async Task Maintenance(string station,int slot,string action,string? battery,string note)
+    {
+        string operation=station+":"+slot+":"+action+":"+battery+":"+note;
+        if(!MaintenanceKeys.TryGetValue(operation,out var key))MaintenanceKeys[operation]=key=Guid.NewGuid().ToString();
+        var order=await Client.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest(station,slot,action,battery,note,key));
+        var until=DateTime.UtcNow.AddSeconds(12);
+        while(DateTime.UtcNow<until){var cmd=await Client.Get<DeviceCommand>($"commands/{order.CommandId}");if(cmd.Status=="Completed"){MaintenanceKeys.Remove(operation);return;}if(cmd.Status is "Failed" or "Cancelled")throw new InvalidOperationException($"Phiếu {order.Id}: {cmd.Status}; kiểm tra thiết bị.");await Task.Delay(400);}
+        throw new InvalidOperationException($"Phiếu {order.Id} / lệnh {order.CommandId} đang chờ xác nhận. Gửi lại cùng thông tin để tra cứu, không tạo lệnh mới.");
+    }
     public static void Error(Exception e) => OnErrorNotification?.Invoke(e.Message);
     public static void Error(string message) => OnErrorNotification?.Invoke(message);
 }
@@ -157,9 +167,9 @@ public class ReportService
     public Task<List<KhachHang>> GetAllCustomers() => BssApi.Client.Get<List<KhachHang>>("customers");
     public Task<List<GiaoDichDoiPin>> GetSwapHistory() => BssApi.Client.Get<List<GiaoDichDoiPin>>("history/swaps");
     public Task<List<GiaoDichVi>> GetTopUpHistory() => BssApi.Client.Get<List<GiaoDichVi>>("history/topups");
-    public async Task<Operation> TopUpWallet(int id, decimal amount, string method)
+    public async Task<Operation> TopUpWallet(int id, decimal amount, string method,string? requestId=null)
     {
-        try { await BssApi.Client.Post<JsonElement>("wallet/topup", new MoneyRequest(id, amount, method)); return new(true); }
+        try { await BssApi.Client.Post<JsonElement>("payments", new CreatePaymentRequest(amount,requestId??Guid.NewGuid().ToString(),id)); return new(true); }
         catch (Exception e) { return new(false, e.Message); }
     }
 }
@@ -193,12 +203,12 @@ public class BatteryService
     }
     public async Task<Operation> MaintainBattery(string station, int slot, string pin, string technician, string note)
     {
-        try { await BssApi.Command(station, "RESET_ALARM", slot); return new(true); }
+        try { await BssApi.Maintenance(station,slot,"RESET_ALARM",null,note); return new(true); }
         catch (Exception e) { return new(false, e.Message); }
     }
     public async Task<Operation> ReplaceBattery(string station, int slot, string oldPin, string newPin, string technician, string note)
     {
-        try { await BssApi.Command(station, "REPLACE_BATTERY", slot, newPin); return new(true); }
+        try { await BssApi.Maintenance(station,slot,"REPLACE_BATTERY",newPin,note); return new(true); }
         catch (Exception e) { return new(false, e.Message); }
     }
 }
@@ -282,38 +292,13 @@ public class SwapService
 
     public async Task<KhachHang> ValidateCustomerWallet(string identifier)
     {
-        if (string.IsNullOrWhiteSpace(identifier))
-            throw new InvalidOperationException("Vui lòng nhập số điện thoại hoặc quét mã QR.");
-
-        string phone = identifier.Trim();
-        int qrId = 0;
-        if (QrCodeHelper.TryParseQrPayload(identifier, out var id, out var parsed))
-        {
-            qrId = id;
-            phone = parsed;
-        }
-
-        // Tự động xác thực tài khoản khách hàng nếu chưa đăng nhập hoặc thông tin không khớp
-        if (BssApi.Client.User?.Role != "KhachHang")
-        {
-            var op = await new AuthService().KioskLogin(identifier);
-            if (!op.Success) throw new InvalidOperationException(op.Error);
-        }
-        else
-        {
-            var current = await BssApi.Client.Get<KhachHang>("wallet");
-            if (current != null && current.SoDienThoai != phone && (qrId <= 0 || current.MaKH != qrId))
-            {
-                var op = await new AuthService().KioskLogin(identifier);
-                if (!op.Success) throw new InvalidOperationException(op.Error);
-            }
-        }
-
-        var c = await BssApi.Client.Get<KhachHang>("wallet");
-        if (c == null) throw new InvalidOperationException("Không tìm thấy thông tin khách hàng.");
-
-        var active = (await BssApi.Client.Get<List<SwapSession>>("swaps")).Any(s => s.State is not ("Completed" or "Cancelled" or "Expired"));
-        if (!active && c.SoDuVi < SWAP_FEE) throw new InvalidOperationException("Ví không đủ 25.000 đ.");
+        if(BssApi.Client.User?.Role!="KhachHang")throw new InvalidOperationException("Đăng nhập tài khoản khách hàng trước khi đổi pin.");
+        var c=await BssApi.Client.Get<KhachHang>("wallet");
+        string value=identifier.Trim();
+        bool match=value==c.SoDienThoai||value=="RFID:KH-"+c.MaKH;
+        if(Helpers.QrCodeHelper.TryParseQrPayload(value,out var id,out var phone))match=id==c.MaKH&&phone==c.SoDienThoai;
+        if(!match)throw new InvalidOperationException("Định danh không khớp tài khoản đang đăng nhập.");
+        if(string.IsNullOrEmpty(c.MaPinDangMuon))throw new InvalidOperationException("Bạn chưa được bàn giao pin. Liên hệ admin để nhận pin lần đầu.");
         return c;
     }
 }

@@ -21,7 +21,15 @@ builder.Services.AddSingleton(new SqlStore(cs));builder.Services.AddSingleton<Bs
 builder.Services.AddSingleton<MqttWorker>();builder.Services.AddHostedService(p=>p.GetRequiredService<MqttWorker>());
 builder.Services.AddRateLimiter(o=>o.AddFixedWindowLimiter("login",x=>{x.PermitLimit=20;x.Window=TimeSpan.FromMinutes(1);x.QueueLimit=0;}));
 var app=builder.Build();
-app.Services.GetRequiredService<SqlStore>().Migrate(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"06_Runtime.sql")));
+var auditStore=app.Services.GetRequiredService<SqlStore>();
+var existingIssues=new BusinessOperations(auditStore).Consistency();
+if(existingIssues.Count>0){
+    string report=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(settingsPath))!,"inventory-consistency.json");
+    File.WriteAllText(report,System.Text.Json.JsonSerializer.Serialize(existingIssues));
+    app.Logger.LogWarning("Inventory consistency requires review: {Count} issues. Report {ReportPath}",existingIssues.Count,report);
+}
+foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql"})
+    app.Services.GetRequiredService<SqlStore>().Migrate(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,script)));
 app.Use(async(ctx,next)=>{
     if(ctx.Connection.RemoteIpAddress is not null && !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)){ctx.Response.StatusCode=403;return;}
     ctx.Response.Headers["X-Content-Type-Options"]="nosniff";
@@ -36,11 +44,10 @@ app.UseRouting();app.UseRateLimiter();
 app.UseDefaultFiles();app.UseStaticFiles();
 app.MapGet("/health",(MqttWorker mqtt,SqlStore db)=>{db.Read(x=>x.Scalar("SELECT 1"));return Results.Ok(new{server="online",database="online",mqtt=mqtt.Connected});});
 app.MapPost("/api/v1/auth/login",(LoginRequest r,BssEngine e,AuthSessions auth)=>{var u=e.Login(r);return new LoginResponse(auth.Create(u),u);}).RequireRateLimiting("login");
-app.MapPost("/api/v1/auth/kiosk",(KioskAuthRequest r,BssEngine e,AuthSessions auth)=>{var u=e.KioskLogin(r.Identifier);return new LoginResponse(auth.Create(u),u);});
 // Simulator bootstrap is loopback-only; these credentials grant device topics, never admin APIs.
 app.MapGet("/api/v1/device/config",(IConfiguration c)=>new{brokerUrl="ws://127.0.0.1:19001/mqtt",username="simulator",password=c["Broker:SimulatorPassword"]});
 app.MapPost("/api/v1/device/lease",(DeviceLease r,BssEngine e)=>e.Lease(r));
-app.MapGet("/api/v1/device/{station}/snapshot",(string station,BssEngine e)=>new{stationId=station,status=e.Status(station),slots=new StationService().GetCabinetSlots(station),batteries=new BatteryService().GetAllBatteries(),sessions=e.Sessions().Where(s=>s.StationId==station&&s.State is not("Completed" or "Cancelled" or "Expired")),commands=e.Commands(station).Where(c=>c.Status is "Sent" or "Unconfirmed" or "Completed").Take(100)});
+app.MapGet("/api/v1/device/{station}/snapshot",(string station,BssEngine e)=>new{stationId=station,status=e.Status(station),slots=new StationService().GetCabinetSlots(station),batteries=new BatteryService().GetAllBatteries(),sessions=e.Sessions().Where(s=>s.StationId==station&&s.State is not("Completed" or "Cancelled" or "Expired")),commands=e.Commands(station).Where(c=>c.Status is "Sent" or "Unconfirmed" or "Completed" or "Failed").Take(100)});
 
 var api=app.MapGroup("/api/v1");
 api.AddEndpointFilter(async(ctx,next)=>{
@@ -56,6 +63,9 @@ void Owner(HttpContext c,SwapSession s){var u=Who(c);if(u.Role=="KhachHang"&&u.C
 var staff=new Roles("Admin","KyThuatVien");var admin=new Roles("Admin");
 api.MapPost("/auth/logout",(HttpContext c,AuthSessions a)=>{a.Remove(c.Request.Headers.Authorization.ToString().Replace("Bearer ",""));return Results.NoContent();});
 api.MapGet("/auth/me",(HttpContext c)=>Who(c));
+api.MapBusinessEndpoints();
+api.MapGet("/pricing",(SqlStore db)=>new BusinessOperations(db).GetPolicy());
+api.MapMaintenanceEndpoints();
 api.MapGet("/stations",()=>new StationService().GetAllStations());
 api.MapGet("/stations/{station}/slots",(string station)=>new StationService().GetCabinetSlots(station));
 api.MapGet("/stations/{station}/status",(string station,BssEngine e)=>e.Status(station));
@@ -64,13 +74,8 @@ api.MapGet("/batteries",()=>new BatteryService().GetAllBatteries()).WithMetadata
 api.MapPost("/batteries",(Pin r)=>{if(!new BatteryService().AddBattery(r,out var error))throw new DomainException(error);return Results.Ok(r);}).WithMetadata(admin);
 api.MapGet("/customers",()=>new ReportService().GetAllCustomers()).WithMetadata(admin);
 api.MapGet("/wallet",(HttpContext c,SqlStore db)=>db.Read(x=>x.Rows("SELECT k.*, COALESCE((SELECT SUM(Hold) FROM dbo.BssSessions WHERE CustomerId=k.MaKH AND Active=1),0) AS ReservedBalance FROM dbo.KhachHang k WHERE MaTK=@id",("@id",Who(c).Id)).SingleOrDefault()));
-api.MapPost("/wallet/self-topup",(HttpContext c,SelfTopupRequest r,SqlStore db)=>{
-    int customer=Who(c).CustomerId??throw new DomainException("Tài khoản chưa có hồ sơ khách hàng.",403);
-    return Results.Ok(new{balance=new CustomerWallet(db).TopUp(customer,r.Amount,r.RequestId),message="Đã nạp ví demo; không có thanh toán ngân hàng."});
-}).WithMetadata(new Roles("KhachHang"));
 api.MapGet("/me/history/swaps",(HttpContext c,SqlStore db)=>db.Read(x=>x.Rows("SELECT * FROM dbo.LichSuDoiPin WHERE MaKH=@c ORDER BY MaGD DESC",("@c",Who(c).CustomerId??throw new DomainException("Không có hồ sơ khách hàng.",403))))).WithMetadata(new Roles("KhachHang"));
 api.MapGet("/me/history/topups",(HttpContext c,SqlStore db)=>db.Read(x=>x.Rows("SELECT * FROM dbo.LichSuNapTien WHERE MaKH=@c ORDER BY MaNap DESC",("@c",Who(c).CustomerId??throw new DomainException("Không có hồ sơ khách hàng.",403))))).WithMetadata(new Roles("KhachHang"));
-api.MapPost("/wallet/topup",(MoneyRequest r)=>{if(!new ReportService().TopUpWallet(r.CustomerId,r.Amount,r.Method,out var error))throw new DomainException(error);return Results.Ok(new{message="Đã nạp ví demo."});}).WithMetadata(admin);
 api.MapGet("/reports/summary",()=>new ReportService().GetSummaryStats()).WithMetadata(admin);
 api.MapGet("/history/swaps",()=>new ReportService().GetSwapHistory()).WithMetadata(admin);
 api.MapGet("/history/topups",()=>new ReportService().GetTopUpHistory()).WithMetadata(admin);
@@ -82,13 +87,12 @@ api.MapPost("/swaps",(HttpContext c,StartSwap r,BssEngine e)=>{
     int customer=Who(c).CustomerId??throw new DomainException("Đăng nhập tài khoản khách hàng để sử dụng ví.",403);
     var s=e.Start(customer,r);return Results.Accepted($"/api/v1/swaps/{s.Id}",s);
 });
-api.MapGet("/swaps",(HttpContext c,BssEngine e)=>e.Sessions(Who(c).Role=="KhachHang"?Who(c).CustomerId:null));
+api.MapGet("/swaps",(HttpContext c,BssEngine e)=>e.Sessions(Who(c).Role=="KhachHang"?Who(c).CustomerId??throw new DomainException("Thiếu hồ sơ khách hàng.",403):null));
 api.MapPost("/swaps/{id}/resume",(string id,BssEngine e)=>e.Resume(id)).WithMetadata(staff);
 api.MapGet("/swaps/{id}",(string id,HttpContext c,BssEngine e)=>{var s=e.GetSession(id)??throw new DomainException("Không tìm thấy phiên.",404);Owner(c,s);return s;});
 api.MapPost("/swaps/{id}/cancel",(string id,HttpContext c,BssEngine e)=>{var s=e.GetSession(id)??throw new DomainException("Không tìm thấy phiên.",404);Owner(c,s);return e.Cancel(id);});
-app.MapPost("/api/v1/swaps/{id}/events",(string id,SwapEventRequest r,BssEngine e)=>e.SimulateEvent(id,r.Event));
 app.MapGet("/api-docs",()=>Results.Content("""
-<!doctype html><html lang="vi"><meta charset="utf-8"><title>BSS API</title><body style="font:18px system-ui;max-width:1000px;margin:40px auto"><h1>BSS Local API v1</h1><p>REST JSON, Authorization: Bearer token từ POST /api/v1/auth/login {username,password}. Phiên 8 giờ; logout thu hồi token. Chỉ loopback.</p><ul><li>GET /health</li><li>GET /api/v1/stations, stations/{id}/slots, stations/{id}/status</li><li>GET /api/v1/batteries, customers, alerts, reports/summary, history/swaps, history/topups</li><li>POST /api/v1/stations; POST /api/v1/batteries (Admin)</li><li>POST /api/v1/wallet/topup {customerId,amount,method} (Admin)</li><li>POST /api/v1/swaps {stationId,idempotencyKey} (Khách hàng)</li><li>GET /api/v1/swaps/{id}; POST /api/v1/swaps/{id}/cancel</li><li>POST /api/v1/stations/{id}/commands {command,slotNumber,batteryId} (Admin/Kỹ thuật viên)</li><li>GET /api/v1/commands/{id}; GET /api/v1/commands</li></ul><p>Lệnh: CUT_OFF, RESTORE_STATION, RESET_ALARM, REPLACE_BATTERY, UNLOCK_SLOT, CLOSE_SLOT, LOCK_SLOT, TRIGGER_OVERHEAT. POST lệnh trả 202 và commandId; chỉ Completed mới là xác nhận thực thi.</p><p>Lỗi: 400 dữ liệu, 401 đăng nhập, 403 quyền, 404 không tồn tại, 409 nghiệp vụ. JSON {error,code}. Ví nội bộ demo; không gọi ngân hàng.</p><a href="/">Mở Web3D</a></body></html>
+<!doctype html><html lang="vi"><meta charset="utf-8"><title>BSS API</title><body style="font:18px system-ui;max-width:1000px;margin:40px auto"><h1>BSS Local API v1</h1><p>REST JSON, Authorization: Bearer token từ POST /api/v1/auth/login {username,password}. Phiên 8 giờ; logout thu hồi token. Chỉ loopback.</p><ul><li>GET /health</li><li>GET /api/v1/policy, inventory, maintenance, payments; POST /api/v1/customers/create, handovers; PUT /api/v1/policy (Admin)</li><li>GET /api/v1/stations, stations/{id}/slots, stations/{id}/status</li><li>GET /api/v1/batteries, customers, alerts, reports/summary, history/swaps, history/topups</li><li>POST /api/v1/stations; POST /api/v1/batteries (Admin)</li><li>POST /api/v1/payments {amount,requestId,customerId?}; POST payments/{id}/result {result} (Admin)</li><li>POST /api/v1/swaps {stationId,idempotencyKey} (Khách hàng)</li><li>GET /api/v1/swaps/{id}; POST /api/v1/swaps/{id}/cancel</li><li>POST /api/v1/stations/{id}/commands {command,slotNumber,batteryId} (Admin/Kỹ thuật viên)</li><li>GET /api/v1/commands/{id}; GET /api/v1/commands</li></ul><p>Lệnh: CUT_OFF, RESTORE_STATION, RESET_ALARM, REPLACE_BATTERY, UNLOCK_SLOT, CLOSE_SLOT, LOCK_SLOT, TRIGGER_OVERHEAT. POST lệnh trả 202 và commandId; chỉ Completed mới là xác nhận thực thi.</p><p>Lỗi: 400 dữ liệu, 401 đăng nhập, 403 quyền, 404 không tồn tại, 409 nghiệp vụ. JSON {error,code}. Ví nội bộ demo; không gọi ngân hàng.</p><a href="/">Mở Web3D</a></body></html>
 ""","text/html; charset=utf-8"));
 // Visual Studio F5 also starts the prepared local broker if it is not running.
 System.Diagnostics.Process? ownedBroker=null;

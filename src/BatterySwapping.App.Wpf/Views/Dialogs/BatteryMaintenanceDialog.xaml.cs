@@ -1,3 +1,4 @@
+using BatterySwapping.Contracts;
 ﻿using System;
 
 using System.Windows;
@@ -88,7 +89,7 @@ namespace BatterySwapping.App.Views.Dialogs
             }
 
             // Gợi ý mã pin mới
-            txtNewPinId.Text = $"PIN-0{DateTime.Now:ss}";
+            txtNewPinId.ItemsSource=(await BssApi.Client.Get<List<BatteryInventoryItem>>("inventory")).Where(p=>p.Location=="Warehouse"&&!p.Reserved).ToList();
 
             } catch(Exception ex){BssApi.Error(ex);}
             finally {if(sourceButton!=null)sourceButton.IsEnabled=true;}
@@ -107,7 +108,7 @@ namespace BatterySwapping.App.Views.Dialogs
             if (outcome.Success)
             {
                 MessageBox.Show($"Đã hoàn tất bảo dưỡng pin {_pin.MaPin} tại trạm {_stationId} (Ngăn #{_slotNumber})!\n" +
-                                $"• Nhiệt độ đã hạ về 25°C an toàn\n" +
+                                $"• Thiết bị đã xác nhận xử lý; xem telemetry mới nhất\n" +
                                 $"• Ngăn tủ đã được mở khóa bảo trì\n" +
                                 $"• Cảnh báo an toàn đã được giải quyết",
                                 "Bảo dưỡng thành công", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -129,7 +130,7 @@ namespace BatterySwapping.App.Views.Dialogs
             if(sourceButton!=null)sourceButton.IsEnabled=false;
             try {
 
-            string newPinId = txtNewPinId?.Text?.Trim() ?? string.Empty;
+            string newPinId = (txtNewPinId.SelectedItem as BatteryInventoryItem)?.BatteryId ?? string.Empty;
             if (string.IsNullOrWhiteSpace(newPinId))
             {
                 MessageBox.Show("Vui lòng nhập mã pin mới thay thế!", "Thiếu thông tin", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -137,11 +138,11 @@ namespace BatterySwapping.App.Views.Dialogs
             }
 
             string technicianName = AuthService.CurrentUser?.HoTen ?? "Kỹ thuật viên Trạm";
-            string note = txtNote?.Text?.Trim() ?? "Thay thế pin chai/hỏng bằng pin mới đạt chuẩn 100%";
+            string note = txtNote?.Text?.Trim() ?? "Thay thế bằng pin kho đã đăng ký";
 
             if (MessageBox.Show($"XÁC NHẬN THAY THẾ PIN:\n\n" +
                                 $"• Thu hồi viên pin cũ: {_pin.MaPin}\n" +
-                                $"• Lắp viên pin mới: {newPinId} (SoC: 100%, SoH: 100%)\n" +
+                                $"• Lắp viên pin mới: {newPinId} (thông số lấy từ pin đã đăng ký)\n" +
                                 $"• Vị trí: Trạm {_stationId} - Ngăn #{_slotNumber}\n\n" +
                                 $"Bạn có chắc chắn muốn thực hiện nghiệp vụ này?",
                                 "Xác nhận thay thế pin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)

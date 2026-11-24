@@ -46,7 +46,7 @@
                     <StackPanel>
                         <TextBlock Text="DOANH THU HÔM NAY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBlock x:Name="lblRevenue" Text="0 đ" FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" Margin="0,6,0,0"/>
-                        <TextBlock Text="Đơn giá: 25.000 đ/lượt" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Phí theo chính sách backend" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
 
@@ -55,7 +55,7 @@
                     <StackPanel>
                         <TextBlock Text="TỔNG LƯỢT ĐỔI PIN" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBlock x:Name="lblSwaps" Text="0 lượt" FontSize="22" FontWeight="Bold" Foreground="{StaticResource SecondaryBrush}" Margin="0,6,0,0"/>
-                        <TextBlock Text="An toàn chu kỳ 100%" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Theo dõi xác nhận thiết bị" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
 

@@ -11,6 +11,17 @@ internal static class Program
         Check(!BatterySwapping.App.Services.NavigationPolicy.For("KyThuatVien").WalletAdministration,"technician cannot manage wallets");
         Check(BatterySwapping.App.Services.NavigationPolicy.For("KhachHang").Kiosk,"customer has kiosk");
         Check(!BatterySwapping.App.Services.NavigationPolicy.For(null).Staff,"guest has no operating controls");
+        if(args.Contains("--visual-role"))
+        {
+            string settings=Environment.GetEnvironmentVariable("BSS_SETTINGS")??throw new Exception("Dedicated test config required.");
+            if(!System.IO.File.ReadAllText(settings).Contains("Database=BssArchitectureTests_"))throw new Exception("Visual runner refuses application database.");
+            string role=args.Last();string user=role=="Admin"?"admin":role=="KyThuatVien"?"tech01":"driver01";
+            var auth=Task.Run(()=>new BatterySwapping.App.Services.AuthService().Login(user,"123456")).GetAwaiter().GetResult();
+            if(!auth.Success)throw new Exception(auth.Error);
+            var visual=new Application();
+            visual.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/BatterySwapping.App;component/Resources/AppStyles.xaml")});
+            visual.Run(new BatterySwapping.App.MainWindow());return;
+        }
         Application app;
         if(args.Contains("--simulator")){app=new BatterySwapping.Simulator.App();}
         else {var desktop=new BatterySwapping.App.App();desktop.InitializeComponent();app=desktop;}
@@ -33,6 +44,7 @@ internal static class Program
             var window=new BatterySwapping.App.MainWindow();
             Check(((System.Windows.Controls.Button)window.FindName("btnNavKiosk")).Visibility==(role=="KhachHang"?Visibility.Visible:Visibility.Collapsed),role+" kiosk menu");
             Check(((System.Windows.Controls.Button)window.FindName("btnNavOverview")).Visibility==(role=="Admin"?Visibility.Visible:Visibility.Collapsed),role+" financial overview menu");
+            Check(((System.Windows.Controls.Button)window.FindName("btnNavBusiness")).Visibility==(role=="Admin"?Visibility.Visible:Visibility.Collapsed),role+" business operations permission");
             Check(((System.Windows.Controls.Button)window.FindName("btnNavCustomers")).Visibility==(role=="Admin"?Visibility.Visible:Visibility.Collapsed),role+" customer administration menu");
             Check(((System.Windows.Controls.Button)window.FindName("btnEmergencyCutoff")).Visibility==Visibility.Collapsed,"global cutoff removed for "+role);
             window.Close();
@@ -48,17 +60,18 @@ internal static class Program
         var kioskBtn = (System.Windows.Controls.Button)adminWin.FindName("btnNavKiosk");
         kioskBtn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         var content = (System.Windows.Controls.ContentControl)adminWin.FindName("mainContentArea");
-        Check(content.Content is BatterySwapping.App.Views.Kiosk.KioskWelcomeView, "Admin clicking btnNavKiosk opens KioskWelcomeView");
+        Check(content.Content is not BatterySwapping.App.Views.Kiosk.SwapWorkflowView, "Admin cannot enter customer swap workflow");
+        Check(new BatterySwapping.App.Views.Admin.BusinessOperationsView().Content!=null,"admin business workspace loads");
+        Check(new BatterySwapping.App.Views.Kiosk.SwapWorkflowView().Content!=null,"device-confirmed swap workspace loads");
         adminWin.Close();
 
         // Verify KioskSwappingView simulation buttons exist
         var dummyCust = new BatterySwapping.App.Models.KhachHang { MaKH = 1, HoTen = "Test", SoDienThoai = "0987654321", SoDuVi = 100000 };
         var swappingView = new BatterySwapping.App.Views.Kiosk.KioskSwappingView(dummyCust);
-        Check(swappingView.FindName("btnSimulateOld") != null, "in-app simulation button OLD_INSERTED exists");
-        Check(swappingView.FindName("btnSimulateNew") != null, "in-app simulation button NEW_TAKEN exists");
+        Check(swappingView.FindName("btnSimulateOld") == null, "in-app physical OLD_INSERTED shortcut removed");
+        Check(swappingView.FindName("btnSimulateNew") == null, "in-app physical NEW_TAKEN shortcut removed");
 
         login.Close();app.Shutdown();
     }
     static void Check(bool ok,string text){if(!ok)throw new Exception(text);Console.WriteLine("PASS "+text);}
 }
-

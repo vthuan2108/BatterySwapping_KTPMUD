@@ -109,11 +109,12 @@ public partial class StationDashboardView : UserControl
             // KPI Thống kê
             try
             {
+                if(AuthService.CurrentUser?.VaiTro=="Admin"){
                 var stats = await _reportService.GetSummaryStats();
                 if (lblTodayRevenue != null) lblTodayRevenue.Text = $"{stats.DoanhThuHomNay:N0} đ";
                 if (lblTotalSwaps != null) lblTotalSwaps.Text = $"{stats.TongLuotDoiPin} lượt";
                 if (lblReadyBatteries != null) lblReadyBatteries.Text = $"{stats.SoPinKhaDung} / {stats.TongSoPin} pin";
-                if (lblActiveAlerts != null) lblActiveAlerts.Text = $"{stats.SoCanhBaoChuaXuLy} sự cố";
+                if (lblActiveAlerts != null) lblActiveAlerts.Text = $"{stats.SoCanhBaoChuaXuLy} sự cố";}
             }
             catch { }
 
@@ -123,7 +124,7 @@ public partial class StationDashboardView : UserControl
 
             if (icSlots != null)
             {
-                icSlots.ItemsSource = slots;
+                icSlots.ItemsSource = slots;if(AuthService.CurrentUser?.VaiTro=="KyThuatVien"){if(lblReadyBatteries!=null)lblReadyBatteries.Text=$"{slots.Count(s=>s.CoPin&&s.SoC>=90&&s.NhietDo<45&&!s.KhoaBaoTri)} / {slots.Count} pin";if(lblActiveAlerts!=null)lblActiveAlerts.Text=$"{slots.Count(s=>s.KhoaBaoTri||s.NhietDo>=55)} ngăn cần kiểm tra";}
             }
         }
         catch (Exception ex)

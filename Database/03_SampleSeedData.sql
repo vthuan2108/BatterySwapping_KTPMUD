@@ -73,7 +73,7 @@ INSERT INTO dbo.KhachHang (MaKH, MaTK, HoTen, SoDienThoai, Email, BienSoXe, SoDu
 (1, 3, N'Nguyễn Văn An', '0987654321', 'an.nv@gmail.com', '29A1-12345', 150000.00, 'PIN-009'),
 (2, 4, N'Trần Thị Bình', '0912345678', 'binh.tt@gmail.com', '29B1-67890', 50000.00, 'PIN-010'),
 (3, 5, N'Lê Hoàng Cường', '0905112233', 'cuong.lh@gmail.com', '29C1-99999', 10000.00, NULL), -- Số dư 10k < 25k (dùng để test lỗi số dư không đủ)
-(4, 6, N'Phạm Văn Dũng', '0901234567', 'dung.pv@gmail.com', '29D1-55555', 120000.00, 'PIN-009');
+(4, 6, N'Phạm Văn Dũng', '0901234567', 'dung.pv@gmail.com', '29D1-55555', 120000.00, NULL);
 SET IDENTITY_INSERT dbo.KhachHang OFF;
 GO
 

@@ -108,6 +108,7 @@ public partial class CustomerManagementView : UserControl
         }
     }
 
+    string? paymentKey;string paymentBody="";
     private async void BtnConfirmTopUp_Click(object? sender, RoutedEventArgs e)
     {
         if (_targetCustomer == null) return;
@@ -126,12 +127,13 @@ public partial class CustomerManagementView : UserControl
 
         try
         {
-            var op = await _reportService.TopUpWallet(_targetCustomer.MaKH, amount, method);
+            string body=_targetCustomer.MaKH+":"+amount;if(body!=paymentBody){paymentKey=null;paymentBody=body;}paymentKey??=Guid.NewGuid().ToString();
+            var op = await _reportService.TopUpWallet(_targetCustomer.MaKH, amount, method,paymentKey);
             if (op.Success)
-            {
+            {paymentKey=null;
                 if (txtTopUpFeedback != null)
                 {
-                    txtTopUpFeedback.Text = $"✔ Nạp thành công {amount:N0} đ cho {_targetCustomer.HoTen}!";
+                    txtTopUpFeedback.Text = $"Đã tạo yêu cầu nạp {amount:N0} đ cho {_targetCustomer.HoTen}; chờ cổng thanh toán giả lập.";
                 }
                 LoadCustomers();
             }
