@@ -614,8 +614,8 @@ const CabinetModel = (function () {
           slotLight: slotLight,
           alarmLight: alarmLight,
           smokeAnchor: smokeAnchor,
-          isEjected: false,
-          hasBattery: true,
+          isEjected: null,
+          hasBattery: null,
           normalZ: 0,
           ejectedZ: 0.38,
         });
@@ -650,7 +650,20 @@ const CabinetModel = (function () {
     const slot = resolveSlot(stationId, slotId);
     if (!slot) return;
 
+    if (slot.isEjected === null) {
+      slot.isEjected = isEjected;
+      slot.batteryGroup.position.z = isEjected ? slot.ejectedZ : slot.normalZ;
+      return;
+    }
+
+    if (slot.isEjected === isEjected) return;
     slot.isEjected = isEjected;
+
+    if (!slot.hasBattery) {
+      slot.batteryGroup.position.z = isEjected ? slot.ejectedZ : slot.normalZ;
+      return;
+    }
+
     const targetZ = isEjected ? slot.ejectedZ : slot.normalZ;
 
     if (!animate || typeof TWEEN === "undefined") {
@@ -668,27 +681,39 @@ const CabinetModel = (function () {
     const slot = resolveSlot(stationId, slotId);
     if (!slot) return;
 
+    if (slot.hasBattery === null) {
+      slot.hasBattery = hasBattery;
+      slot.batteryGroup.visible = hasBattery;
+      slot.batteryGroup.position.z = slot.isEjected ? slot.ejectedZ : slot.normalZ;
+      return;
+    }
+
+    if (slot.hasBattery === hasBattery) return;
     slot.hasBattery = hasBattery;
+
+    const targetZ = slot.isEjected ? slot.ejectedZ : slot.normalZ;
 
     if (!animate || typeof TWEEN === "undefined") {
       slot.batteryGroup.visible = hasBattery;
-      slot.batteryGroup.position.z = slot.normalZ;
+      slot.batteryGroup.position.z = targetZ;
       return;
     }
 
     if (hasBattery) {
       slot.batteryGroup.visible = true;
-      slot.batteryGroup.position.set(0, 0, 0.9);
+      slot.batteryGroup.position.set(0, 0, 0.95);
       new TWEEN.Tween(slot.batteryGroup.position)
-        .to({ z: slot.normalZ }, 850)
+        .to({ z: targetZ }, 850)
         .easing(TWEEN.Easing.Back.Out)
         .start();
     } else {
+      slot.batteryGroup.visible = true;
       new TWEEN.Tween(slot.batteryGroup.position)
-        .to({ z: 1.1 }, 650)
+        .to({ z: 1.15 }, 700)
         .easing(TWEEN.Easing.Cubic.In)
         .onComplete(() => {
           slot.batteryGroup.visible = false;
+          slot.batteryGroup.position.z = slot.normalZ;
         })
         .start();
     }

@@ -419,7 +419,7 @@ const SimulatorController = (() => {
   }
 
   function visuals(stationId, s) {
-    CabinetModel.setBatteryPresence(stationId, s.id, s.hasBattery, false);
+    CabinetModel.setBatteryPresence(stationId, s.id, s.hasBattery, true);
     CabinetModel.setBatteryEjected(stationId, s.id, !!s.isEjected, true);
 
     // Xác định màu LED viền quanh hộp pin theo yêu cầu:
