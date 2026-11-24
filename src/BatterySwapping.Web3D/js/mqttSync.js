@@ -3,7 +3,8 @@ const MqttSync = (() => {
   let sequence = 0;
   const leases = {}; // stationId -> lease object
   let stationList = ["TRAM-BK01", "TRAM-CG02"];
-  const clientId = crypto.randomUUID();
+  const clientId = sessionStorage.getItem("bss-device-client") || crypto.randomUUID();
+  sessionStorage.setItem("bss-device-client",clientId);
 
   async function json(path, options = {}) {
     const r = await fetch("/api/v1/" + path, {
@@ -27,6 +28,8 @@ const MqttSync = (() => {
     // Acquire device leases for all stations
     for (const st of stationList) {
       try {
+        const pendingReset=JSON.parse(localStorage.getItem("bss-reset:"+st)||"null");
+        if(pendingReset){leases[st]={leaseId:pendingReset.leaseId};continue;}
         const l = await json("device/lease", {
           method: "POST",
           body: JSON.stringify({ stationId: st, clientId }),
@@ -136,6 +139,7 @@ const MqttSync = (() => {
     connected: () => !!client?.connected,
     clientId: () => clientId,
     leaseId: (st) => leases[st || stationList[0]]?.leaseId,
+    applyLease: (st, leaseId) => { leases[st] = { ...leases[st], leaseId }; },
     isLeased: (st) => !!leases[st]?.leaseId,
     disconnect: () => {
       client?.end(true);

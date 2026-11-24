@@ -45,6 +45,9 @@ public class DeviceCommand
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? SentAt { get; set; }
     public string? Note { get; set; }
+    public DateTimeOffset? ThermalStartedAt { get; set; }
+    public bool AdminThermalReset { get; set; }
+    public bool PreserveStationLock { get; set; }
 }
 public record SlotTelemetry(int SlotNumber, string? BatteryId, decimal Soc, decimal Soh,
     decimal Temperature, decimal Voltage, decimal Current, bool IsCharging, bool IsDoorOpen, bool IsLocked, bool IsOverheated = false);

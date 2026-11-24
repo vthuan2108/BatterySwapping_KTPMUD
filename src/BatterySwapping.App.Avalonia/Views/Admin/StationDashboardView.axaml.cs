@@ -36,12 +36,17 @@ public partial class StationDashboardView : UserControl
             var seconds = Math.Max(0, (int)Math.Ceiling((c.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
             var slot = slots.Find(n => n.SoThuTu == c.SlotNumber);
             string temperature = slot == null ? "chưa có số liệu" : $"{slot.NhietDo:F1}°C";
+            bool requiresAdmin = c.RequiresAdmin || c.IncidentCount >= 4;
             string state = seconds > 0
                 ? $"đang làm mát tự động; khóa tối thiểu còn {seconds / 60:00}:{seconds % 60:00}"
                 : slot == null || slot.NhietDo >= 35
                     ? "đã hết 5 phút, tiếp tục làm mát và giữ khóa; cần dưới 35°C"
-                    : "đã đủ thời gian và dưới 35°C; chờ kỹ thuật viên xác nhận reset cùng thiết bị";
-            return $"Ngăn #{c.SlotNumber} • {c.BatteryId ?? "chưa rõ pin"} • {temperature}: {state}.";
+                    : requiresAdmin
+                        ? "đã đủ thời gian và dưới 35°C; chỉ Admin được xác nhận reset, tiếp tục giữ khóa"
+                        : "đã đủ thời gian và dưới 35°C; chờ hệ thống và thiết bị tự động khôi phục, không cần xác nhận";
+            if (requiresAdmin && (seconds > 0 || slot == null || slot.NhietDo >= 35))
+                state += "; sau khi an toàn vẫn cần Admin xác nhận";
+            return $"Ngăn #{c.SlotNumber} • quá nhiệt lần {c.IncidentCount} • {c.BatteryId ?? "chưa rõ pin"} • {temperature}: {state}.";
         });
         txtCooldownStatus.Text = string.Join("\n", lines) + "\nKhông nhận/cấp/rút pin hoặc mở cửa khi còn khóa bảo vệ. Thời gian thực, không tăng tốc theo mô phỏng." + (online ? "" : "\nThiết bị offline — số liệu có thể cũ, tiếp tục giữ khóa.");
     }
@@ -56,7 +61,9 @@ public partial class StationDashboardView : UserControl
         var seconds = Math.Max(0, (int)Math.Ceiling((active.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
         throw new InvalidOperationException(seconds > 0
             ? $"Ngăn #{slotNumber} đang làm mát tự động. Còn tối thiểu {seconds / 60:00}:{seconds % 60:00} khóa theo thời gian thực; không được cắm/rút pin hoặc mở cửa."
-            : $"Ngăn #{slotNumber} đã hết thời gian tối thiểu nhưng chưa được xác nhận an toàn. Kiểm tra nhiệt độ dưới 35°C và xử lý phiếu bảo trì trước khi mở ngăn.");
+            : active.RequiresAdmin || active.IncidentCount >= 4
+                ? $"Ngăn #{slotNumber} quá nhiệt lần {active.IncidentCount}; tiếp tục giữ khóa đến khi dưới 35°C và Admin xác nhận reset."
+                : $"Ngăn #{slotNumber} chờ hệ thống và thiết bị tự động khôi phục khi dưới 35°C; không cần xác nhận thủ công. Tiếp tục giữ khóa.");
     }
 
     private bool _refreshing;

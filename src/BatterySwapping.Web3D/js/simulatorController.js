@@ -36,6 +36,7 @@ const SimulatorController = (() => {
       leased: false,
     },
   };
+  for(const id of STATION_IDS)stationData[id].resetting=!!localStorage.getItem("bss-reset:"+id);
 
   let backend = false;
   let token = sessionStorage.getItem("bss-token");
@@ -51,12 +52,41 @@ const SimulatorController = (() => {
     if (el) el.textContent = text;
   }
 
-  async function api(path, method = "GET", body) {
+  async function api(path, method = "GET", body, authToken = token) {
     return MqttSync.json(path, {
       method,
-      headers: token ? { Authorization: "Bearer " + token } : {},
+      headers: authToken ? { Authorization: "Bearer " + authToken } : {},
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
+  }
+
+  async function resetSimulation(adminToken, stationId=activeStationId) {
+    const st=stationData[stationId];
+    const storageKey="bss-reset:"+stationId;
+    let request=JSON.parse(localStorage.getItem(storageKey)||"null");
+    if(!st || st.resetInFlight || (!st.leased && !request) || !MqttSync.connected())return;
+    const wasPending=!!request;
+    request ||= {requestId:crypto.randomUUID(),clientId:MqttSync.clientId(),leaseId:MqttSync.leaseId(stationId)};
+    localStorage.setItem(storageKey,JSON.stringify(request));
+    st.resetting=true;st.resetInFlight=true;st.resetEpoch=(st.resetEpoch||0)+1;
+    try {
+      const result=await api(`stations/${stationId}/simulation/reset`,"POST",request,adminToken);
+      MqttSync.applyLease(stationId,result.leaseId);
+      st.leased=true;
+      st.commands={};st.pending=[];st.slots=[];st.snapshot=null;
+      localStorage.setItem("bss-cooldowns:"+stationId,"[]");
+      persist(stationId);
+      localStorage.removeItem(storageKey);
+      st.resetting=false;
+      await snapshotRefresh(stationId);
+      notice(`Đã reset ${stationId}; thông số pin mới được lưu tại máy chủ.`);
+    } catch(error) {
+      // A lost response may already have rotated the lease. Keep the request and pause
+      // this station until the same request is retried, without sending stale telemetry.
+      if(!wasPending && error.status && error.status<500){localStorage.removeItem(storageKey);st.resetting=false;}
+      notice(error.message+(st.resetting?" Trạm tạm dừng; bấm Reset Simulation để thử lại cùng yêu cầu.":""));
+      throw error;
+    } finally {st.resetInFlight=false;render();}
   }
 
   function persist(stId) {
@@ -64,7 +94,7 @@ const SimulatorController = (() => {
     for (const id of ids) {
       localStorage.setItem("bss-commands:" + id, JSON.stringify(stationData[id].commands));
       localStorage.setItem("bss-events:" + id, JSON.stringify(stationData[id].pending));
-      localStorage.setItem("bss-cooldowns:" + id, JSON.stringify(stationData[id].slots.filter(s=>s.cooldownUntil).map(s=>({slotNumber:s.id,batteryId:s.batteryId,startedAt:s.cooldownStartedAt,unlockAfter:s.cooldownUntil}))));
+      localStorage.setItem("bss-cooldowns:" + id, JSON.stringify(stationData[id].slots.filter(s=>s.cooldownUntil).map(s=>({slotNumber:s.id,batteryId:s.batteryId,startedAt:s.cooldownStartedAt,unlockAfter:s.cooldownUntil,incidentCount:s.incidentCount,requiresAdmin:s.requiresAdmin}))));
     }
   }
 
@@ -73,13 +103,15 @@ const SimulatorController = (() => {
     for(const slot of st.slots){
       const local=saved.find(r=>r.slotNumber===slot.id);
       if(local && (!local.batteryId || local.batteryId===slot.batteryId)){
+        slot.incidentCount=local.incidentCount||slot.incidentCount||0;slot.requiresAdmin=!!local.requiresAdmin;
         slot.cooldownStartedAt=slot.cooldownStartedAt||local.startedAt;
         slot.cooldownUntil=Math.max(slot.cooldownUntil||0,local.unlockAfter||0);
       }
       const server=rows.find(r=>r.slotNumber===slot.id);
       if(server){
+        slot.incidentCount=server.incidentCount||0;slot.requiresAdmin=!!server.requiresAdmin;
         const start=Date.parse(server.startedAt),until=Date.parse(server.unlockAfter),cleared=server.clearedAt?Date.parse(server.clearedAt):null;
-        if(cleared && cleared>=(slot.cooldownStartedAt||0) && Date.now()>=(slot.cooldownUntil||0) && slot.temperature<35){BmsModel.clear(slot);}
+        if(cleared && (slot.cooldownUntil || slot.isOverheated) && cleared>=(slot.cooldownStartedAt||0) && Date.now()>=(slot.cooldownUntil||0) && slot.temperature<35){BmsModel.clear(slot);if(st.cutOffLatched || (st.snapshot?.operatingState && st.snapshot.operatingState!=="HoatDong"))slot.isLocked=true;}
         else if(!cleared){slot.cooldownStartedAt=slot.cooldownStartedAt||start;slot.cooldownUntil=Math.max(slot.cooldownUntil||0,until);}
       }
       BmsModel.protect(slot);
@@ -90,9 +122,10 @@ const SimulatorController = (() => {
     for(const slot of st.slots) BmsModel.protect(slot);
     for(const command of Object.values(st.commands)){
       if(!command.waitingForCooling)continue;
+      if(command.automatic && st.slots.find(x=>x.id===command.slotNumber)?.requiresAdmin)continue;
       const slot=st.slots.find(x=>x.id===command.slotNumber);
       if(slot && backend && MqttSync.connected() && st.snapshot?.status?.online && BmsModel.ready(slot) && (!command.batteryId||slot.batteryId===command.batteryId)){
-        BmsModel.clear(slot);Object.assign(slot,{isDoorOpen:false,isEjected:false});
+        BmsModel.clear(slot);Object.assign(slot,{isDoorOpen:false,isEjected:false,isLocked:!!command.preserveStationLock || !!st.cutOffLatched || !!(st.snapshot?.operatingState && st.snapshot.operatingState!=="HoatDong")});
         command.waitingForCooling=false;command.success=true;
       }
     }
@@ -149,6 +182,9 @@ const SimulatorController = (() => {
     const st = stationData[activeStationId];
     if (!st) return;
 
+    if($("reset-simulation"))$("reset-simulation").disabled=(!st.leased&&!localStorage.getItem("bss-reset:"+st.id))||st.resetInFlight||!backend||!MqttSync.connected();
+    if($("reset-status"))$("reset-status").textContent=st.resetting?"Trạm tạm dừng vì chưa xác nhận kết quả reset. Đăng nhập Admin và bấm Reset Simulation để thử lại cùng yêu cầu.":"";
+
     const s = st.slots.find((t) => t.id === st.selectedSlot) || st.slots[0];
     if (!s) return;
 
@@ -174,7 +210,8 @@ const SimulatorController = (() => {
       ["Cửa hộc", s.isDoorOpen ? "Mở" : "Đóng"],
       ["Khóa bảo trì", s.isLocked ? "Đang khóa" : "Bình thường"],
       ["Làm mát tự động", s.isCooling ? "Đang bật" : "Tắt"],
-      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát, cần kỹ thuật viên" : "Đủ thời gian và nhiệt độ — chờ kỹ thuật viên xác nhận" : "Không khóa"],
+      ["Số lần quá nhiệt", `${s.incidentCount||0} / 4${s.requiresAdmin ? " — cần quản trị viên" : ""}`],
+      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát" : s.requiresAdmin ? "Chờ quản trị viên xác nhận" : "Chờ máy chủ tự phục hồi" : "Không khóa"],
     ];
 
     const metricsEl = $("metrics");
@@ -243,7 +280,7 @@ const SimulatorController = (() => {
     const startSwapBtn = $("start-swap");
     if (startSwapBtn) {
       startSwapBtn.hidden = !user || !!active;
-      startSwapBtn.disabled = !st.leased || !backend || !MqttSync.connected() || currentFee === null;
+      startSwapBtn.disabled = st.resetting || !st.leased || !backend || !MqttSync.connected() || currentFee === null;
       startSwapBtn.textContent = currentFee === null ? "Đang tải phí dịch vụ…" : `BẮT ĐẦU ĐỔI PIN (${currentFee.toLocaleString("vi-VN")} đ)`;
     }
     const cancelSwapBtn = $("cancel-swap");
@@ -274,7 +311,7 @@ const SimulatorController = (() => {
 
     const action = $("physical-action");
     action.hidden = true;
-    action.disabled = !st.leased || !backend || !MqttSync.connected();
+    action.disabled = st.resetting || !st.leased || !backend || !MqttSync.connected();
 
     const physicalSession = (st.snapshot?.sessions || []).find(
       (x) => x.state === "ReturningOldBattery" || x.state === "AwaitingOldBattery" || (x.charged && ["Dispensing", "NeedsAssistance"].includes(x.state))
@@ -308,25 +345,25 @@ const SimulatorController = (() => {
     const replacement = Object.entries(st.commands).find(([,c]) => c.waitingReplacement);
     const replaceAction = $("replacement-action");
     replaceAction.hidden = !replacement;
-    replaceAction.disabled = !st.leased || !backend || !MqttSync.connected();
+    replaceAction.disabled = st.resetting || !st.leased || !backend || !MqttSync.connected();
     if(replacement) {
       const [id,c] = replacement;
       replaceAction.textContent = `[MÔ PHỎNG] Tháo pin cũ, lắp ${c.batteryId} vào ngăn #${c.slotNumber}, đóng cửa`;
       replaceAction.onclick = () => {
-        if(!st.leased || !backend || !MqttSync.connected() || !c.waitingReplacement) return;
+        if(st.resetting || !st.leased || !backend || !MqttSync.connected() || !c.waitingReplacement) return;
         const slot = st.slots.find(x=>x.id===c.slotNumber);
         const battery = st.snapshot?.batteries.find(p=>p.maPin===c.batteryId);
         if(!slot || BmsModel.locked(slot) || !battery || slot.temperature>=35 || battery.nhietDo>=35 || battery.soH<80 ||
           STATION_IDS.some(id=>stationData[id].slots.some(t=>t.batteryId===c.batteryId))) return;
         Object.assign(slot,{batteryId:battery.maPin,hasBattery:true,soc:battery.soC,soh:battery.soH,
-          temperature:battery.nhietDo,voltage:battery.dienAp,current:0,isOverheated:false,isLocked:false,
+          designCapacityAh:battery.dungLuongThietKe||30,temperature:battery.nhietDo,voltage:battery.dienAp,current:0,isOverheated:false,isLocked:false,
           isDoorOpen:false,isEjected:false,isCharging:false});
         c.waitingReplacement=false; persist(st.id); ack(st.id,id); visuals(st.id,slot); render();
       };
     }
 
-    $("overheat").disabled = !st.leased || !s.hasBattery;
-    $("cool").disabled = !st.leased || !s.hasBattery;
+    $("overheat").disabled = st.resetting || !st.leased || !s.hasBattery;
+    $("cool").disabled = st.resetting || !st.leased || !s.hasBattery;
 
     const simTimeEl = $("sim-time");
     if (simTimeEl) {
@@ -377,7 +414,7 @@ const SimulatorController = (() => {
 
   function insertOld(stationId, s) {
     const st = stationData[stationId];
-    if (!st || st.pending.some((e) => e.sessionId === s.id && e.event === "OLD_INSERTED")) return;
+    if (!st || st.resetting || st.pending.some((e) => e.sessionId === s.id && e.event === "OLD_INSERTED")) return;
     if (!backend || !MqttSync.connected() || !st.snapshot?.sessions.some(x=>x.id===s.id && x.state==="AwaitingOldBattery")) return;
     const t = st.slots.find((x) => x.id === s.returnSlot);
     if (!t?.isDoorOpen || t.hasBattery || t.isLocked || BmsModel.locked(t)) return;
@@ -390,6 +427,7 @@ const SimulatorController = (() => {
     Object.assign(t, {
       hasBattery: true,
       batteryId: s.oldBatteryId,
+      designCapacityAh: old.dungLuongThietKe||30,
       soc: old.soC,
       soh: old.soH,
       temperature: old.nhietDo,
@@ -405,7 +443,7 @@ const SimulatorController = (() => {
 
   function takeNew(stationId, s) {
     const st = stationData[stationId];
-    if (!st || st.pending.some((e) => e.sessionId === s.id && e.event === "NEW_TAKEN")) return;
+    if (!st || st.resetting || st.pending.some((e) => e.sessionId === s.id && e.event === "NEW_TAKEN")) return;
     if (!backend || !MqttSync.connected() || !st.snapshot?.sessions.some(x=>x.id===s.id && x.charged && ["Dispensing","NeedsAssistance"].includes(x.state))) return;
     const t = st.slots.find((x) => x.id === s.receiveSlot);
     if (!t?.isEjected || t.isLocked || BmsModel.locked(t) || t.temperature > 45) return;
@@ -429,7 +467,7 @@ const SimulatorController = (() => {
     const st = stationData[stationId];
     const slot = st?.slots.find(x => x.id === session.returnSlot);
     if (!st?.snapshot?.sessions.some(x => x.id === session.id && x.state === "ReturningOldBattery")) return;
-    if (!st?.leased || !backend || !MqttSync.connected() || !slot?.isDoorOpen || slot.isLocked || BmsModel.locked(slot) || slot.temperature > 45 || slot.batteryId !== session.oldBatteryId) return;
+    if (st?.resetting || !st?.leased || !backend || !MqttSync.connected() || !slot?.isDoorOpen || slot.isLocked || BmsModel.locked(slot) || slot.temperature > 45 || slot.batteryId !== session.oldBatteryId) return;
     if (st.pending.some(e => e.sessionId === session.id && e.event === "OLD_RETURNED")) return;
     Object.assign(slot, {hasBattery:false,batteryId:null,soc:0,current:0,voltage:0,isDoorOpen:false,isCharging:false,isEjected:false});
     sendEvent(stationId, "OLD_RETURNED", session, slot.id, session.oldBatteryId);
@@ -439,7 +477,7 @@ const SimulatorController = (() => {
   function handleCommand(c) {
     const targetStation = c.stationId || activeStationId;
     const st = stationData[targetStation];
-    if (!st || !st.leased) return;
+    if (!st || !st.leased || st.resetting) return;
 
     if (st.commands[c.commandId]) {
       if(st.commands[c.commandId].waitingForCooling){const slot=st.slots.find(x=>x.id===c.slotNumber);if(slot)slot.isCooling=true;}
@@ -490,6 +528,7 @@ const SimulatorController = (() => {
         }
         break;
       case "CUT_OFF":
+        st.cutOffLatched=true;
         st.slots.forEach((t) =>
           Object.assign(t, {
             isLocked: true,
@@ -503,6 +542,7 @@ const SimulatorController = (() => {
       case "RESTORE_STATION":
         success = st.slots.every((t) => t.temperature < 35);
         if (success) {
+          st.cutOffLatched=false;
           st.slots.forEach((t) =>
             Object.assign(t, {
               isLocked: false,
@@ -518,8 +558,9 @@ const SimulatorController = (() => {
           BmsModel.step(s, 0);
         } else success = false;
         break;
+      case "AUTO_RESET_ALARM":
       case "RESET_ALARM":
-        success = !!s && s.hasBattery && (!c.batteryId || c.batteryId === s.batteryId);
+        success = !!s && s.hasBattery && (!c.batteryId || c.batteryId === s.batteryId) && (c.command !== "AUTO_RESET_ALARM" || !s.requiresAdmin);
         if (success) {
           s.isCooling = true; s.isLocked = true; s.isDoorOpen = false; s.isEjected = false; s.current = 0;
           waitingForCooling = true;
@@ -545,6 +586,8 @@ const SimulatorController = (() => {
     st.commands[c.commandId] = {
       success,
       waitingForCooling,
+      automatic: c.command === "AUTO_RESET_ALARM",
+      preserveStationLock: !!c.preserveStationLock,
       waitingReplacement: success && c.command === "REPLACE_BATTERY",
       sessionId: c.sessionId,
       slotNumber: c.slotNumber,
@@ -576,7 +619,7 @@ const SimulatorController = (() => {
     const ids = stationId ? [stationId] : STATION_IDS;
     for (const id of ids) {
       const st = stationData[id];
-      if (!st || !st.leased) continue;
+      if (!st || !st.leased || st.resetting) continue;
 
       MqttSync.publish(id, "telemetry", st.slots);
       for (const [cmdId, c] of Object.entries(st.commands)) {
@@ -592,7 +635,10 @@ const SimulatorController = (() => {
     const st = stationData[stationId];
     if (!st) return;
 
+    if(st.resetting)return;
+    const epoch=st.resetEpoch||0;
     const next = await MqttSync.json(`device/${stationId}/snapshot`);
+    if(st.resetting || epoch!==(st.resetEpoch||0))return;
     st.snapshot = next;
 
     if (MqttSync.leaseId(stationId) && next.status?.ownerId && next.status.ownerId !== MqttSync.clientId()) {
@@ -605,6 +651,7 @@ const SimulatorController = (() => {
         id: n.soThuTu,
         batteryId: n.maPinHienTai,
         hasBattery: !!n.maPinHienTai,
+        designCapacityAh: next.batteries.find(p=>p.maPin===n.maPinHienTai)?.dungLuongThietKe || 30,
         soc: n.soC,
         soh: n.soH,
         temperature: n.nhietDo,
@@ -626,6 +673,7 @@ const SimulatorController = (() => {
             Object.assign(t, {
               hasBattery: true,
               batteryId: e.batteryId,
+              designCapacityAh: old.dungLuongThietKe||30,
               soc: old.soC,
               soh: old.soH,
               temperature: old.nhietDo,
@@ -915,6 +963,17 @@ const SimulatorController = (() => {
     animate();
   }
 
+  function tick(elapsed) {
+    for(const id of STATION_IDS){
+      const st=stationData[id];
+      if(!st.leased || st.resetting)continue;
+      for(const slot of st.slots){BmsModel.step(slot,elapsed,scale);visuals(id,slot);}
+      updateSafety(st);flush(id);
+    }
+    simSeconds+=elapsed*scale;
+    render();
+  }
+
   async function init() {
     setupScene();
 
@@ -960,6 +1019,16 @@ const SimulatorController = (() => {
 
     $("time-scale").onchange = (e) => (scale = Number(e.target.value));
 
+    $("reset-form").onsubmit=async(e)=>{
+      e.preventDefault();
+      try {
+        const login=await api("auth/login","POST",{username:$("reset-username").value,password:$("reset-password").value});
+        if(login.user.role!=="Admin")throw Error("Reset Simulation yêu cầu tài khoản Admin.");
+        $("reset-password").value="";
+        await resetSimulation(login.token);
+      } catch(error){notice(error.message);}
+    };
+
     $("login-form").onsubmit = async (e) => {
       e.preventDefault();
       try {
@@ -981,7 +1050,7 @@ const SimulatorController = (() => {
 
     $("start-swap").onclick = async () => {
       const st = stationData[activeStationId];
-      if (!st || !st.leased || !backend || currentFee === null) return;
+      if (!st || st.resetting || !st.leased || !backend || currentFee === null) return;
       if (!confirm(`Đổi pin tại ${activeStationId} với phí ${currentFee.toLocaleString("vi-VN")} đ?`)) return;
       let key = sessionStorage.getItem("bss-request") || crypto.randomUUID();
       sessionStorage.setItem("bss-request", key);
@@ -1020,7 +1089,7 @@ const SimulatorController = (() => {
 
     $("overheat").onclick = () => {
       const st = stationData[activeStationId];
-      if (!st || !st.leased) return;
+      if (!st || !st.leased || st.resetting) return;
       let s = st.slots.find((t) => t.id === st.selectedSlot);
       if (!s?.hasBattery) return;
 
@@ -1037,7 +1106,7 @@ const SimulatorController = (() => {
 
     $("cool").onclick = () => {
       const st = stationData[activeStationId];
-      if (!st || !st.leased) return;
+      if (!st || !st.leased || st.resetting) return;
       let s = st.slots.find((t) => t.id === st.selectedSlot);
       if (!s) return;
 
@@ -1059,21 +1128,11 @@ const SimulatorController = (() => {
     await refresh();
     await acquire();
 
-    // 1-second physics & telemetry loop for both stations
+    // Use elapsed monotonic time, including background-tab timer delays.
+    let previousTick=performance.now();
     setInterval(() => {
-      for (const id of STATION_IDS) {
-        const st = stationData[id];
-        if (st.leased) {
-          for (const s of st.slots) {
-            BmsModel.step(s, 1, scale);
-            visuals(id, s);
-          }
-          updateSafety(st);
-          flush(id);
-        }
-      }
-      simSeconds += scale;
-      render();
+      const now=performance.now(),elapsed=Math.max(0,(now-previousTick)/1000);previousTick=now;
+      tick(elapsed);
     }, 1000);
 
     setInterval(refresh, 1000);

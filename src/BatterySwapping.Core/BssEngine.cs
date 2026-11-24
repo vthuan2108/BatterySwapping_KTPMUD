@@ -225,11 +225,12 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
         var t=m.Slots.SingleOrDefault(t=>t.SlotNumber==c.SlotNumber);
         if(c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY" or "RETURN_OLD_BATTERY" or "REPLACE_BATTERY")Require(!CoolingLocked(db,c.StationId,c.SlotNumber),"Ngăn chưa kết thúc cách ly làm mát.");
         if(c.Command=="RESTORE_STATION")Require(!CoolingLocked(db,c.StationId),"Trạm còn ngăn khóa làm mát.");
-        if(c.Command=="RESET_ALARM")RequireCooldownElapsed(db,c.StationId,c.SlotNumber!.Value);
-        if(c.Command is "RESET_ALARM" or "REPLACE_BATTERY")
+        if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM")ValidateThermalRecovery(db,c);
+        if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM" or "REPLACE_BATTERY")
         {
-            Require(t!=null && t.Temperature<35 && !t.IsDoorOpen && !t.IsLocked,"Chưa có telemetry an toàn để mở khóa.");
-            if(c.Command=="RESET_ALARM")
+            Require((string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",c.StationId))=="HoatDong" || c.PreserveStationLock,"Trạm đã bị ngắt; không được mở khóa bằng phản hồi phục hồi nhiệt cũ.");
+            Require(t!=null && t.Temperature<35 && !t.IsDoorOpen && t.IsLocked==c.PreserveStationLock,"Chưa có telemetry an toàn để mở khóa.");
+            if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM")
                 Require((string?)db.Scalar("SELECT MaPinHienTai FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=@n",("@s",c.StationId),("@n",c.SlotNumber))==t!.BatteryId,"Pin tại ngăn đã thay đổi.");
             if(c.Command=="REPLACE_BATTERY")
             {
@@ -238,7 +239,7 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
                 Require(old!=null,"Không có pin cũ để tháo.");
                 db.Exec("UPDATE dbo.Pin SET TrangThai=N'DaThuHoi',DongDien=0 WHERE MaPin=@old; DELETE dbo.BssBatteryLocations WHERE BatteryId IN(@old,@new); INSERT dbo.BssBatteryLocations(BatteryId,Location) VALUES(@old,'Quarantine'); UPDATE dbo.NganTu SET MaPinHienTai=@new WHERE MaTram=@s AND SoThuTu=@n; UPDATE dbo.Pin SET SoC=@soc,SoH=@soh,DienAp=@v,DongDien=0 WHERE MaPin=@new",("@old",old),("@new",c.BatteryId),("@s",c.StationId),("@n",c.SlotNumber),("@soc",t.Soc),("@soh",t.Soh),("@v",t.Voltage));
             }
-            db.Exec("UPDATE p SET NhietDo=@t,TrangThai=CASE WHEN SoC>=90 THEN N'DaDay' ELSE N'DangSac' END FROM dbo.Pin p JOIN dbo.NganTu n ON n.MaPinHienTai=p.MaPin WHERE n.MaTram=@s AND n.SoThuTu=@n; UPDATE dbo.NganTu SET KhoaBaoTri=0,TrangThaiNgan=CASE WHEN MaPinHienTai IS NULL THEN N'Trong' ELSE N'CoPin' END WHERE MaTram=@s AND SoThuTu=@n; UPDATE dbo.CanhBaoIoT SET DaXuLy=1,NguoiXuLy=N'Backend: device ACK',ThoiGianXuLy=GETDATE() WHERE MaTram=@s AND MaNgan=@n AND DaXuLy=0",("@s",c.StationId),("@n",c.SlotNumber),("@t",t!.Temperature));
+            db.Exec("UPDATE p SET NhietDo=@t,TrangThai=CASE WHEN SoC>=90 THEN N'DaDay' ELSE N'DangSac' END FROM dbo.Pin p JOIN dbo.NganTu n ON n.MaPinHienTai=p.MaPin WHERE n.MaTram=@s AND n.SoThuTu=@n; UPDATE dbo.NganTu SET KhoaBaoTri=@keep,TrangThaiNgan=CASE WHEN MaPinHienTai IS NULL THEN N'Trong' ELSE N'CoPin' END WHERE MaTram=@s AND SoThuTu=@n; UPDATE dbo.CanhBaoIoT SET DaXuLy=1,NguoiXuLy=N'Backend: device ACK',ThoiGianXuLy=GETDATE() WHERE MaTram=@s AND MaNgan=@n AND DaXuLy=0",("@s",c.StationId),("@n",c.SlotNumber),("@t",t!.Temperature),("@keep",c.PreserveStationLock));
         }
         else if(c.Command is "CUT_OFF" or "RESTORE_STATION")
         {
@@ -256,7 +257,7 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
         }
         else if(c.Command=="RETURN_OLD_BATTERY") Require(t!=null && t.BatteryId==c.BatteryId && t.IsDoorOpen && !t.IsLocked && t.Temperature<=45,"Pin cũ chưa an toàn để trả.");
         else if(c.Command=="EJECT_BATTERY") Require(t!=null && t.BatteryId==c.BatteryId && t.IsDoorOpen && !t.IsLocked && t.Temperature<=45 && t.Soc>=90 && t.Soh>=80,"Pin không thể cấp.");
-        if(c.Command=="RESET_ALARM")db.Exec("UPDATE dbo.BssSlotCooldowns SET ClearedAt=@now WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@now",CooldownNow),("@s",c.StationId),("@n",c.SlotNumber));
+        if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM")db.Exec("UPDATE dbo.BssSlotCooldowns SET IncidentCount=CASE WHEN RequiresAdmin=1 AND @admin=1 THEN 0 ELSE IncidentCount END,RequiresAdmin=CASE WHEN @admin=1 THEN 0 ELSE RequiresAdmin END,ClearedAt=@now WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@now",CooldownNow),("@s",c.StationId),("@n",c.SlotNumber),("@admin",c.AdminThermalReset));
         c.Status="Completed";Save(db,c);
         CompleteMaintenance(db,c);
         if(c.Command=="CLOSE_SLOT" && c.SessionId!=null)
@@ -292,6 +293,7 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
             if(c.SessionId!=null){var interrupted=db.Payload<SwapSession>("BssSessions",c.SessionId);if(interrupted!=null&&Active(interrupted)){interrupted.State="NeedsAssistance";interrupted.Note=c.Note;Save(db,interrupted);}}
             return null;
         }
+        if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM" or "REPLACE_BATTERY")c.PreserveStationLock=(string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",c.StationId))!="HoatDong";
         c.Status="Sent";c.SentAt=DateTimeOffset.UtcNow;Save(db,c);return c;
     });
     public void Tick() => store.Write(db=>{
@@ -303,6 +305,7 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
             if(s.State=="AwaitingOldBattery" && s.ExpiresAt<DateTimeOffset.UtcNow) {s.State="ClosingExpired";CancelActuation(db,s.Id);Queue(db,s.StationId,"CLOSE_SLOT",s.ReturnSlot,null,s.Id);Save(db,s);}
             else if(s.OldInserted && !Status(db,s.StationId).Online && s.State!="NeedsAssistance") {s.State="NeedsAssistance";s.Note="Mất kết nối sau khi nhận pin.";Save(db,s);}
         }
+        QueueAutomaticThermalRecovery(db);
         db.Exec("DELETE dbo.BssMessages WHERE ReceivedAt<DATEADD(day,-1,SYSDATETIMEOFFSET())");return true;
     });
 }

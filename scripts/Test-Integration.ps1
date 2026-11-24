@@ -38,12 +38,15 @@ GO
  & (Join-Path $PSScriptRoot 'Start-Local.ps1') -NoBrowser -NoDesktop
  dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.Tests') --no-build -c Release -- --integration
  if($LASTEXITCODE -ne 0){throw 'Kiem thu API/MQTT that bai.'}
- dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.ArchitectureTests') --no-build -c Release -- --business --cooldown
+ & (Join-Path $PSScriptRoot 'Stop-Local.ps1')
+ dotnet run --project (Join-Path $projectRoot 'tests/BatterySwapping.ArchitectureTests') --no-build -c Release -- --business --cooldown --simulation --simulation
  if($LASTEXITCODE -ne 0){throw 'Kiem thu mat khau that bai.'}
  node (Join-Path $projectRoot 'tests/BatterySwapping.Web3D.Tests/bms.test.js')
  if($LASTEXITCODE -ne 0){throw 'Kiem thu BMS that bai.'}
  node (Join-Path $projectRoot 'tests/BatterySwapping.Web3D.Tests/controller.test.js')
  if($LASTEXITCODE -ne 0){throw 'Kiem thu dieu khien thiet bi that bai.'}
+ node (Join-Path $projectRoot 'tests/BatterySwapping.Web3D.Tests/mqtt.test.js')
+ if($LASTEXITCODE -ne 0){throw 'Kiem thu client MQTT that bai.'}
 } finally {
  & (Join-Path $PSScriptRoot 'Stop-Local.ps1')
  if($null -ne $previous){$previous | Set-Content -LiteralPath $configFile -Encoding utf8}

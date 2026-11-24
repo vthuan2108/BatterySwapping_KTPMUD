@@ -81,9 +81,10 @@ try{
     try{await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",recovery.ReturnSlot,"RESET_ALARM",null,"Chặn reset sớm",Guid.NewGuid().ToString()));throw new Exception("early cooldown bypass");}catch(InvalidOperationException){Check(true,"hot receipt cannot be reset before five minutes");}
     // Dedicated fixture time travel only: deterministic endpoint regression avoids sleeping five minutes.
     store.Write(db=>db.Exec("UPDATE dbo.BssSlotCooldowns SET StartedAt=DATEADD(minute,-6,SYSDATETIMEOFFSET()),UnlockAfter=DATEADD(minute,-1,SYSDATETIMEOFFSET()) WHERE StationId='TRAM-BK01' AND SlotNumber=@n",("@n",recovery.ReturnSlot)));
-    var cooling=await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",recovery.ReturnSlot,"RESET_ALARM",null,"Làm mát pin trả",Guid.NewGuid().ToString()));
-    await device.ExecuteUntil("RESET_ALARM",null);
-    await Wait(async()=>(await tech.Get<DeviceCommand>($"commands/{cooling.CommandId}")).Status=="Completed");
+    device.Change(recovery.ReturnSlot,t=>t with{Temperature=30});await device.Publish("telemetry");
+    await device.ExecuteUntil("AUTO_RESET_ALARM",null);
+    await Wait(async()=>(await tech.Get<List<SlotCooldown>>("stations/TRAM-BK01/cooldowns")).Single(c=>c.SlotNumber==recovery.ReturnSlot).ClearedAt!=null);
+    Check(true,"first thermal episode recovers automatically without technician confirmation");
     await tech.Post<SwapSession>($"swaps/{recovery.Id}/return-old",new{});
     await device.ExecuteUntil("RETURN_OLD_BATTERY",recovery.Id);
     await RestartServer();
@@ -103,10 +104,9 @@ try{
     await RestartServer();
     Check((await admin.Get<List<SlotCooldown>>("stations/TRAM-BK01/cooldowns")).Single(c=>c.SlotNumber==hotSlot).UnlockAfter==cooldown.UnlockAfter,"server restart preserves cooldown deadline");
     store.Write(db=>db.Exec("UPDATE dbo.BssSlotCooldowns SET StartedAt=DATEADD(minute,-6,SYSDATETIMEOFFSET()),UnlockAfter=DATEADD(minute,-1,SYSDATETIMEOFFSET()) WHERE StationId='TRAM-BK01' AND SlotNumber=@n",("@n",hotSlot)));
-    var reset=await tech.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest("TRAM-BK01",hotSlot,"RESET_ALARM",null,"Kiểm tra quá nhiệt",Guid.NewGuid().ToString()));
-    Check(reset.Status=="Pending","reset stays pending before device acknowledgement");
-    await device.ExecuteUntil("RESET_ALARM",null);
-    await Wait(async()=>(await tech.Get<DeviceCommand>($"commands/{reset.CommandId}")).Status=="Completed");
+    Check((await tech.Get<List<SlotCooldown>>("stations/TRAM-BK01/cooldowns")).Single(c=>c.SlotNumber==hotSlot).ClearedAt==null,"automatic recovery waits for device acknowledgement");
+    await device.ExecuteUntil("AUTO_RESET_ALARM",null);
+    await Wait(async()=>(await tech.Get<List<SlotCooldown>>("stations/TRAM-BK01/cooldowns")).Single(c=>c.SlotNumber==hotSlot).ClearedAt!=null);
     Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.CanhBaoIoT WHERE MaTram='TRAM-BK01' AND MaNgan=4 AND DaXuLy=0")))==0,"safe acknowledgement resolves alert");
     string replacement="TEST-REPLACE";
     store.Write(db=>db.Exec("INSERT dbo.Pin(MaPin,LoaiPin,SoC,SoH,NhietDo,TrangThai) VALUES(@p,N'Lithium LFP 72V-30Ah',94,91,28,N'DaDay')",("@p",replacement)));
@@ -183,7 +183,8 @@ sealed class TestDevice(HttpClient http,List<NganTu> slots):IAsyncDisposable
                 Change(c.SlotNumber!.Value,t=>t with{BatteryId=c.BatteryId,Soc=p.GetProperty("soC").GetDecimal(),Soh=p.GetProperty("soH").GetDecimal(),Temperature=p.GetProperty("nhietDo").GetDecimal(),Voltage=p.GetProperty("dienAp").GetDecimal(),Current=0,IsDoorOpen=false,IsLocked=false});break;
             case "RETURN_OLD_BATTERY":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=true,IsLocked=false,Current=0});break;
             case "EJECT_BATTERY":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=true,Current=0});break;
-            case "RESET_ALARM":Change(c.SlotNumber!.Value,t=>t with{Temperature=30,IsLocked=false,IsDoorOpen=false,Current=0});break;
+            case "AUTO_RESET_ALARM":
+            case "RESET_ALARM":Change(c.SlotNumber!.Value,t=>t with{Temperature=30,IsLocked=c.PreserveStationLock,IsDoorOpen=false,Current=0});break;
             case "CUT_OFF":for(int i=0;i<data.Count;i++)data[i]=data[i] with{Current=0,IsLocked=true,IsDoorOpen=false};break;
         }
         await Publish("acks","ACK",c.CommandId,null,c.SlotNumber,c.BatteryId);

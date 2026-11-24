@@ -32,13 +32,13 @@ Kỹ thuật viên dùng `POST /swaps/{id}/resume` cho phiên đã thu phí. V�
 
 `POST /maintenance {stationId,slotNumber,action,newBatteryId,note,requestId}` với RESET_ALARM hoặc REPLACE_BATTERY trả202 cùng mã phiếu và commandId. `GET /maintenance` trả lịch sử. Theo dõi `/commands/{id}`; chưa nhận phản hồi không được hiểu là hoàn thành.
 
-Quá nhiệt từ55°C tự bật làm mát, ngắt sạc và khóa ngăn tối thiểu5 phút thực. Không chờ nút RESET_ALARM mới làm mát. Trong thời gian này cấm nhận/rút/cấp/thay pin và mở cửa; ngăn khác vẫn hoạt động nếu đủ an toàn. RESET_ALARM chỉ được yêu cầu sau hết5 phút; ACK thành công chỉ khi pin dưới35°C, cửa đóng, khóa được nhả. Không tăng SoH. Thay pin giữ chỗ pin kho đã đăng ký, yêu cầu pin kho dưới35°C, chờ thao tác mô phỏng tháo/lắp rồi ACK. Dùng BMS thực tế của pin đăng ký; pin tháo chuyển cách ly.
+Quá nhiệt từ55°C tự bật làm mát, ngắt sạc và khóa ngăn tối thiểu5 phút thực. Không chờ nút RESET_ALARM mới làm mát. Trong thời gian này cấm nhận/rút/cấp/thay pin và mở cửa; ngăn khác vẫn hoạt động nếu đủ an toàn. Ba đợt đầu dùng AUTO_RESET_ALARM tự động sau hết5 phút và dưới35°C; đợt thứ4 dùng RESET_ALARM với quyền Admin. ACK thành công chỉ khi cửa đóng và trạng thái an toàn phù hợp. Không tăng SoH. Thay pin giữ chỗ pin kho đã đăng ký, yêu cầu pin kho dưới35°C, chờ thao tác mô phỏng tháo/lắp rồi ACK. Dùng BMS thực tế của pin đăng ký; pin tháo chuyển cách ly.
 
 Phiếu Failed vẫn giữ khóa để đối soát. `POST /maintenance/{id}/retry` chỉ cho gửi lại sau phản hồi Failed rõ ràng, giữ nguyên tài sản và phiếu. Sent/Unconfirmed dùng truy vấn trạng thái, không gửi thao tác lại. Không tự nhả pin kho hoặc mở trạm khi còn phiếu chưa kết thúc.
 
 ## Migration và kiểm chứng
 
-Backend chạy06 →07 →08 →09 tăng dần, không drop/seed dữ liệu ứng dụng.07 bổ sung chính sách, vị trí, bàn giao, yêu cầu thanh toán;08 bổ sung phiếu và giữ chỗ bảo trì;09 lưu thời điểm khóa nhiệt bền vững theo trạm/ngăn. Các bản ghi lịch sử cũ giữ nguyên. Chính sách mặc định loại pin khớp seed mới `Lithium LFP 72V-30Ah`; admin kiểm tra loại pin thực tế trong database trước khi đổi pin.
+Backend chạy06 →07 →08 →09 →10 tăng dần, không drop/seed dữ liệu ứng dụng.07 bổ sung chính sách, vị trí, bàn giao, yêu cầu thanh toán;08 bổ sung phiếu và giữ chỗ bảo trì;09 lưu thời điểm khóa nhiệt bền vững theo trạm/ngăn. Các bản ghi lịch sử cũ giữ nguyên. Chính sách mặc định loại pin khớp seed mới `Lithium LFP 72V-30Ah`; admin kiểm tra loại pin thực tế trong database trước khi đổi pin.
 
 Chạy `scripts/Test-Integration.ps1` trên database riêng để kiểm tra API, MQTT, khởi động lại server, ví và bàn giao. Kiểm thử JS có `bms.test.js` và `controller.test.js`. XAML/điều hướng WPF có UiTests. Chưa nghiệm thu trực tiếp Avalonia/Ubuntu; build trên Windows không thay thế kiểm chứng đó. Chưa chạy toàn bộ kịch bản WebGL trực quan hoặc ngắt Internet cấp hệ điều hành.
 
@@ -55,8 +55,8 @@ Chạy `scripts/Test-Integration.ps1` trên database riêng để kiểm tra API
 
 - Ngưỡng kích hoạt: nhiệt độ >=55°C hoặc thiết bị báo cờ quá nhiệt đang giữ. Tự ngắt sạc và bật làm mát ngay tại simulator, kể cả mất backend.
 - Backend lưu StartedAt/UnlockAfter/ClearedAt trong BssSlotCooldowns. Nhiệt độ còn cao trong cùng sự cố không đặt lại bộ đếm mỗi giây. Khi đã reset an toàn mà quá nhiệt trở lại, tạo mốc mới.
-- Trong5 phút: không được mở ngăn, đưa pin vào, rút/cấp/thay pin hay khôi phục toàn trạm để vượt khóa. Hết giờ vẫn giữ khóa nếu còn nóng, offline hoặc chưa được kỹ thuật viên xác nhận. Không tự đóng cảnh báo theo đồng hồ.
-- Sau5 phút: kỹ thuật viên yêu cầu reset an toàn; thiết bị chỉ ACK khi nhiệt độ dưới35°C và cửa đóng. Sau ACK hợp lệ mới đóng cảnh báo/phiếu và mở khóa. Mất ACK giữ trạng thái chưa xác nhận.
+- Trong5 phút: không được mở ngăn, đưa pin vào, rút/cấp/thay pin hay khôi phục toàn trạm để vượt khóa. Hết giờ vẫn giữ khóa nếu còn nóng, offline hoặc chưa có ACK. Từ đợt thứ4 cần Admin xác nhận. Không tự đóng cảnh báo theo đồng hồ.
+- Sau5 phút và dưới35°C: backend tự gửi AUTO_RESET_ALARM trong ba đợt đầu, không cần kỹ thuật viên/Admin bấm. Đợt thứ4 giữ khóa, Admin mới được tạo phiếu RESET_ALARM; kỹ thuật viên không được duyệt. ACK hợp lệ mới kết thúc cách ly. Ngắt toàn trạm thủ công vẫn giữ nguyên, không bị tự phục hồi nhiệt bỏ qua.
 - Web3D lưu bộ đếm localStorage; tải lại trang lấy mốc muộn hơn giữa local và SQL. Backend khởi động lại không làm mất mốc. Nếu sự cố xảy ra lúc offline và đã nguội trước khi reconnect, cờ isOverheated giúp backend bắt đầu một khoảng khóa bảo thủ từ lúc quan sát được sự cố.
 - Tốc độ vật lý x1/x10/x60 chỉ đổi tốc độ sạc/nhiệt, không giảm5 phút khóa. WPF/Avalonia/Web3D hiển thị thời gian còn lại và trạng thái chờ xác nhận.
 - Migration09 không seed/xóa dữ liệu; pin đã quá nhiệt hoặc đang lỗi quá nhiệt khi nâng cấp được áp dụng tối thiểu5 phút mới theo hướng bảo thủ.
@@ -72,3 +72,17 @@ pwsh -File scripts/Test-Cooldown-Isolated.ps1
 Script dùng database kiểm thử riêng, HTTP5082, MQTT18884 và WebSocket19002; không sửa cấu hình hay dừng server demo ở5080. Không chạy song song với bài tích hợp khác cùng database kiểm thử. Bài ranh giới dùng TimeProvider giả trong test và dịch mốc trên fixture có guard database; không có API tăng tốc thời gian khóa trong sản phẩm.
 
 Kết quả đợt khóa nhiệt:40 ca tích hợp, kiểm tra mốc4:59/5:00, restart, khóa sau khi đã nguội, khóa khi hết giờ còn nóng, chống lệnh đã xếp hàng và giữ ngăn khác hoạt động đều đạt. WPF/Avalonia build0 lỗi/0 cảnh báo, UiTests và hai bộ JS đạt. Chưa nghiệm thu đồ họa WebGL hoặc Ubuntu trực tiếp.
+
+## Bản chỉnh mô phỏng: phục hồi ba lần đầu, khóa Admin từ lần4
+
+IncidentCount và RequiresAdmin được bổ sung bởi migration10. Mỗi đợt nóng mới sau đợt đã phục hồi tăng1; các telemetry đang nóng liên tục chỉ giữ cùng đợt. Đếm theo viên pin tại ngăn từ lần Admin xác nhận/reset kịch bản gần nhất; thay viên pin khác bắt đầu đếm mới. Ba lần tự phục hồi không xóa bộ đếm. Admin xác nhận an toàn sau đợt4 xóa đếm về0; đợt kế tiếp là lần1.
+
+AUTO_RESET_ALARM gắn đúng mốc StartedAt và mã pin; lệnh cũ không được đóng sự cố mới. Nếu mất kết nối hoặc chưa nhận ACK vẫn giữ khóa. Khi trạm bị ngắt toàn bộ, phục hồi nhiệt không được tự bật lại sạc toàn trạm.
+
+POST /api/v1/stations/{station}/simulation/reset là công cụ Admin, nhận requestId,clientId,leaseId của simulator đang giữ trạm. Không dùng để hủy giao dịch hoặc xóa tài sản. BMS ngẫu nhiên được lưu SQL cùng request chống lặp và đổi lease để telemetry cũ không ghi đè. Thông số random chỉ áp dụng pin có trong tủ trạm đó; pin bên ngoài, tài khoản, ví, lịch sử và cấu hình dung lượng không đổi. Cảnh báo của kịch bản cũ được đánh dấu xác nhận bằng reset giả lập, không xóa lịch sử.
+
+Nếu reset chưa rõ kết quả, simulator tạm dừng gửi telemetry, lưu đúng request và tiếp tục đối soát sau tải lại. Không tự lấy lease mới trước khi xử lý xong yêu cầu cũ. Admin+đúng client/lease hiện tại có thể khôi phục yêu cầu chưa áp dụng dù heartbeat đã hết hạn; simulator khác đã tiếp quản sẽ bị chặn.
+
+Sạc tính theo Ah và delta thời gian monotonic; tích phân từng giai đoạn dòng sạc để tab chạy nền lâu không làm mất thời gian. Điện áp/dòng là giá trị phụ thuộc SoC, không random độc lập. SoH chỉ random lúc reset kịch bản, không giảm từng giây.
+
+Kiểm chứng:41 ca tích hợp;4 chu kỳ nhiệt và mốc4:59/5:00; reset chống lặp/mất phản hồi/quyền sở hữu; công thức sạc và ba bộ JS đều đạt. WPF/Avalonia build không lỗi/cảnh báo. Chưa nghiệm thu trực tiếp trên Ubuntu hoặc đi hết toàn bộ tương tác WebGL.

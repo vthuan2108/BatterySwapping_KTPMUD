@@ -4,7 +4,7 @@ public sealed partial class BssEngine
 {
     public List<MaintenanceOrder> MaintenanceOrders()=>store.Read(db=>db.Rows("SELECT * FROM dbo.BssMaintenance ORDER BY CreatedAt DESC").Select(MaintenanceRow).ToList());
     static MaintenanceOrder MaintenanceRow(Dictionary<string,object?> r)=>new((string)r["Id"]!,(string)r["CommandId"]!,(string)r["Status"]!,(string)r["StationId"]!,(int)r["SlotNumber"]!,(string)r["Action"]!,r["OldBatteryId"] as string,r["NewBatteryId"] as string,(string)r["Note"]!,(int)r["ActorId"]!,(DateTimeOffset)r["CreatedAt"]!,r["Result"] as string);
-    public MaintenanceOrder CreateMaintenance(MaintenanceOrderRequest r,int actor)=>store.Write(db=>{
+    public MaintenanceOrder CreateMaintenance(MaintenanceOrderRequest r,int actor,bool admin=false)=>store.Write(db=>{
         Require(r.RequestId.Length is >0 and <=80 && r.Note.Length is >0 and <=1000,"Nhập mã yêu cầu và ghi chú bảo trì.");
         var previous=db.Rows("SELECT * FROM dbo.BssMaintenance WHERE RequestId=@id",("@id",r.RequestId)).SingleOrDefault();
         if(previous!=null){var p=MaintenanceRow(previous);Require(p.ActorId==actor&&p.StationId==r.StationId&&p.SlotNumber==r.SlotNumber&&p.Action==r.Action&&p.NewBatteryId==r.NewBatteryId&&p.Note==r.Note,"Mã yêu cầu bảo trì đã được sử dụng.");return p;}
@@ -24,21 +24,35 @@ public sealed partial class BssEngine
             Require(Convert.ToDecimal(db.Scalar("SELECT NhietDo FROM dbo.Pin WHERE MaPin=@p",("@p",r.NewBatteryId)))<35,"Chờ pin trong kho nguội dưới 35°C trước khi thay.");
         }
         if(r.Action=="RESET_ALARM")RequireCooldownElapsed(db,r.StationId,r.SlotNumber);else Require(!CoolingLocked(db,r.StationId,r.SlotNumber),"Ngăn còn cách ly làm mát; xác nhận reset an toàn trước khi thay pin.");
+        var thermal=db.Rows("SELECT * FROM dbo.BssSlotCooldowns WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@s",r.StationId),("@n",r.SlotNumber)).SingleOrDefault();
+        if(thermal!=null&&r.Action=="RESET_ALARM"){
+            Require(Convert.ToBoolean(thermal["RequiresAdmin"]),"Đợt quá nhiệt này sẽ tự phục hồi sau5 phút và dưới35°C; không cần xác nhận thủ công.");
+            Require(admin,"Lần quá nhiệt thứ4 cần admin xác nhận an toàn.");
+        }
         var c=Queue(db,r.StationId,r.Action,r.SlotNumber,r.NewBatteryId);
+        if(r.Action=="RESET_ALARM"){
+            c.ThermalStartedAt=thermal?["StartedAt"] as DateTimeOffset?;c.AdminThermalReset=admin;
+            c.PreserveStationLock=(string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",r.StationId))!="HoatDong";Save(db,c);
+        }
+        c.PreserveStationLock=(string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",r.StationId))!="HoatDong";Save(db,c);
         string id=Guid.NewGuid().ToString("N");
         db.Exec("INSERT dbo.BssMaintenance(Id,RequestId,StationId,SlotNumber,Action,OldBatteryId,NewBatteryId,Note,ActorId,CommandId,Status) VALUES(@id,@key,@s,@n,@a,@old,@new,@note,@actor,@cmd,'Pending'); UPDATE dbo.NganTu SET KhoaBaoTri=1 WHERE MaTram=@s AND SoThuTu=@n",("@id",id),("@key",r.RequestId),("@s",r.StationId),("@n",r.SlotNumber),("@a",r.Action),("@old",slot!["MaPinHienTai"]),("@new",r.NewBatteryId),("@note",r.Note),("@actor",actor),("@cmd",c.CommandId));
         db.Exec("INSERT dbo.BssMaintenanceLocks VALUES(@r,@id)",("@r",resource),("@id",id));
         if(r.Action=="REPLACE_BATTERY")db.Exec("INSERT dbo.BssMaintenanceLocks VALUES(@r,@id)",("@r","pin:"+r.NewBatteryId),("@id",id));
         return MaintenanceRow(db.Rows("SELECT * FROM dbo.BssMaintenance WHERE Id=@id",("@id",id)).Single());
     });
-    public MaintenanceOrder RetryMaintenance(string id)=>store.Write(db=>{
+    public MaintenanceOrder RetryMaintenance(string id,bool admin=false)=>store.Write(db=>{
         var row=db.Rows("SELECT * FROM dbo.BssMaintenance WHERE Id=@id",("@id",id)).SingleOrDefault()??throw new DomainException("Không tìm thấy phiếu.",404);
         var order=MaintenanceRow(row);var old=db.Payload<DeviceCommand>("BssCommands",order.CommandId)!;
         Require(order.Status=="Failed" && old.Status=="Failed","Chỉ gửi lại sau phản hồi thất bại rõ ràng; lệnh chưa xác nhận phải đối soát.");
         Require(Status(db,order.StationId).Online,"Thiết bị mất kết nối.");
         Require((string?)db.Scalar("SELECT MaPinHienTai FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=@n",("@s",order.StationId),("@n",order.SlotNumber))==order.OldBatteryId,"Pin tại ngăn đã thay đổi, cần đối soát.");
         if(order.Action=="RESET_ALARM")RequireCooldownElapsed(db,order.StationId,order.SlotNumber);else Require(!CoolingLocked(db,order.StationId,order.SlotNumber),"Ngăn đang khóa làm mát.");
+        var thermal=db.Rows("SELECT * FROM dbo.BssSlotCooldowns WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@s",order.StationId),("@n",order.SlotNumber)).SingleOrDefault();
+        if(thermal!=null&&Convert.ToBoolean(thermal["RequiresAdmin"]))Require(admin,"Lần quá nhiệt thứ4 cần admin xác nhận.");
         var c=Queue(db,order.StationId,order.Action,order.SlotNumber,order.NewBatteryId);
+        c.ThermalStartedAt=thermal?["StartedAt"] as DateTimeOffset?;c.AdminThermalReset=admin;
+        c.PreserveStationLock=(string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",order.StationId))!="HoatDong";Save(db,c);
         db.Exec("UPDATE dbo.BssMaintenance SET CommandId=@cmd,Status='Pending',Result=NULL WHERE Id=@id",("@cmd",c.CommandId),("@id",id));
         return MaintenanceRow(db.Rows("SELECT * FROM dbo.BssMaintenance WHERE Id=@id",("@id",id)).Single());
     });

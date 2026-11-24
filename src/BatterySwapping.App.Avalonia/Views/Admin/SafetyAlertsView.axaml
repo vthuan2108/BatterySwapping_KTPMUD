@@ -19,7 +19,7 @@
             <StackPanel Grid.Column="0">
                 <TextBlock Text="🚨 NHẬT KÝ CẢNH BÁO AN TOÀN IOT &amp; PHÒNG CHÁY NỔ" 
                            FontSize="18" FontWeight="Bold" Foreground="{StaticResource DangerBrush}"/>
-                <TextBlock Text="Tự động ghi nhận khi cảm biến BMS phát hiện nhiệt độ quá ngưỡng (&gt; 55°C) hoặc ngắn mạch" 
+                <TextBlock Text="Quá nhiệt: khóa 5 phút thực, dưới 35°C; lần 1–3 tự khôi phục, từ lần 4 cần Admin reset"
                            FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
             </StackPanel>
 
@@ -72,7 +72,7 @@
                     <DataGridTemplateColumn Header="THAO TÁC" Width="*">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="✔ Đã khắc phục" Classes="outline" Padding="8,3" FontSize="11"
+                                <Button Content="Kiểm tra / reset" Classes="outline" Padding="8,3" FontSize="11"
                                         HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Click="BtnResolve_Click" Tag="{Binding}"/>
                             </DataTemplate>

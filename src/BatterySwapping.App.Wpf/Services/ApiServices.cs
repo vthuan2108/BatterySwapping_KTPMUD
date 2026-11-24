@@ -20,9 +20,25 @@ public static class BssApi
         while(DateTime.UtcNow<until){await Task.Delay(300);c=await Client.Get<DeviceCommand>($"commands/{c.CommandId}");if(c.Status=="Completed")return;if(c.Status is "Failed" or "Cancelled" or "Unconfirmed")throw new InvalidOperationException($"Lệnh {c.CommandId}: {c.Status}. Cần kiểm tra trạng thái thiết bị.");}
         throw new InvalidOperationException($"Chưa nhận xác nhận thiết bị cho lệnh {c.CommandId}. Không gửi lại thao tác tự động.");
     }
+    public static async Task<string?> GetThermalResetBlockReason(string station, int slot)
+    {
+        var cooldowns = await Client.Get<List<SlotCooldown>>($"stations/{station}/cooldowns");
+        var active = cooldowns.Find(c => c.SlotNumber == slot && c.ClearedAt == null);
+        if (active == null) return null;
+        if (!active.RequiresAdmin && active.IncidentCount < 4)
+            return $"Ngăn #{slot} quá nhiệt lần {active.IncidentCount}: tự động làm mát và giữ khóa tối thiểu 5 phút thực. Khi dưới 35°C, hệ thống và thiết bị tự động khôi phục; không cần Admin hoặc kỹ thuật viên xác nhận reset.";
+        if (AuthService.CurrentUser?.VaiTro != "Admin")
+            return $"Ngăn #{slot} quá nhiệt lần {active.IncidentCount}: chỉ Admin được xác nhận reset sau tối thiểu 5 phút thực và nhiệt độ dưới 35°C. Kỹ thuật viên không được mở khóa.";
+        return null;
+    }
     static readonly Dictionary<string,string> MaintenanceKeys=new();
     public static async Task Maintenance(string station,int slot,string action,string? battery,string note)
     {
+        if (action == "RESET_ALARM")
+        {
+            var reason = await GetThermalResetBlockReason(station, slot);
+            if (reason != null) throw new InvalidOperationException(reason);
+        }
         string operation=station+":"+slot+":"+action+":"+battery+":"+note;
         if(!MaintenanceKeys.TryGetValue(operation,out var key))MaintenanceKeys[operation]=key=Guid.NewGuid().ToString();
         var order=await Client.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest(station,slot,action,battery,note,key));
@@ -61,7 +77,7 @@ public class BatteryInspectionResult {public bool IsOverheated{get;set;}public b
 public class BatteryService
 {
     public Task<List<Pin>> GetAllBatteries()=>BssApi.Client.Get<List<Pin>>("batteries");
-    public async Task<BatteryInspectionResult?> InspectBattery(string id){var p=(await GetAllBatteries()).Find(p=>p.MaPin==id);return p==null?null:new(){IsOverheated=p.NhietDo>=55||p.TrangThai=="LoiQuaNhiet",IsDegraded=p.SoH<80,HealthStatusDescription=$"SoC {p.SoC:F1}% • SoH {p.SoH:F1}% • {p.NhietDo:F1}°C",RecommendedAction=p.NhietDo>=55?"Giữ khóa, làm mát rồi xác nhận reset.":p.SoH<80?"Thu hồi và thay pin mới.":"Theo dõi thông số BMS."};}
+    public async Task<BatteryInspectionResult?> InspectBattery(string id){var p=(await GetAllBatteries()).Find(p=>p.MaPin==id);return p==null?null:new(){IsOverheated=p.NhietDo>=55||p.TrangThai=="LoiQuaNhiet",IsDegraded=p.SoH<80,HealthStatusDescription=$"SoC {p.SoC:F1}% • SoH {p.SoH:F1}% • {p.NhietDo:F1}°C",RecommendedAction=p.NhietDo>=55?"Giữ khóa tối thiểu 5 phút thực và làm mát dưới 35°C. Ba lần đầu tự khôi phục; từ lần 4 cần Admin xác nhận.":p.SoH<80?"Thu hồi và thay pin mới.":"Theo dõi thông số BMS."};}
     public async Task<Operation> AddBattery(Pin pin){try{await BssApi.Client.Post<Pin>("batteries",BssApi.Body(pin));return new(true);}catch(Exception e){return new(false,e.Message);}}
     public async Task<Operation> MaintainBattery(string station,int slot,string pin,string technician,string note){try{await BssApi.Maintenance(station,slot,"RESET_ALARM",null,note);return new(true);}catch(Exception e){return new(false,e.Message);}}
     public async Task<Operation> ReplaceBattery(string station,int slot,string oldPin,string newPin,string technician,string note){try{await BssApi.Maintenance(station,slot,"REPLACE_BATTERY",newPin,note);return new(true);}catch(Exception e){return new(false,e.Message);}}

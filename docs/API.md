@@ -78,6 +78,12 @@ RESET_ALARM và REPLACE_BATTERY phải gửi qua phiếu bảo trì, không nh�
 
 ## Khóa nhiệt
 
-GET /api/v1/stations/{id}/cooldowns (đã đăng nhập) trả danh sách `{stationId,slotNumber,batteryId,startedAt,unlockAfter,clearedAt}`. ClearedAt=null nghĩa là còn cách ly, dù UnlockAfter đã qua. Chỉ reset an toàn sau tối thiểu5 phút và telemetry dưới35°C mới xóa cách ly. Snapshot thiết bị có trường cooldowns; SlotTelemetry thêm isOverheated=false tùy chọn. Chưa hết5 phút trả409 cho yêu cầu mở/reset/thay pin không hợp lệ.
+GET /api/v1/stations/{id}/cooldowns (đã đăng nhập) trả danh sách `{stationId,slotNumber,batteryId,startedAt,unlockAfter,clearedAt,incidentCount,requiresAdmin}`. ClearedAt=null nghĩa là còn cách ly, dù UnlockAfter đã qua. Chỉ reset an toàn sau tối thiểu5 phút và telemetry dưới35°C mới xóa cách ly. Snapshot thiết bị có trường cooldowns; SlotTelemetry thêm isOverheated=false tùy chọn. Chưa hết5 phút trả409 cho yêu cầu mở/reset/thay pin không hợp lệ.
 
 Cổng broker vẫn mặc định18883/19001. Cấu hình Broker:Port, Broker:WebSocketUrl, Broker:ClientId chỉ được tách riêng trong bộ kiểm thử cô lập.
+
+## Reset mô phỏng và phục hồi nhiệt
+
+POST /api/v1/stations/{station}/simulation/reset (Admin): `{requestId,clientId,leaseId}` → `{resetId,stationId,leaseId}`. Chống lặp; trả409 nếu có giao dịch/bảo trì/lệnh đang dang dở hoặc lease không khớp. Cùng request sau mất phản hồi trả kết quả đã lưu; không random hai lần.
+
+Cooldowns bổ sung incidentCount/requiresAdmin. Các đợt1–3 tự phục hồi bằng AUTO_RESET_ALARM sau5 phút và nhiệt độ dưới35°C. Đợt4 chỉ Admin được POST maintenance với RESET_ALARM. Command thêm thermalStartedAt/adminThermalReset/preserveStationLock; các field do server phát, không dùng nội dung ACK để tự cấp quyền Admin.

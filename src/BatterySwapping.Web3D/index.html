@@ -122,7 +122,19 @@
         <button id="replacement-action" class="primary" hidden></button>
         <button id="overheat">Gây lỗi quá nhiệt 65°C</button>
         <button id="cool">Bật làm mát giả lập</button>
-        <p class="muted">Từ 55°C: tự làm mát và khóa ngăn ít nhất 5 phút thực. Hết giờ vẫn phải dưới 35°C và được kỹ thuật viên xác nhận; không cắm/rút pin khi khóa.</p>
+        <p class="muted">Từ 55°C: tự làm mát và khóa ngăn ít nhất 5 phút thực. Ba lần đầu tự phục hồi khi dưới 35°C và máy chủ xác nhận. Từ lần thứ 4 cần quản trị viên xử lý; không cắm/rút pin khi khóa.</p>
+        <details>
+          <summary>Reset Simulation — quản trị viên</summary>
+          <p class="muted">Đặt lại pin tại trạm đang chọn với thông số ngẫu nhiên được lưu trên máy chủ. Giữ nguyên tài khoản khách hàng, ví và lịch sử. Trạm có phiên đổi pin hoặc tác vụ bảo trì đang chạy sẽ từ chối reset.</p>
+          <form id="reset-form">
+            <label for="reset-username">Tài khoản Admin</label>
+            <input id="reset-username" autocomplete="username" required>
+            <label for="reset-password">Mật khẩu Admin</label>
+            <input id="reset-password" type="password" autocomplete="current-password" required>
+            <button id="reset-simulation" type="submit">Reset Simulation</button>
+            <p id="reset-status" role="status" aria-live="polite"></p>
+          </form>
+        </details>
       </section>
       <details>
         <summary>Hỗ trợ đăng nhập demo</summary>
@@ -131,7 +143,7 @@
       </details>
       <details>
         <summary>Giả định mô hình &amp; Đồng bộ 2 trạm</summary>
-        <p>• Trạm 1 (BK01) và Trạm 2 (CG02) đều có 8 ngăn với pin Lithium LFP 72V/30Ah.<br>
+        <p>• Hai trạm có 8 ngăn; dung lượng pin lấy từ dữ liệu máy chủ. SoC tăng theo dòng sạc, dung lượng, sức khỏe pin và số giây đã trôi qua.<br>
         • Mỗi trạm kết nối MQTT và API độc lập, đồng bộ trực tiếp với App Desktop Quản trị viên.<br>
         • Bạn có thể nhấp trực tiếp vào tủ hoặc ngăn pin trong không gian 3D để đổi trạm.</p>
       </details>

@@ -58,7 +58,11 @@ try {
  if(!$ready){throw 'Isolated server/broker not ready; see cooldown-tests logs.'}
  dotnet run --project tests/BatterySwapping.Tests -c CooldownCheck --no-build -- --integration
  if($LASTEXITCODE -ne 0){throw 'Integration failed.'}
- dotnet run --project tests/BatterySwapping.ArchitectureTests -c CooldownCheck --no-build -- --business --cooldown
+ # Direct engine tests own the outbox; stop the isolated worker before they claim commands.
+ $currentServer=@(Get-Content $pidFile -Raw | ConvertFrom-Json) | Where-Object {$_.Path -eq $serverExecutable} | Select-Object -First 1
+ if($currentServer){$running=Get-Process -Id $currentServer.Id -ErrorAction SilentlyContinue;if($running -and $running.Path -eq $serverExecutable -and [Math]::Abs(($running.StartTime.ToUniversalTime()-([datetime]$currentServer.Start).ToUniversalTime()).TotalSeconds)-lt 1){Stop-Process -Id $running.Id;$running.WaitForExit(5000) | Out-Null}}
+
+ dotnet run --project tests/BatterySwapping.ArchitectureTests -c CooldownCheck --no-build -- --business --cooldown --simulation --simulation
  if($LASTEXITCODE -ne 0){throw 'Business/cooldown regression failed.'}
  dotnet run --project tests/BatterySwapping.UiTests -c CooldownCheck --no-build
  if($LASTEXITCODE -ne 0){throw 'WPF regression failed.'}
@@ -66,6 +70,8 @@ try {
  if($LASTEXITCODE -ne 0){throw 'BMS regression failed.'}
  node tests/BatterySwapping.Web3D.Tests/controller.test.js
  if($LASTEXITCODE -ne 0){throw 'Device regression failed.'}
+ node tests/BatterySwapping.Web3D.Tests/mqtt.test.js
+ if($LASTEXITCODE -ne 0){throw 'MQTT client regression failed.'}
 } finally {
  if(Test-Path $pidFile){$entries=@(Get-Content $pidFile -Raw | ConvertFrom-Json)}
  foreach($entry in $entries){$p=Get-Process -Id $entry.Id -ErrorAction SilentlyContinue;if($p -and $p.Path -eq $entry.Path -and [Math]::Abs(($p.StartTime.ToUniversalTime()-([datetime]$entry.Start).ToUniversalTime()).TotalSeconds)-lt 1){Stop-Process -Id $p.Id}}

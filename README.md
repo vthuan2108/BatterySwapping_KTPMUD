@@ -104,7 +104,7 @@ cd BatterySwapping_KTPMUD
 4. `Database/04_CreateViews.sql`
 5. `Database/05_StoredProcedures.sql`
 
-Script `01` có thao tác xóa bảng và script `03` nạp dữ liệu mẫu: **không chạy lại chúng trên database đang sử dụng**. Nếu đã có `BatterySwappingDB`, giữ nguyên dữ liệu. Backend tự áp dụng lần lượt các migration tăng dần `06_Runtime.sql`, `07_Business.sql`, `08_Maintenance.sql`, `09_Cooldowns.sql` khi khởi động.
+Script `01` có thao tác xóa bảng và script `03` nạp dữ liệu mẫu: **không chạy lại chúng trên database đang sử dụng**. Nếu đã có `BatterySwappingDB`, giữ nguyên dữ liệu. Backend tự áp dụng lần lượt các migration tăng dần `06_Runtime.sql`, `07_Business.sql`, `08_Maintenance.sql`, `09_Cooldowns.sql`, `10_AutoThermal.sql` khi khởi động.
 
 ### Bước 3 — Chuẩn bị broker và build
 
@@ -202,7 +202,7 @@ Mỗi tài khoản mở chức năng theo vai trò. Đổi pin yêu cầu đăng
 4. Đăng nhập khách trên Desktop hoặc Web3D, kiểm tra ví và bắt đầu một phiên đổi pin.
 5. Trên simulator, cắm đúng pin cũ vào ngăn được chỉ định; chờ kiểm tra BMS và thu phí.
 6. Rút pin mới khi được cho phép; kiểm tra phiên hoàn tất và lịch sử khách hàng.
-7. Gây quá nhiệt trên Web3D; đăng nhập kỹ thuật viên để đối chiếu cảnh báo và yêu cầu xử lý. Chờ thiết bị xác nhận an toàn.
+7. Gây quá nhiệt trên Web3D: ba đợt đầu tự làm mát và phục hồi sau tối thiểu5 phút khi dưới35°C. Đợt thứ4 giữ khóa để Admin xác nhận an toàn.
 8. Ngắt simulator để quan sát trạng thái offline và cách hệ thống giữ phiên cần hỗ trợ.
 
 Chi tiết các tình huống mất kết nối, giữ chỗ và phục hồi: [docs/LOCAL-DEMO.md](docs/LOCAL-DEMO.md).
@@ -256,4 +256,12 @@ Xem [nghiệp vụ và migration](docs/BUSINESS-WORKFLOWS.md) trước khi chạ
 
 ### Khóa nhiệt tự động
 
-Từ55°C, simulator tự làm mát và khóa ngăn ít nhất5 phút thực. Không cắm/rút/cấp pin hoặc mở ngăn trong thời gian này. Hết5 phút vẫn chờ nhiệt độ dưới35°C và xác nhận reset của kỹ thuật viên; tốc độx10/x60 không rút ngắn khóa. Bộ đếm được lưu qua tải lại/restart và hiển thị trên WPF, Avalonia, Web3D. Xem [quy trình chi tiết](docs/BUSINESS-WORKFLOWS.md).
+Từ55°C, simulator tự làm mát và khóa ngăn ít nhất5 phút thực. Không cắm/rút/cấp pin hoặc mở ngăn trong thời gian này. Hết5 phút và dưới35°C: ba đợt đầu tự phục hồi sau phản hồi thiết bị; từ đợt thứ4 mới cần Admin xác nhận. tốc độx10/x60 không rút ngắn khóa. Bộ đếm được lưu qua tải lại/restart và hiển thị trên WPF, Avalonia, Web3D. Xem [quy trình chi tiết](docs/BUSINESS-WORKFLOWS.md).
+
+### Reset Simulation và thông số ban đầu
+
+Trong Web3D, mở **Công cụ demo thiết bị → Reset Simulation**. Nhập tài khoản Admin để đặt lại trạm đang chọn. SoC,SoH,nhiệt độ và số chu kỳ được tạo ngẫu nhiên có giới hạn; điện áp/dòng tính theo cùng mô hình sạc. Giữ nguyên mã/vị trí pin, ví và lịch sử. Hai pin đầu đang ở tủ được khởi tạo đủ SoC để demo đổi pin, các pin còn lại có SoC ngẫu nhiên thấp hơn.
+
+Reset bị chặn khi trạm còn phiên đổi pin/bảo trì/lệnh chưa xác nhận. Yêu cầu reset bị mất phản hồi được thử lại cùng mã chống lặp, không random lại hai lần. Tải lại trang chỉ tiếp tục trạng thái đã lưu; không tự tạo một kịch bản mới. Bấm Reset mới bắt đầu kịch bản ngẫu nhiên mới.
+
+Mức sạc tăng theo số giây thực đã trôi qua, dòng sạc và dung lượng thiết kế lấy từ pin; dòng giảm khi gần đầy. Tốc độ mô phỏng chỉ nhân thời gian vật lý, không nhân đồng hồ khóa an toàn5 phút.

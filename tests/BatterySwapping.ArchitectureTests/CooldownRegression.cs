@@ -7,7 +7,7 @@ internal static class CooldownRegression
     {
         // This suite never reads the running application's connection string.
         var store=new SqlStore(@"Server=.\SQLEXPRESS;Database=BssArchitectureTests_20261121;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=5;");
-        foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql"})
+        foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql"})
             store.Migrate(File.ReadAllText(Path.Combine("Database",script)));
         string suffix=Guid.NewGuid().ToString("N")[..10];
         string station="COOL-"+suffix,pin="COOLPIN-"+suffix;
@@ -21,7 +21,9 @@ internal static class CooldownRegression
         {
             engine.Receive(new DeviceMessage(1,station,lease,Guid.NewGuid().ToString("N"),++sequence,DateTimeOffset.UtcNow,command==null?null:"ACK",command,null,null,null,true,slots));
         }
-        MaintenanceOrder Reset()=>engine.CreateMaintenance(new MaintenanceOrderRequest(station,1,"RESET_ALARM",null,"Cooldown regression",Guid.NewGuid().ToString()),1);
+        MaintenanceOrder Reset(bool admin=false)=>engine.CreateMaintenance(new MaintenanceOrderRequest(station,1,"RESET_ALARM",null,"Cooldown regression",Guid.NewGuid().ToString()),1,admin);
+        SlotCooldown Cooldown()=>engine.Cooldowns(station).Single();
+        DeviceCommand[] Automatic()=>engine.Commands(station).Where(c=>c.Command=="AUTO_RESET_ALARM").ToArray();
         bool Locked()=>store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT KhoaBaoTri FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=1",("@s",station))));
         DeviceCommand Claim(string expected)
         {
@@ -55,21 +57,75 @@ internal static class CooldownRegression
             Check(store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT CuaDangMo FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=2",("@s",station)))),"unaffected slot remains independently operable");
             clock.Set(first.UnlockAfter.AddSeconds(-1));
             Denied(()=>Reset(),"4 minutes 59 seconds is still locked");
+            engine.Tick();
+            Check(Automatic().Length==0 && Locked(),"4 minutes 59 seconds cannot queue automatic recovery");
             clock.Set(first.UnlockAfter);
-            slots[0]=slots[0] with{Temperature=60};Send();
-            Check(Locked()&&engine.Cooldowns(station).Single().ClearedAt==null,"five minutes expiring while hot never unlocks slot");
-            var reset=Reset();Claim(reset.CommandId);
-            slots[0]=slots[0] with{IsLocked=false};
-            Denied(()=>Send(reset.CommandId),"hot success acknowledgement cannot finish maintenance");
-            Check(Locked(),"rejected hot acknowledgement preserves isolation");
-            slots[0]=slots[0] with{Temperature=30,IsLocked=true};Send();
-            Check(Locked(),"cooled and expired still requires device-confirmed technician reset");
-            slots[0]=slots[0] with{IsLocked=false};Send(reset.CommandId);
-            Check(!Locked()&&engine.Cooldowns(station).Single().ClearedAt==clock.GetUtcNow(),"safe reset acknowledgement clears elapsed cooldown");
-            Check(engine.MaintenanceOrders().Single(x=>x.Id==reset.Id).Status=="Completed","maintenance completes only after safe acknowledgement");
+            slots[0]=slots[0] with{Temperature=60};Send();engine.Tick();
+            Check(Locked()&&Cooldown().ClearedAt==null&&Automatic().Length==0,"five minutes expiring while hot never unlocks or queues recovery");
+            for(int incident=1;incident<=4;incident++)
+            {
+                if(incident>1)
+                {
+                    clock.Advance(TimeSpan.FromSeconds(1));
+                    slots[0]=slots[0] with{Temperature=65,IsLocked=true};Send();
+                    var started=Cooldown();
+                    Check(started.ClearedAt==null && started.UnlockAfter==clock.GetUtcNow().AddMinutes(5),$"episode {incident} starts a fresh five-minute deadline");
+                    Send();Send();
+                    Check(Cooldown().IncidentCount==incident,$"episode {incident} counts once despite repeated hot telemetry");
+                    slots[0]=slots[0] with{Temperature=30};Send();
+                    clock.Set(started.UnlockAfter.AddSeconds(-1));engine.Tick();
+                    Check(Automatic().Length==incident-1 && Locked(),$"episode {incident} remains locked before minimum deadline");
+                    Denied(()=>Reset(true),$"episode {incident} even Admin cannot reset before deadline");
+                    clock.Set(started.UnlockAfter);
+                }
+                Check(Cooldown().IncidentCount==incident && Cooldown().RequiresAdmin==(incident>=4),$"episode {incident} persists exact count and Admin requirement");
+                engine=new BssEngine(store,clock);
+                Check(Cooldown().IncidentCount==incident,$"episode {incident} count survives engine recreation");
+                slots[0]=slots[0] with{Temperature=35,IsLocked=true};Send();engine.Tick();
+                Check(Automatic().Length==incident-1 && Locked(),$"episode {incident} exactly 35 degrees is insufficient for recovery");
+                slots[0]=slots[0] with{Temperature=30,IsLocked=true};Send();
+                if(incident<=3)
+                {
+                    Denied(()=>Reset(),$"episode {incident} rejects technician manual reset and waits for automation");
+                    Denied(()=>Reset(true),$"episode {incident} rejects unnecessary Admin manual reset");
+                    engine.Tick();engine.Tick();
+                    var automatic=Automatic();
+                    Check(automatic.Length==incident,$"episode {incident} queues exactly one automatic recovery command");
+                    var command=automatic.Single(c=>c.ThermalStartedAt==Cooldown().StartedAt);
+                    Check(command.SlotNumber==1 && command.BatteryId==pin && !command.AdminThermalReset,"automatic command targets the same battery and episode without Admin authorization");
+                    Claim(command.CommandId);
+                    Check(Locked()&&Cooldown().ClearedAt==null,"queue and dispatch do not unlock before device acknowledgement");
+                    if(incident==1)
+                    {
+                        slots[0]=slots[0] with{Temperature=60,IsLocked=command.PreserveStationLock};
+                        Denied(()=>Send(command.CommandId),"hot automatic success acknowledgement cannot finish recovery");
+                        Check(Locked()&&Cooldown().ClearedAt==null,"rejected hot acknowledgement preserves isolation");
+                    }
+                    slots[0]=slots[0] with{Temperature=30,IsLocked=command.PreserveStationLock};Send(command.CommandId);
+                    Check(!Locked() && Cooldown().ClearedAt==clock.GetUtcNow() && Cooldown().IncidentCount==incident,$"episode {incident} safe automatic ACK clears lock and preserves incident history");
+                    engine.Tick();
+                    Check(Automatic().Length==incident,"completed recovery is not queued again");
+                }
+                else
+                {
+                    engine.Tick();engine.Tick();
+                    Check(Automatic().Length==3 && Locked() && Cooldown().ClearedAt==null,"fourth episode stays locked and never queues automatic reset");
+                    Denied(()=>Reset(),"fourth episode technician cannot approve recovery");
+                    Denied(()=>engine.RequestCommand(station,new CommandRequest("UNLOCK_SLOT",1)),"fourth episode cannot bypass Admin reset through door command");
+                    var reset=Reset(true);var command=Claim(reset.CommandId);
+                    Check(command.AdminThermalReset && command.ThermalStartedAt==Cooldown().StartedAt,"fourth reset records Admin approval for the current episode");
+                    Check(Locked()&&Cooldown().ClearedAt==null,"Admin approval alone still requires device acknowledgement");
+                    slots[0]=slots[0] with{Temperature=30,IsLocked=command.PreserveStationLock};Send(reset.CommandId);
+                    Check(!Locked() && Cooldown().ClearedAt==clock.GetUtcNow() && Cooldown().IncidentCount==0 && !Cooldown().RequiresAdmin,"safe Admin recovery clears the fourth lock and resets incident counter");
+                    Check(engine.MaintenanceOrders().Single(x=>x.Id==reset.Id).Status=="Completed","Admin maintenance completes only after safe acknowledgement");
+                }
+            }
+            var ordinary=Reset();var ordinaryCommand=Claim(ordinary.CommandId);
+            Check(!ordinaryCommand.AdminThermalReset && ordinaryCommand.ThermalStartedAt==null,"ordinary nonthermal technician maintenance remains available");
+            slots[0]=slots[0] with{Temperature=30,IsLocked=ordinaryCommand.PreserveStationLock};Send(ordinary.CommandId);
+            Check(engine.MaintenanceOrders().Single(x=>x.Id==ordinary.Id).Status=="Completed" && Cooldown().IncidentCount==0,"ordinary maintenance completes without changing cleared thermal history");
             clock.Advance(TimeSpan.FromSeconds(1));slots[0]=slots[0] with{Temperature=65,IsLocked=true};Send();
-            var second=engine.Cooldowns(station).Single();
-            Check(second.ClearedAt==null&&second.StartedAt>first.StartedAt&&second.UnlockAfter==clock.GetUtcNow().AddMinutes(5),"new overheating after reset starts a fresh five-minute episode");
+            Check(Cooldown().IncidentCount==1 && !Cooldown().RequiresAdmin && Cooldown().ClearedAt==null,"first incident after Admin reset begins a new automatic-recovery cycle");
             Console.WriteLine("RESULT cooldown regression passed without waiting or accelerating the production timer");
         }
         finally
@@ -78,7 +134,7 @@ internal static class CooldownRegression
         }
     }
     static void Check(bool condition,string message){if(!condition)throw new Exception("FAIL "+message);Console.WriteLine("PASS "+message);}
-    static void Denied(Action action,string message){try{action();}catch(DomainException){Check(true,message);return;}throw new Exception("FAIL "+message);}
+    static void Denied(Action action,string message){try{action();}catch(DomainException e) when(e.Status is 403 or 409){Check(true,message);return;}throw new Exception("FAIL "+message);}
     sealed class ManualClock(DateTimeOffset now):TimeProvider
     {
         DateTimeOffset value=now;

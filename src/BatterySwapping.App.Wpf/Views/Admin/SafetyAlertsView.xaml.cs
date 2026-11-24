@@ -63,11 +63,22 @@ namespace BatterySwapping.App.Views.Admin
                     return;
                 }
 
+                if (alert.MaNgan.HasValue)
+                {
+                    var reason = await BssApi.GetThermalResetBlockReason(alert.MaTram, alert.MaNgan.Value);
+                    if (reason != null)
+                    {
+                        MessageBox.Show(reason, "Bảo vệ nhiệt", MessageBoxButton.OK, MessageBoxImage.Information);
+                        LoadAlerts();
+                        return;
+                    }
+                }
+
                 string technicianName = AuthService.CurrentUser != null
                     ? $"{AuthService.CurrentUser.HoTen} ({AuthService.CurrentUser.VaiTro})"
                     : "Kỹ thuật viên Trạm";
 
-                string note = $"Đã kiểm tra an toàn tại ngăn #{alert.MaNgan} ({alert.MaTram}), pin {alert.MaPin}. Nhiệt độ an toàn, đã mở khóa khay tủ.";
+                string note = $"Đã kiểm tra an toàn tại ngăn #{alert.MaNgan} ({alert.MaTram}), pin {alert.MaPin}. Yêu cầu backend kiểm tra điều kiện an toàn và thiết bị xác nhận reset.";
 
                 if (await _safetyService.ResolveAlert(alert.MaCB, technicianName, note, moKhoaNganTu: true))
                 {

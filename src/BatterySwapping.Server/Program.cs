@@ -28,7 +28,7 @@ if(existingIssues.Count>0){
     File.WriteAllText(report,System.Text.Json.JsonSerializer.Serialize(existingIssues));
     app.Logger.LogWarning("Inventory consistency requires review: {Count} issues. Report {ReportPath}",existingIssues.Count,report);
 }
-foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql"})
+foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql"})
     app.Services.GetRequiredService<SqlStore>().Migrate(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,script)));
 app.Use(async(ctx,next)=>{
     if(ctx.Connection.RemoteIpAddress is not null && !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)){ctx.Response.StatusCode=403;return;}
@@ -47,7 +47,7 @@ app.MapPost("/api/v1/auth/login",(LoginRequest r,BssEngine e,AuthSessions auth)=
 // Simulator bootstrap is loopback-only; these credentials grant device topics, never admin APIs.
 app.MapGet("/api/v1/device/config",(IConfiguration c)=>new{brokerUrl=c["Broker:WebSocketUrl"]??"ws://127.0.0.1:19001/mqtt",port=c.GetValue<int?>("Broker:Port")??18883,username="simulator",password=c["Broker:SimulatorPassword"]});
 app.MapPost("/api/v1/device/lease",(DeviceLease r,BssEngine e)=>e.Lease(r));
-app.MapGet("/api/v1/device/{station}/snapshot",(string station,BssEngine e)=>new{stationId=station,status=e.Status(station),slots=new StationService().GetCabinetSlots(station),cooldowns=e.Cooldowns(station),batteries=new BatteryService().GetAllBatteries(),sessions=e.Sessions().Where(s=>s.StationId==station&&s.State is not("Completed" or "Cancelled" or "Expired")),commands=e.Commands(station).Where(c=>c.Status is "Sent" or "Unconfirmed" or "Completed" or "Failed").Take(100)});
+app.MapGet("/api/v1/device/{station}/snapshot",(string station,BssEngine e)=>new{stationId=station,status=e.Status(station),slots=new StationService().GetCabinetSlots(station),cooldowns=e.Cooldowns(station),operatingState=new StationService().GetAllStations().Find(s=>s.MaTram==station)?.TrangThaiHoatDong,batteries=new BatteryService().GetAllBatteries(),sessions=e.Sessions().Where(s=>s.StationId==station&&s.State is not("Completed" or "Cancelled" or "Expired")),commands=e.Commands(station).Where(c=>c.Status is "Sent" or "Unconfirmed" or "Completed" or "Failed").Take(100)});
 
 var api=app.MapGroup("/api/v1");
 api.AddEndpointFilter(async(ctx,next)=>{
@@ -66,6 +66,7 @@ api.MapGet("/auth/me",(HttpContext c)=>Who(c));
 api.MapBusinessEndpoints();
 api.MapGet("/pricing",(SqlStore db)=>new BusinessOperations(db).GetPolicy());
 api.MapMaintenanceEndpoints();
+api.MapSimulationEndpoints();
 api.MapGet("/stations",()=>new StationService().GetAllStations());
 api.MapGet("/stations/{station}/slots",(string station)=>new StationService().GetCabinetSlots(station));
 api.MapGet("/stations/{station}/cooldowns",(string station,BssEngine e)=>e.Cooldowns(station));

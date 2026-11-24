@@ -8,4 +8,5 @@ Check(!Passwords.Verify("bad", hash), "wrong password denied");
 
 if(args.Contains("--business") || args.Contains("--wallet")) BusinessRegression.Run();
 if(args.Contains("--cooldown")) CooldownRegression.Run();
+if(args.Contains("--simulation")) SimulationRegression.Run();
 static void Check(bool condition, string name) { if (!condition) throw new Exception(name); Console.WriteLine("PASS " + name); }
