@@ -7,15 +7,16 @@ class TestDate extends RealDate {constructor(...args){super(...(args.length?args
 global.Date=TestDate;
 const Bms = require('../../src/BatterySwapping.Web3D/js/bmsModel.js');
 const sent=[];
-function element(){return {dataset:{},style:{},classList:{toggle(){}},replaceChildren(){},setAttribute(){}};}
+const leds=[],alarms=[];
+function element(){return {dataset:{},style:{},classList:{toggle(){}},replaceChildren(...children){this.children=children;},setAttribute(){}};}
 const elements={};const storage=new Map();
-const context={Date:TestDate,URLSearchParams,location:{search:''},localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);},removeItem(k){storage.delete(k);}},sessionStorage:{getItem(){return null;},removeItem(){}},document:{getElementById(id){return elements[id]??=element();},createElement:element},MqttSync:{connected(){return true;},publish(...args){sent.push(args);}},BmsModel:Bms,CabinetModel:{setBatteryPresence(){},setBatteryEjected(){},setSlotLedColor(){},updateBatteryDisplay(){},setAlarmLight(){},getStation(){return null;}},ParticleSystem:{isOverheating(){return false;},stopOverheat(){}}};
+const context={Date:TestDate,URLSearchParams,location:{search:''},localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);},removeItem(k){storage.delete(k);}},sessionStorage:{getItem(){return null;},removeItem(){}},document:{getElementById(id){return elements[id]??=element();},createElement:element},MqttSync:{connected(){return true;},publish(...args){sent.push(args);}},BmsModel:Bms,CabinetModel:{setBatteryPresence(){},setBatteryEjected(){},setSlotLedColor(...args){leds.push(args);},updateBatteryDisplay(){},setAlarmLight(...args){alarms.push(args);},getStation(){return null;}},ParticleSystem:{isOverheating(){return false;},stopOverheat(){}}};
 vm.createContext(context);
 let source=fs.readFileSync('src/BatterySwapping.Web3D/js/simulatorController.js','utf8');
 source=source.replace('let backend = false;','let backend = true;');
-source=source.replace('return { init };','return {init, test:{handleCommand,returnOld,stationData,updateSafety,syncCooldowns,insertOld,takeNew,tick,resetSimulation,snapshotRefresh,render}};');
+source=source.replace('return { init };','return {init, test:{handleCommand,returnOld,stationData,updateSafety,syncCooldowns,insertOld,takeNew,tick,resetSimulation,snapshotRefresh,render,visuals}};');
 vm.runInContext(source+'\nglobalThis.controller=SimulatorController;',context);
-const {handleCommand,returnOld,stationData,updateSafety,syncCooldowns,insertOld,takeNew,tick,resetSimulation,snapshotRefresh,render}=context.controller.test;
+const {handleCommand,returnOld,stationData,updateSafety,syncCooldowns,insertOld,takeNew,tick,resetSimulation,snapshotRefresh,render,visuals}=context.controller.test;
 const st=stationData['TRAM-BK01'];st.leased=true;
 const slot={id:1,batteryId:'OLD',hasBattery:true,soc:20,soh:85,temperature:65,current:0,voltage:70,isLocked:true,isOverheated:true};
 st.slots=[slot];st.snapshot={status:{online:true},sessions:[],batteries:[{maPin:'NEW',soC:91,soH:87,nhietDo:29,dienAp:74}]};
@@ -69,24 +70,48 @@ syncCooldowns(st,[{slotNumber:1,batteryId:'FRESH',startedAt:new TestDate(now-301
 assert.equal(fresh.isOverheated,false,'backend confirmed clearance removes completed latch');
 console.log('PASS device reset cooling, deferred replacement, registered BMS and return safety');
 
-// The first three episodes need a backend command, even after cooling and five minutes.
-for(let incident=1;incident<=4;incident++){
-  const thermal={id:1,batteryId:'THERMAL',hasBattery:true,soc:30,soh:90,temperature:65,voltage:72,current:0,incidentCount:incident,requiresAdmin:incident===4};
+// The first two episodes need a backend command, even after cooling and five minutes.
+for(let incident=1;incident<=3;incident++){
+  const thermal={id:1,batteryId:'THERMAL',hasBattery:true,soc:30,soh:90,temperature:65,voltage:72,current:0,incidentCount:incident,requiresAdmin:incident===3};
   st.slots=[thermal];st.commands={};Bms.protect(thermal);
   now=thermal.cooldownUntil+1;thermal.temperature=30;updateSafety(st);
   assert.equal(thermal.isLocked,true,'elapsed cooldown alone cannot unlock a device');
-  if(incident<4){
+  if(incident<3){
     handleCommand({stationId:st.id,commandId:'auto'+incident,command:'AUTO_RESET_ALARM',slotNumber:1,batteryId:'THERMAL',preserveStationLock:incident===2});
     updateSafety(st);
-    assert.equal(thermal.isOverheated,false,'backend auto reset clears first three thermal episodes');
+    assert.equal(thermal.isOverheated,false,'backend auto reset clears first two thermal episodes');
     assert.equal(thermal.isLocked,incident===2,'automatic recovery preserves a station emergency lock');
   } else {
-    handleCommand({stationId:st.id,commandId:'auto4',command:'AUTO_RESET_ALARM',slotNumber:1,batteryId:'THERMAL'});
-    updateSafety(st);assert.equal(thermal.isLocked,true,'fourth episode rejects automatic clearance');
-    handleCommand({stationId:st.id,commandId:'admin4',command:'RESET_ALARM',slotNumber:1,batteryId:'THERMAL'});
-    updateSafety(st);assert.equal(thermal.isLocked,false,'fourth episode accepts safe administrator clearance');
+    handleCommand({stationId:st.id,commandId:'auto3',command:'AUTO_RESET_ALARM',slotNumber:1,batteryId:'THERMAL'});
+    updateSafety(st);assert.equal(thermal.isLocked,true,'third episode rejects automatic clearance');
+    handleCommand({stationId:st.id,commandId:'admin3',command:'RESET_ALARM',slotNumber:1,batteryId:'THERMAL'});
+    updateSafety(st);assert.equal(thermal.isLocked,false,'third episode accepts safe administrator clearance');
   }
 }
+// Render the real controller into a minimal DOM and record its actual 3D color calls.
+const tint={id:1,batteryId:'TINT',hasBattery:true,soc:95,soh:90,temperature:65,voltage:72,current:0,incidentCount:1};
+st.slots=[tint];st.commands={};st.cutOffLatched=false;st.selectedSlot=1;Bms.protect(tint);
+function checkTint(color,label){
+  render();visuals(st.id,tint);
+  assert.equal(elements['slots-grid'].children[0].style.borderColor,color,label+' 2D border');
+  assert.equal(leds.at(-1)[2],parseInt(color.slice(1),16),label+' 3D LED');
+  assert.equal(alarms.at(-1)[3],color==='#ef4444'?0xef4444:0xfbbf24,label+' alarm tint');
+}
+checkTint('#fbbf24','first episode cooling');
+tint.incidentCount=2;tint.temperature=30;checkTint('#fbbf24','second episode before deadline');
+now=tint.cooldownUntil+1;checkTint('#fbbf24','cooled device waiting for server confirmation');
+tint.incidentCount=3;checkTint('#ef4444','third episode hard fault even before requiresAdmin flag');
+handleCommand({stationId:st.id,commandId:'stale-flag-auto',command:'AUTO_RESET_ALARM',slotNumber:1,batteryId:'TINT'});
+updateSafety(st);assert.equal(tint.isLocked,true,'third episode cannot auto reset with a stale requiresAdmin flag');
+tint.requiresAdmin=true;
+handleCommand({stationId:st.id,commandId:'tint-admin',command:'RESET_ALARM',slotNumber:1,batteryId:'TINT'});updateSafety(st);
+render();visuals(st.id,tint);
+assert.equal(tint.incidentCount,0,'confirmed admin clearance resets the consecutive incident counter');
+assert.equal(Bms.hardFault(tint),false,'confirmed admin clearance removes hard fault');
+assert.equal(elements['slots-grid'].children[0].style.borderColor,'#34d399','confirmed recovered ready battery renders green');
+assert.equal(leds.at(-1)[2],0x84cc16,'confirmed recovered ready battery LED is green');
+assert.equal(alarms.at(-1)[2],false,'confirmed recovery switches off alarm');
+
 const early={id:1,batteryId:'EARLY',hasBattery:true,soc:30,soh:90,temperature:65,voltage:72,current:0};
 st.slots=[early];st.commands={};Bms.protect(early);
 handleCommand({stationId:st.id,commandId:'earlyauto',command:'AUTO_RESET_ALARM',slotNumber:1,batteryId:'EARLY'});
@@ -150,5 +175,5 @@ st.cutOffLatched=false;
   await resetSimulation('admin-token',st.id);
   assert.equal(st.leased,true,'successful replay activates the returned lease');
   assert.equal(appliedLease,'saved-result-lease');assert.equal(st.resetting,false);
-  console.log('PASS first three automatic recoveries, fourth admin lock, elapsed ticks and idempotent reset');
+  console.log('PASS first two automatic recoveries, third admin lock, elapsed ticks and idempotent reset');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{global.Date=RealDate;});

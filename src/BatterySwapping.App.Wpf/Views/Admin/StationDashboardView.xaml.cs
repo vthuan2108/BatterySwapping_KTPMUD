@@ -101,7 +101,7 @@ namespace BatterySwapping.App.Views.Admin
             var seconds = Math.Max(0, (int)Math.Ceiling((c.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
             var slot = slots.Find(n => n.SoThuTu == c.SlotNumber);
             string temperature = slot == null ? "chưa có số liệu" : $"{slot.NhietDo:F1}°C";
-            bool requiresAdmin = c.RequiresAdmin || c.IncidentCount >= 4;
+            bool requiresAdmin = c.RequiresAdmin || c.IncidentCount >= 3;
             string state = seconds > 0
                 ? $"đang làm mát tự động; khóa tối thiểu còn {seconds / 60:00}:{seconds % 60:00}"
                 : slot == null || slot.NhietDo >= 35
@@ -126,7 +126,7 @@ namespace BatterySwapping.App.Views.Admin
         var seconds = Math.Max(0, (int)Math.Ceiling((active.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
         throw new InvalidOperationException(seconds > 0
             ? $"Ngăn #{slotNumber} đang làm mát tự động. Còn tối thiểu {seconds / 60:00}:{seconds % 60:00} khóa theo thời gian thực; không được cắm/rút pin hoặc mở cửa."
-            : active.RequiresAdmin || active.IncidentCount >= 4
+            : active.RequiresAdmin || active.IncidentCount >= 3
                 ? $"Ngăn #{slotNumber} quá nhiệt lần {active.IncidentCount}; tiếp tục giữ khóa đến khi dưới 35°C và Admin xác nhận reset."
                 : $"Ngăn #{slotNumber} chờ hệ thống và thiết bị tự động khôi phục khi dưới 35°C; không cần xác nhận thủ công. Tiếp tục giữ khóa.");
     }
@@ -167,6 +167,7 @@ namespace BatterySwapping.App.Views.Admin
                     var cooldowns = await BssApi.Client.Get<List<SlotCooldown>>($"stations/{targetStation}/cooldowns");
                     if(targetStation != _currentStationId) return;
                     _cooldowns = cooldowns; _cooldownStation = targetStation; _cooldownReadValid = true;
+                    foreach(var slot in slots)slot.ApplyCooldown(cooldowns.Find(c=>c.SlotNumber==slot.SoThuTu));
                     ShowCooldowns(slots, connection.Online);
                 } catch(Exception ex) { txtCooldownStatus.Text = "Không đọc được khóa nhiệt từ backend; chưa cho mở ngăn. " + ex.Message; }
                 icSlots.ItemsSource = slots;icSlots.IsEnabled=true;

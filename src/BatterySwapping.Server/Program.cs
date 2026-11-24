@@ -28,7 +28,7 @@ if(existingIssues.Count>0){
     File.WriteAllText(report,System.Text.Json.JsonSerializer.Serialize(existingIssues));
     app.Logger.LogWarning("Inventory consistency requires review: {Count} issues. Report {ReportPath}",existingIssues.Count,report);
 }
-foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql"})
+foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql","11_ThirdThermal.sql"})
     app.Services.GetRequiredService<SqlStore>().Migrate(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,script)));
 app.Use(async(ctx,next)=>{
     if(ctx.Connection.RemoteIpAddress is not null && !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)){ctx.Response.StatusCode=403;return;}

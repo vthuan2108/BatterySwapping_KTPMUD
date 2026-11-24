@@ -13,14 +13,14 @@ public sealed partial class BssEngine
     void ObserveCooldown(Db db,string station,SlotTelemetry t){
         if((t.Temperature>=55 || t.IsOverheated) && t.BatteryId!=null){
             var now=CooldownNow;
-            db.Exec("IF NOT EXISTS(SELECT 1 FROM dbo.BssSlotCooldowns WHERE StationId=@s AND SlotNumber=@n) INSERT dbo.BssSlotCooldowns(StationId,SlotNumber,BatteryId,StartedAt,UnlockAfter,IncidentCount,RequiresAdmin) VALUES(@s,@n,@b,@now,@until,1,0); ELSE UPDATE dbo.BssSlotCooldowns SET IncidentCount=CASE WHEN BatteryId=@b THEN IncidentCount+1 ELSE 1 END,RequiresAdmin=CASE WHEN BatteryId=@b AND IncidentCount+1>=4 THEN 1 ELSE 0 END,BatteryId=@b,StartedAt=@now,UnlockAfter=@until,ClearedAt=NULL WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NOT NULL",("@s",station),("@n",t.SlotNumber),("@b",t.BatteryId),("@now",now),("@until",now.AddMinutes(5)));
+            db.Exec("IF NOT EXISTS(SELECT 1 FROM dbo.BssSlotCooldowns WHERE StationId=@s AND SlotNumber=@n) INSERT dbo.BssSlotCooldowns(StationId,SlotNumber,BatteryId,StartedAt,UnlockAfter,IncidentCount,RequiresAdmin) VALUES(@s,@n,@b,@now,@until,1,0); ELSE UPDATE dbo.BssSlotCooldowns SET IncidentCount=CASE WHEN BatteryId=@b THEN IncidentCount+1 ELSE 1 END,RequiresAdmin=CASE WHEN BatteryId=@b AND IncidentCount+1>=3 THEN 1 ELSE 0 END,BatteryId=@b,StartedAt=@now,UnlockAfter=@until,ClearedAt=NULL WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NOT NULL",("@s",station),("@n",t.SlotNumber),("@b",t.BatteryId),("@now",now),("@until",now.AddMinutes(5)));
         }
         if(CoolingLocked(db,station,t.SlotNumber)){
             db.Exec("UPDATE dbo.NganTu SET KhoaBaoTri=1 WHERE MaTram=@s AND SoThuTu=@n; UPDATE p SET DongDien=0 FROM dbo.Pin p JOIN dbo.NganTu n ON n.MaPinHienTai=p.MaPin WHERE n.MaTram=@s AND n.SoThuTu=@n",("@s",station),("@n",t.SlotNumber));
         }
     }
     void QueueAutomaticThermalRecovery(Db db){
-        var rows=db.Rows("SELECT c.* FROM dbo.BssSlotCooldowns c JOIN dbo.NganTu n ON n.MaTram=c.StationId AND n.SoThuTu=c.SlotNumber JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE c.ClearedAt IS NULL AND c.RequiresAdmin=0 AND c.IncidentCount<4 AND c.BatteryId=p.MaPin AND p.NhietDo<35 AND n.CuaDangMo=0");
+        var rows=db.Rows("SELECT c.* FROM dbo.BssSlotCooldowns c JOIN dbo.NganTu n ON n.MaTram=c.StationId AND n.SoThuTu=c.SlotNumber JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE c.ClearedAt IS NULL AND c.RequiresAdmin=0 AND c.IncidentCount<3 AND c.BatteryId=p.MaPin AND p.NhietDo<35 AND n.CuaDangMo=0");
         foreach(var row in rows){
             var cooldown=CooldownRow(row);
             if(CooldownNow<cooldown.UnlockAfter || !Status(db,cooldown.StationId).Online)continue;
@@ -38,7 +38,7 @@ public sealed partial class BssEngine
         if(row==null){Require(command.Command!="AUTO_RESET_ALARM","Không có đợt quá nhiệt để tự phục hồi.");return;}
         var cooldown=CooldownRow(row);RequireCooldownElapsed(db,command.StationId,command.SlotNumber!.Value);
         Require(command.ThermalStartedAt==cooldown.StartedAt,"Lệnh phục hồi không thuộc đợt quá nhiệt hiện tại.");
-        Require(!cooldown.RequiresAdmin || command.Command=="RESET_ALARM"&&command.AdminThermalReset,"Ngăn đã quá nhiệt lần thứ4; cần admin xác nhận.");
+        Require(!cooldown.RequiresAdmin || command.Command=="RESET_ALARM"&&command.AdminThermalReset,"Ngăn đã quá nhiệt lần thứ 3; cần admin xác nhận.");
     }
 
 }

@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="BatterySwapping.App.Views.Admin.SafetyAlertsView"
+<UserControl x:Class="BatterySwapping.App.Views.Admin.SafetyAlertsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FontFamily="Segoe UI">
@@ -13,7 +13,7 @@
         <Grid Grid.Row="0" Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock Text="NHẬT KÝ CẢNH BÁO AN TOÀN IOT &amp; PHÒNG CHÁY NỔ" FontSize="18" FontWeight="Bold" Foreground="{StaticResource DangerBrush}"/>
-                <TextBlock Text="Quá nhiệt: khóa 5 phút thực, dưới 35°C; lần 1–3 tự khôi phục, từ lần 4 cần Admin reset" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                <TextBlock Text="Quá nhiệt: khóa 5 phút thực, dưới 35°C; lần 1–2 tự khôi phục, từ lần 3 cần Admin reset" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows.Media;
 
 namespace BatterySwapping.App.Models
@@ -27,6 +27,15 @@ namespace BatterySwapping.App.Models
         public decimal DongDien { get; set; } = 0.0m;
         public string? TrangThaiPin { get; set; }
 
+        public bool KhoaNhietTamThoi { get; private set; }
+        public bool KhoaLoiNhiet { get; private set; }
+        public void ApplyCooldown(BatterySwapping.Contracts.SlotCooldown? cooldown)
+        {
+            bool active=cooldown?.ClearedAt==null && cooldown!=null;
+            KhoaLoiNhiet=active&&(cooldown!.RequiresAdmin||cooldown.IncidentCount>=3);
+            KhoaNhietTamThoi=active&&!KhoaLoiNhiet;
+        }
+
         // Bảng màu Brush tĩnh chuẩn hóa cho giao diện WPF (Freeze để an toàn đa luồng)
         private static readonly SolidColorBrush BrushRed = new(Color.FromRgb(0xEF, 0x44, 0x44));
         private static readonly SolidColorBrush BrushGreen = new(Color.FromRgb(0x10, 0xB9, 0x81));
@@ -36,6 +45,7 @@ namespace BatterySwapping.App.Models
         private static readonly SolidColorBrush BrushBorderDark = new(Color.FromRgb(0x33, 0x41, 0x55));
         private static readonly SolidColorBrush BrushBgDark = new(Color.FromRgb(0x0F, 0x17, 0x2A));
         private static readonly SolidColorBrush BrushBgOpen = new(Color.FromRgb(0x08, 0x2F, 0x49));
+        private static readonly SolidColorBrush BrushBgCooling = new(Color.FromRgb(0x3F, 0x2D, 0x0C));
         private static readonly SolidColorBrush BrushBgDanger = new(Color.FromRgb(0x45, 0x0A, 0x0A));
         private static readonly SolidColorBrush BrushDoorClosed = new(Color.FromRgb(0x47, 0x55, 0x69));
 
@@ -49,18 +59,23 @@ namespace BatterySwapping.App.Models
             if (BrushBorderDark.CanFreeze) BrushBorderDark.Freeze();
             if (BrushBgDark.CanFreeze) BrushBgDark.Freeze();
             if (BrushBgOpen.CanFreeze) BrushBgOpen.Freeze();
+            if (BrushBgCooling.CanFreeze) BrushBgCooling.Freeze();
             if (BrushBgDanger.CanFreeze) BrushBgDanger.Freeze();
             if (BrushDoorClosed.CanFreeze) BrushDoorClosed.Freeze();
         }
 
         // Trạng thái hiển thị giao diện phần cứng tủ pin thực tế
-        public SolidColorBrush MauTrangThai => KhoaBaoTri || NhietDo >= 55.0m ? BrushRed
+        public SolidColorBrush MauTrangThai => KhoaLoiNhiet ? BrushRed
+            : KhoaNhietTamThoi || KhoaBaoTri || NhietDo >= 55.0m ? BrushAmber
             : CuaDangMo ? BrushCyan
             : string.IsNullOrEmpty(MaPinHienTai) ? BrushGray
             : SoC >= 90.0m ? BrushGreen
             : BrushAmber;
 
-        public string MoTaTrangThai => KhoaBaoTri || NhietDo >= 55.0m ? "NGUY HIỂM / KHÓA"
+        public string MoTaTrangThai => KhoaLoiNhiet ? "LỖI NHIỆT / CHỜ ADMIN"
+            : KhoaNhietTamThoi ? "LÀM MÁT / KHÓA TẠM"
+            : KhoaBaoTri ? "KHÓA BẢO TRÌ"
+            : NhietDo >= 55.0m ? "NHIỆT CAO / CÁCH LY"
             : CuaDangMo ? "CỬA ĐANG MỞ"
             : string.IsNullOrEmpty(MaPinHienTai) ? "NGĂN TRỐNG"
             : SoC >= 90.0m ? $"ĐÃ ĐẦY ({SoC:N0}%)"
@@ -73,7 +88,7 @@ namespace BatterySwapping.App.Models
         public SolidColorBrush MauTrangThaiCua => CuaDangMo ? BrushCyan : BrushDoorClosed;
         public bool CoPin => !string.IsNullOrEmpty(MaPinHienTai);
         public string MoTaPin => string.IsNullOrEmpty(MaPinHienTai) ? "[KHOANG TRỐNG]" : $"{MaPinHienTai} ({SoC:N0}%)";
-        public SolidColorBrush MauVienHoc => CuaDangMo ? BrushCyan : (KhoaBaoTri ? BrushRed : (SoC >= 90m && CoPin ? BrushGreen : BrushBorderDark));
-        public SolidColorBrush NenKhoangTu => CuaDangMo ? BrushBgOpen : (KhoaBaoTri ? BrushBgDanger : BrushBgDark);
+        public SolidColorBrush MauVienHoc => KhoaLoiNhiet ? BrushRed : KhoaNhietTamThoi || KhoaBaoTri || NhietDo >= 55m ? BrushAmber : CuaDangMo ? BrushCyan : SoC >= 90m && CoPin ? BrushGreen : BrushBorderDark;
+        public SolidColorBrush NenKhoangTu => KhoaLoiNhiet ? BrushBgDanger : KhoaNhietTamThoi || KhoaBaoTri || NhietDo >= 55m ? BrushBgCooling : CuaDangMo ? BrushBgOpen : BrushBgDark;
     }
 }

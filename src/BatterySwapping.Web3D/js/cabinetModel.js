@@ -739,9 +739,10 @@ const CabinetModel = (function () {
     slot.batteryOledMesh.material.map.needsUpdate = true;
   }
 
-  function setAlarmLight(stationId, slotId, active) {
+  function setAlarmLight(stationId, slotId, active, color = 0xef4444) {
     const slot = resolveSlot(stationId, slotId);
     if (!slot) return;
+    slot.alarmLight.color.setHex(color);
     slot.alarmLight.intensity = active ? 3.5 : 0;
   }
 

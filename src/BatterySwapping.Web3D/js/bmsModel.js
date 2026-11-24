@@ -11,8 +11,9 @@ const BmsModel = (() => {
     }
   }
   function locked(slot, now=Date.now()) { return !!slot && (slot.isOverheated || slot.temperature>=55 || now<(slot.cooldownUntil||0)); }
+  function hardFault(slot) { return !!slot && (!!slot.requiresAdmin || ((slot.incidentCount||0)>=3 && locked(slot))); }
   function ready(slot, now=Date.now()) { return slot.temperature<35 && now>=(slot.cooldownUntil||0); }
-  function clear(slot) {slot.cooldownUntil=null;slot.cooldownStartedAt=null;slot.isOverheated=false;slot.isCooling=false;slot.isLocked=false;}
+  function clear(slot) {slot.cooldownUntil=null;slot.cooldownStartedAt=null;slot.isOverheated=false;slot.isCooling=false;slot.isLocked=false;slot.requiresAdmin=false;}
   function step(slot, seconds, scale=1) {
     protect(slot);
     if (!slot.hasBattery) { slot.current=0;slot.voltage=0;slot.isCharging=false;return; }
@@ -38,6 +39,6 @@ const BmsModel = (() => {
     slot.isCharging=slot.current>0;
     slot.voltage=67.2+12.8*(slot.soc/100)+slot.current*0.04;
   }
-  return {step,protect,locked,ready,clear,minimumLockMs};
+  return {step,protect,locked,hardFault,ready,clear,minimumLockMs};
 })();
 if(typeof module!=="undefined") module.exports=BmsModel;

@@ -202,7 +202,7 @@ Mỗi tài khoản mở chức năng theo vai trò. Đổi pin yêu cầu đăng
 4. Đăng nhập khách trên Desktop hoặc Web3D, kiểm tra ví và bắt đầu một phiên đổi pin.
 5. Trên simulator, cắm đúng pin cũ vào ngăn được chỉ định; chờ kiểm tra BMS và thu phí.
 6. Rút pin mới khi được cho phép; kiểm tra phiên hoàn tất và lịch sử khách hàng.
-7. Gây quá nhiệt trên Web3D: ba đợt đầu tự làm mát và phục hồi sau tối thiểu5 phút khi dưới35°C. Đợt thứ4 giữ khóa để Admin xác nhận an toàn.
+7. Gây quá nhiệt trên Web3D: hai đợt đầu tự làm mát và phục hồi sau tối thiểu5 phút khi dưới35°C. Đợt thứ3 giữ khóa để Admin xác nhận an toàn.
 8. Ngắt simulator để quan sát trạng thái offline và cách hệ thống giữ phiên cần hỗ trợ.
 
 Chi tiết các tình huống mất kết nối, giữ chỗ và phục hồi: [docs/LOCAL-DEMO.md](docs/LOCAL-DEMO.md).
@@ -256,7 +256,7 @@ Xem [nghiệp vụ và migration](docs/BUSINESS-WORKFLOWS.md) trước khi chạ
 
 ### Khóa nhiệt tự động
 
-Từ55°C, simulator tự làm mát và khóa ngăn ít nhất5 phút thực. Không cắm/rút/cấp pin hoặc mở ngăn trong thời gian này. Hết5 phút và dưới35°C: ba đợt đầu tự phục hồi sau phản hồi thiết bị; từ đợt thứ4 mới cần Admin xác nhận. tốc độx10/x60 không rút ngắn khóa. Bộ đếm được lưu qua tải lại/restart và hiển thị trên WPF, Avalonia, Web3D. Xem [quy trình chi tiết](docs/BUSINESS-WORKFLOWS.md).
+Từ55°C, simulator tự làm mát và khóa ngăn ít nhất5 phút thực. Không cắm/rút/cấp pin hoặc mở ngăn trong thời gian này. Hết5 phút và dưới35°C: hai đợt đầu tự phục hồi sau phản hồi thiết bị; từ đợt thứ3 mới cần Admin xác nhận. tốc độx10/x60 không rút ngắn khóa. Bộ đếm được lưu qua tải lại/restart và hiển thị trên WPF, Avalonia, Web3D. Xem [quy trình chi tiết](docs/BUSINESS-WORKFLOWS.md).
 
 ### Reset Simulation và thông số ban đầu
 

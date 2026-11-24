@@ -122,10 +122,11 @@ const SimulatorController = (() => {
     for(const slot of st.slots) BmsModel.protect(slot);
     for(const command of Object.values(st.commands)){
       if(!command.waitingForCooling)continue;
-      if(command.automatic && st.slots.find(x=>x.id===command.slotNumber)?.requiresAdmin)continue;
+      if(command.automatic && BmsModel.hardFault(st.slots.find(x=>x.id===command.slotNumber)))continue;
       const slot=st.slots.find(x=>x.id===command.slotNumber);
       if(slot && backend && MqttSync.connected() && st.snapshot?.status?.online && BmsModel.ready(slot) && (!command.batteryId||slot.batteryId===command.batteryId)){
         BmsModel.clear(slot);Object.assign(slot,{isDoorOpen:false,isEjected:false,isLocked:!!command.preserveStationLock || !!st.cutOffLatched || !!(st.snapshot?.operatingState && st.snapshot.operatingState!=="HoatDong")});
+        if(!command.automatic)slot.incidentCount=0;
         command.waitingForCooling=false;command.success=true;
       }
     }
@@ -210,8 +211,8 @@ const SimulatorController = (() => {
       ["Cửa hộc", s.isDoorOpen ? "Mở" : "Đóng"],
       ["Khóa bảo trì", s.isLocked ? "Đang khóa" : "Bình thường"],
       ["Làm mát tự động", s.isCooling ? "Đang bật" : "Tắt"],
-      ["Số lần quá nhiệt", `${s.incidentCount||0} / 4${s.requiresAdmin ? " — cần quản trị viên" : ""}`],
-      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát" : s.requiresAdmin ? "Chờ quản trị viên xác nhận" : "Chờ máy chủ tự phục hồi" : "Không khóa"],
+      ["Số lần quá nhiệt", `${s.incidentCount||0} / 3${BmsModel.hardFault(s) ? " — cần quản trị viên" : ""}`],
+      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát" : BmsModel.hardFault(s) ? "Chờ quản trị viên xác nhận" : "Chờ máy chủ tự phục hồi" : "Không khóa"],
     ];
 
     const metricsEl = $("metrics");
@@ -234,9 +235,9 @@ const SimulatorController = (() => {
           let b = document.createElement("button");
           b.textContent = `${t.id} · ${t.hasBattery ? Math.round(t.soc) + "%" : "—"}`;
           b.className = t.id === st.selectedSlot ? "selected" : "";
-          b.style.borderColor = t.isOverheated
+          b.style.borderColor = BmsModel.hardFault(t)
             ? "#ef4444"
-            : t.isLocked
+            : t.isLocked || BmsModel.locked(t)
             ? "#fbbf24"
             : t.soc >= 90
             ? "#34d399"
@@ -377,9 +378,9 @@ const SimulatorController = (() => {
     CabinetModel.setSlotLedColor(
       stationId,
       s.id,
-      s.isOverheated
+      BmsModel.hardFault(s)
         ? 0xef4444
-        : s.isLocked
+        : s.isLocked || BmsModel.locked(s)
         ? 0xfbbf24
         : !s.hasBattery
         ? 0x64748b
@@ -389,16 +390,16 @@ const SimulatorController = (() => {
       1.8
     );
     CabinetModel.updateBatteryDisplay(stationId, s.id, s.soc, s.isCharging);
-    CabinetModel.setAlarmLight(stationId, s.id, s.isOverheated);
+    CabinetModel.setAlarmLight(stationId, s.id, BmsModel.locked(s) || BmsModel.hardFault(s), BmsModel.hardFault(s) ? 0xef4444 : 0xfbbf24);
 
     const emitterKey = `${stationId}_${s.id}`;
     const stObj = CabinetModel.getStation(stationId);
     const slotObj = stObj?.slots.find((x) => x.slotId === s.id);
 
-    if (s.isOverheated && slotObj && !ParticleSystem.isOverheating(emitterKey)) {
+    if (s.temperature >= 55 && slotObj && !ParticleSystem.isOverheating(emitterKey)) {
       ParticleSystem.startOverheat(emitterKey, slotObj.smokeAnchor);
     }
-    if (!s.isOverheated) {
+    if (s.temperature < 55) {
       ParticleSystem.stopOverheat(emitterKey);
     }
   }
@@ -560,7 +561,7 @@ const SimulatorController = (() => {
         break;
       case "AUTO_RESET_ALARM":
       case "RESET_ALARM":
-        success = !!s && s.hasBattery && (!c.batteryId || c.batteryId === s.batteryId) && (c.command !== "AUTO_RESET_ALARM" || !s.requiresAdmin);
+        success = !!s && s.hasBattery && (!c.batteryId || c.batteryId === s.batteryId) && (c.command !== "AUTO_RESET_ALARM" || !BmsModel.hardFault(s));
         if (success) {
           s.isCooling = true; s.isLocked = true; s.isDoorOpen = false; s.isEjected = false; s.current = 0;
           waitingForCooling = true;

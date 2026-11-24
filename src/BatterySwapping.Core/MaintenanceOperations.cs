@@ -26,8 +26,8 @@ public sealed partial class BssEngine
         if(r.Action=="RESET_ALARM")RequireCooldownElapsed(db,r.StationId,r.SlotNumber);else Require(!CoolingLocked(db,r.StationId,r.SlotNumber),"Ngăn còn cách ly làm mát; xác nhận reset an toàn trước khi thay pin.");
         var thermal=db.Rows("SELECT * FROM dbo.BssSlotCooldowns WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@s",r.StationId),("@n",r.SlotNumber)).SingleOrDefault();
         if(thermal!=null&&r.Action=="RESET_ALARM"){
-            Require(Convert.ToBoolean(thermal["RequiresAdmin"]),"Đợt quá nhiệt này sẽ tự phục hồi sau5 phút và dưới35°C; không cần xác nhận thủ công.");
-            Require(admin,"Lần quá nhiệt thứ4 cần admin xác nhận an toàn.");
+            Require(Convert.ToBoolean(thermal["RequiresAdmin"]),"Đợt quá nhiệt này sẽ tự phục hồi sau 5 phút và dưới 35°C; không cần xác nhận thủ công.");
+            Require(admin,"Lần quá nhiệt thứ 3 cần admin xác nhận an toàn.");
         }
         var c=Queue(db,r.StationId,r.Action,r.SlotNumber,r.NewBatteryId);
         if(r.Action=="RESET_ALARM"){
@@ -49,7 +49,7 @@ public sealed partial class BssEngine
         Require((string?)db.Scalar("SELECT MaPinHienTai FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=@n",("@s",order.StationId),("@n",order.SlotNumber))==order.OldBatteryId,"Pin tại ngăn đã thay đổi, cần đối soát.");
         if(order.Action=="RESET_ALARM")RequireCooldownElapsed(db,order.StationId,order.SlotNumber);else Require(!CoolingLocked(db,order.StationId,order.SlotNumber),"Ngăn đang khóa làm mát.");
         var thermal=db.Rows("SELECT * FROM dbo.BssSlotCooldowns WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@s",order.StationId),("@n",order.SlotNumber)).SingleOrDefault();
-        if(thermal!=null&&Convert.ToBoolean(thermal["RequiresAdmin"]))Require(admin,"Lần quá nhiệt thứ4 cần admin xác nhận.");
+        if(thermal!=null&&Convert.ToBoolean(thermal["RequiresAdmin"]))Require(admin,"Lần quá nhiệt thứ 3 cần admin xác nhận.");
         var c=Queue(db,order.StationId,order.Action,order.SlotNumber,order.NewBatteryId);
         c.ThermalStartedAt=thermal?["StartedAt"] as DateTimeOffset?;c.AdminThermalReset=admin;
         c.PreserveStationLock=(string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",order.StationId))!="HoatDong";Save(db,c);

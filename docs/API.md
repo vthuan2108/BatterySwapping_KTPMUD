@@ -86,4 +86,4 @@ Cổng broker vẫn mặc định18883/19001. Cấu hình Broker:Port, Broker:We
 
 POST /api/v1/stations/{station}/simulation/reset (Admin): `{requestId,clientId,leaseId}` → `{resetId,stationId,leaseId}`. Chống lặp; trả409 nếu có giao dịch/bảo trì/lệnh đang dang dở hoặc lease không khớp. Cùng request sau mất phản hồi trả kết quả đã lưu; không random hai lần.
 
-Cooldowns bổ sung incidentCount/requiresAdmin. Các đợt1–3 tự phục hồi bằng AUTO_RESET_ALARM sau5 phút và nhiệt độ dưới35°C. Đợt4 chỉ Admin được POST maintenance với RESET_ALARM. Command thêm thermalStartedAt/adminThermalReset/preserveStationLock; các field do server phát, không dùng nội dung ACK để tự cấp quyền Admin.
+Cooldowns bổ sung incidentCount/requiresAdmin. Các đợt1–2 tự phục hồi bằng AUTO_RESET_ALARM sau5 phút và nhiệt độ dưới35°C. Đợt4 chỉ Admin được POST maintenance với RESET_ALARM. Command thêm thermalStartedAt/adminThermalReset/preserveStationLock; các field do server phát, không dùng nội dung ACK để tự cấp quyền Admin.

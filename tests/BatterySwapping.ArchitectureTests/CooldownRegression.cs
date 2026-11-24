@@ -7,7 +7,7 @@ internal static class CooldownRegression
     {
         // This suite never reads the running application's connection string.
         var store=new SqlStore(@"Server=.\SQLEXPRESS;Database=BssArchitectureTests_20261121;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=5;");
-        foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql"})
+        foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql","11_ThirdThermal.sql"})
             store.Migrate(File.ReadAllText(Path.Combine("Database",script)));
         string suffix=Guid.NewGuid().ToString("N")[..10];
         string station="COOL-"+suffix,pin="COOLPIN-"+suffix;
@@ -62,7 +62,7 @@ internal static class CooldownRegression
             clock.Set(first.UnlockAfter);
             slots[0]=slots[0] with{Temperature=60};Send();engine.Tick();
             Check(Locked()&&Cooldown().ClearedAt==null&&Automatic().Length==0,"five minutes expiring while hot never unlocks or queues recovery");
-            for(int incident=1;incident<=4;incident++)
+            for(int incident=1;incident<=3;incident++)
             {
                 if(incident>1)
                 {
@@ -70,6 +70,14 @@ internal static class CooldownRegression
                     slots[0]=slots[0] with{Temperature=65,IsLocked=true};Send();
                     var started=Cooldown();
                     Check(started.ClearedAt==null && started.UnlockAfter==clock.GetUtcNow().AddMinutes(5),$"episode {incident} starts a fresh five-minute deadline");
+                    if(incident==3)
+                    {
+                        // Simulate a still-active third episode recorded by the previous policy.
+                        store.Write(db=>db.Exec("UPDATE dbo.BssSlotCooldowns SET RequiresAdmin=0 WHERE StationId=@s",("@s",station)));
+                        var migration=File.ReadAllText(Path.Combine("Database","11_ThirdThermal.sql"));
+                        store.Migrate(migration);store.Migrate(migration);
+                        Check(Cooldown()==started,"third-episode migration is repeatable and preserves timer, battery, count and active history");
+                    }
                     Send();Send();
                     Check(Cooldown().IncidentCount==incident,$"episode {incident} counts once despite repeated hot telemetry");
                     slots[0]=slots[0] with{Temperature=30};Send();
@@ -78,13 +86,13 @@ internal static class CooldownRegression
                     Denied(()=>Reset(true),$"episode {incident} even Admin cannot reset before deadline");
                     clock.Set(started.UnlockAfter);
                 }
-                Check(Cooldown().IncidentCount==incident && Cooldown().RequiresAdmin==(incident>=4),$"episode {incident} persists exact count and Admin requirement");
+                Check(Cooldown().IncidentCount==incident && Cooldown().RequiresAdmin==(incident>=3),$"episode {incident} persists exact count and Admin requirement");
                 engine=new BssEngine(store,clock);
                 Check(Cooldown().IncidentCount==incident,$"episode {incident} count survives engine recreation");
                 slots[0]=slots[0] with{Temperature=35,IsLocked=true};Send();engine.Tick();
                 Check(Automatic().Length==incident-1 && Locked(),$"episode {incident} exactly 35 degrees is insufficient for recovery");
                 slots[0]=slots[0] with{Temperature=30,IsLocked=true};Send();
-                if(incident<=3)
+                if(incident<=2)
                 {
                     Denied(()=>Reset(),$"episode {incident} rejects technician manual reset and waits for automation");
                     Denied(()=>Reset(true),$"episode {incident} rejects unnecessary Admin manual reset");
@@ -109,14 +117,14 @@ internal static class CooldownRegression
                 else
                 {
                     engine.Tick();engine.Tick();
-                    Check(Automatic().Length==3 && Locked() && Cooldown().ClearedAt==null,"fourth episode stays locked and never queues automatic reset");
-                    Denied(()=>Reset(),"fourth episode technician cannot approve recovery");
-                    Denied(()=>engine.RequestCommand(station,new CommandRequest("UNLOCK_SLOT",1)),"fourth episode cannot bypass Admin reset through door command");
+                    Check(Automatic().Length==2 && Locked() && Cooldown().ClearedAt==null,"third episode stays locked and never queues automatic reset");
+                    Denied(()=>Reset(),"third episode technician cannot approve recovery");
+                    Denied(()=>engine.RequestCommand(station,new CommandRequest("UNLOCK_SLOT",1)),"third episode cannot bypass Admin reset through door command");
                     var reset=Reset(true);var command=Claim(reset.CommandId);
-                    Check(command.AdminThermalReset && command.ThermalStartedAt==Cooldown().StartedAt,"fourth reset records Admin approval for the current episode");
+                    Check(command.AdminThermalReset && command.ThermalStartedAt==Cooldown().StartedAt,"third reset records Admin approval for the current episode");
                     Check(Locked()&&Cooldown().ClearedAt==null,"Admin approval alone still requires device acknowledgement");
                     slots[0]=slots[0] with{Temperature=30,IsLocked=command.PreserveStationLock};Send(reset.CommandId);
-                    Check(!Locked() && Cooldown().ClearedAt==clock.GetUtcNow() && Cooldown().IncidentCount==0 && !Cooldown().RequiresAdmin,"safe Admin recovery clears the fourth lock and resets incident counter");
+                    Check(!Locked() && Cooldown().ClearedAt==clock.GetUtcNow() && Cooldown().IncidentCount==0 && !Cooldown().RequiresAdmin,"safe Admin recovery clears the third lock and resets incident counter");
                     Check(engine.MaintenanceOrders().Single(x=>x.Id==reset.Id).Status=="Completed","Admin maintenance completes only after safe acknowledgement");
                 }
             }

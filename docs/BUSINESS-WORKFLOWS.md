@@ -32,7 +32,7 @@ Kỹ thuật viên dùng `POST /swaps/{id}/resume` cho phiên đã thu phí. V�
 
 `POST /maintenance {stationId,slotNumber,action,newBatteryId,note,requestId}` với RESET_ALARM hoặc REPLACE_BATTERY trả202 cùng mã phiếu và commandId. `GET /maintenance` trả lịch sử. Theo dõi `/commands/{id}`; chưa nhận phản hồi không được hiểu là hoàn thành.
 
-Quá nhiệt từ55°C tự bật làm mát, ngắt sạc và khóa ngăn tối thiểu5 phút thực. Không chờ nút RESET_ALARM mới làm mát. Trong thời gian này cấm nhận/rút/cấp/thay pin và mở cửa; ngăn khác vẫn hoạt động nếu đủ an toàn. Ba đợt đầu dùng AUTO_RESET_ALARM tự động sau hết5 phút và dưới35°C; đợt thứ4 dùng RESET_ALARM với quyền Admin. ACK thành công chỉ khi cửa đóng và trạng thái an toàn phù hợp. Không tăng SoH. Thay pin giữ chỗ pin kho đã đăng ký, yêu cầu pin kho dưới35°C, chờ thao tác mô phỏng tháo/lắp rồi ACK. Dùng BMS thực tế của pin đăng ký; pin tháo chuyển cách ly.
+Quá nhiệt từ55°C tự bật làm mát, ngắt sạc và khóa ngăn tối thiểu5 phút thực. Không chờ nút RESET_ALARM mới làm mát. Trong thời gian này cấm nhận/rút/cấp/thay pin và mở cửa; ngăn khác vẫn hoạt động nếu đủ an toàn. Hai đợt đầu dùng AUTO_RESET_ALARM tự động sau hết5 phút và dưới35°C; đợt thứ3 dùng RESET_ALARM với quyền Admin. ACK thành công chỉ khi cửa đóng và trạng thái an toàn phù hợp. Không tăng SoH. Thay pin giữ chỗ pin kho đã đăng ký, yêu cầu pin kho dưới35°C, chờ thao tác mô phỏng tháo/lắp rồi ACK. Dùng BMS thực tế của pin đăng ký; pin tháo chuyển cách ly.
 
 Phiếu Failed vẫn giữ khóa để đối soát. `POST /maintenance/{id}/retry` chỉ cho gửi lại sau phản hồi Failed rõ ràng, giữ nguyên tài sản và phiếu. Sent/Unconfirmed dùng truy vấn trạng thái, không gửi thao tác lại. Không tự nhả pin kho hoặc mở trạm khi còn phiếu chưa kết thúc.
 
@@ -55,8 +55,8 @@ Chạy `scripts/Test-Integration.ps1` trên database riêng để kiểm tra API
 
 - Ngưỡng kích hoạt: nhiệt độ >=55°C hoặc thiết bị báo cờ quá nhiệt đang giữ. Tự ngắt sạc và bật làm mát ngay tại simulator, kể cả mất backend.
 - Backend lưu StartedAt/UnlockAfter/ClearedAt trong BssSlotCooldowns. Nhiệt độ còn cao trong cùng sự cố không đặt lại bộ đếm mỗi giây. Khi đã reset an toàn mà quá nhiệt trở lại, tạo mốc mới.
-- Trong5 phút: không được mở ngăn, đưa pin vào, rút/cấp/thay pin hay khôi phục toàn trạm để vượt khóa. Hết giờ vẫn giữ khóa nếu còn nóng, offline hoặc chưa có ACK. Từ đợt thứ4 cần Admin xác nhận. Không tự đóng cảnh báo theo đồng hồ.
-- Sau5 phút và dưới35°C: backend tự gửi AUTO_RESET_ALARM trong ba đợt đầu, không cần kỹ thuật viên/Admin bấm. Đợt thứ4 giữ khóa, Admin mới được tạo phiếu RESET_ALARM; kỹ thuật viên không được duyệt. ACK hợp lệ mới kết thúc cách ly. Ngắt toàn trạm thủ công vẫn giữ nguyên, không bị tự phục hồi nhiệt bỏ qua.
+- Trong5 phút: không được mở ngăn, đưa pin vào, rút/cấp/thay pin hay khôi phục toàn trạm để vượt khóa. Hết giờ vẫn giữ khóa nếu còn nóng, offline hoặc chưa có ACK. Từ đợt thứ3 cần Admin xác nhận. Không tự đóng cảnh báo theo đồng hồ.
+- Sau5 phút và dưới35°C: backend tự gửi AUTO_RESET_ALARM trong hai đợt đầu, không cần kỹ thuật viên/Admin bấm. Đợt thứ3 giữ khóa, Admin mới được tạo phiếu RESET_ALARM; kỹ thuật viên không được duyệt. ACK hợp lệ mới kết thúc cách ly. Ngắt toàn trạm thủ công vẫn giữ nguyên, không bị tự phục hồi nhiệt bỏ qua.
 - Web3D lưu bộ đếm localStorage; tải lại trang lấy mốc muộn hơn giữa local và SQL. Backend khởi động lại không làm mất mốc. Nếu sự cố xảy ra lúc offline và đã nguội trước khi reconnect, cờ isOverheated giúp backend bắt đầu một khoảng khóa bảo thủ từ lúc quan sát được sự cố.
 - Tốc độ vật lý x1/x10/x60 chỉ đổi tốc độ sạc/nhiệt, không giảm5 phút khóa. WPF/Avalonia/Web3D hiển thị thời gian còn lại và trạng thái chờ xác nhận.
 - Migration09 không seed/xóa dữ liệu; pin đã quá nhiệt hoặc đang lỗi quá nhiệt khi nâng cấp được áp dụng tối thiểu5 phút mới theo hướng bảo thủ.
@@ -73,9 +73,9 @@ Script dùng database kiểm thử riêng, HTTP5082, MQTT18884 và WebSocket1900
 
 Kết quả đợt khóa nhiệt:40 ca tích hợp, kiểm tra mốc4:59/5:00, restart, khóa sau khi đã nguội, khóa khi hết giờ còn nóng, chống lệnh đã xếp hàng và giữ ngăn khác hoạt động đều đạt. WPF/Avalonia build0 lỗi/0 cảnh báo, UiTests và hai bộ JS đạt. Chưa nghiệm thu đồ họa WebGL hoặc Ubuntu trực tiếp.
 
-## Bản chỉnh mô phỏng: phục hồi ba lần đầu, khóa Admin từ lần4
+## Bản chỉnh mô phỏng: phục hồi hai lần đầu, khóa Admin từ lần3
 
-IncidentCount và RequiresAdmin được bổ sung bởi migration10. Mỗi đợt nóng mới sau đợt đã phục hồi tăng1; các telemetry đang nóng liên tục chỉ giữ cùng đợt. Đếm theo viên pin tại ngăn từ lần Admin xác nhận/reset kịch bản gần nhất; thay viên pin khác bắt đầu đếm mới. Ba lần tự phục hồi không xóa bộ đếm. Admin xác nhận an toàn sau đợt4 xóa đếm về0; đợt kế tiếp là lần1.
+IncidentCount và RequiresAdmin được bổ sung bởi migration10. Mỗi đợt nóng mới sau đợt đã phục hồi tăng1; các telemetry đang nóng liên tục chỉ giữ cùng đợt. Đếm theo viên pin tại ngăn từ lần Admin xác nhận/reset kịch bản gần nhất; thay viên pin khác bắt đầu đếm mới. Hai lần tự phục hồi không xóa bộ đếm. Admin xác nhận an toàn sau đợt3 xóa đếm về0; đợt kế tiếp là lần1.
 
 AUTO_RESET_ALARM gắn đúng mốc StartedAt và mã pin; lệnh cũ không được đóng sự cố mới. Nếu mất kết nối hoặc chưa nhận ACK vẫn giữ khóa. Khi trạm bị ngắt toàn bộ, phục hồi nhiệt không được tự bật lại sạc toàn trạm.
 
@@ -85,4 +85,11 @@ Nếu reset chưa rõ kết quả, simulator tạm dừng gửi telemetry, lưu 
 
 Sạc tính theo Ah và delta thời gian monotonic; tích phân từng giai đoạn dòng sạc để tab chạy nền lâu không làm mất thời gian. Điện áp/dòng là giá trị phụ thuộc SoC, không random độc lập. SoH chỉ random lúc reset kịch bản, không giảm từng giây.
 
-Kiểm chứng:41 ca tích hợp;4 chu kỳ nhiệt và mốc4:59/5:00; reset chống lặp/mất phản hồi/quyền sở hữu; công thức sạc và ba bộ JS đều đạt. WPF/Avalonia build không lỗi/cảnh báo. Chưa nghiệm thu trực tiếp trên Ubuntu hoặc đi hết toàn bộ tương tác WebGL.
+Kiểm chứng:41 ca tích hợp;3 chu kỳ nhiệt và mốc4:59/5:00; reset chống lặp/mất phản hồi/quyền sở hữu; công thức sạc và ba bộ JS đều đạt. WPF/Avalonia build không lỗi/cảnh báo. Chưa nghiệm thu trực tiếp trên Ubuntu hoặc đi hết toàn bộ tương tác WebGL.
+
+## Hiển thị màu sau chỉnh ngưỡng lần3
+
+- Khóa làm mát tạm thời ở đợt1–2: nền, viền và LED vàng/cam, kèm nhãn LÀM MÁT / KHÓA TẠM. Dù dưới35°C nhưng chưa hết5 phút hoặc chưa có ACK thì vẫn vàng/cam, chưa được lấy pin.
+- Đợt thứ3 đang cách ly: đỏ, nhãn LỖI NHIỆT / CHỜ ADMIN. Migration11 nâng cờ Admin của các đợt đang mở có đếm>=3, giữ nguyên thời gian bắt đầu và lịch sử.
+- Sau phục hồi có xác nhận: bỏ màu cách ly, trở lại màu trạng thái pin (xanh nếu đủ SoC). Nhiệt độ số có màu cảnh báo riêng; khóa bảo trì thủ công không bị mô tả thành lỗi nhiệt.
+- Hiệu ứng khói của mô phỏng dừng khi nhiệt độ xuống dưới55°C; cờ khóa không được dùng để giữ khói sau khi pin đã nguội.

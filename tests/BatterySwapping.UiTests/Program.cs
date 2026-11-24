@@ -22,6 +22,15 @@ internal static class Program
             visual.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/BatterySwapping.App;component/Resources/AppStyles.xaml")});
             visual.Run(new BatterySwapping.App.MainWindow());return;
         }
+        var thermalSlot=new BatterySwapping.App.Models.NganTu{MaPinHienTai="PIN-TEST",SoC=100,NhietDo=30,KhoaBaoTri=true};
+        var now=DateTimeOffset.UtcNow;
+        thermalSlot.ApplyCooldown(new BatterySwapping.Contracts.SlotCooldown("TEST",1,"PIN-TEST",now,now.AddMinutes(5),null,2,false));
+        Check(thermalSlot.MauTrangThai.Color==System.Windows.Media.Color.FromRgb(0xF5,0x9E,0x0B)&&thermalSlot.MauVienHoc.Color==thermalSlot.MauTrangThai.Color,"cooled temporary lock is amber, not red");
+        Check(thermalSlot.MoTaTrangThai.Contains("KHÓA TẠM"),"temporary cooldown has explicit status text");
+        thermalSlot.ApplyCooldown(new BatterySwapping.Contracts.SlotCooldown("TEST",1,"PIN-TEST",now,now.AddMinutes(5),null,3,true));
+        Check(thermalSlot.MauTrangThai.Color==System.Windows.Media.Color.FromRgb(0xEF,0x44,0x44)&&thermalSlot.KhoaLoiNhiet,"third thermal incident is red until Admin recovery");
+        thermalSlot.KhoaBaoTri=false;thermalSlot.ApplyCooldown(new BatterySwapping.Contracts.SlotCooldown("TEST",1,"PIN-TEST",now,now.AddMinutes(5),now.AddMinutes(6),0,false));
+        Check(thermalSlot.MauTrangThai.Color==System.Windows.Media.Color.FromRgb(0x10,0xB9,0x81),"recovered full battery returns green");
         Application app;
         if(args.Contains("--simulator")){app=new BatterySwapping.Simulator.App();}
         else {var desktop=new BatterySwapping.App.App();desktop.InitializeComponent();app=desktop;}
