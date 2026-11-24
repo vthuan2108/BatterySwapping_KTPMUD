@@ -71,7 +71,7 @@ public class ReportService
     public Task<List<KhachHang>> GetAllCustomers()=>BssApi.Client.Get<List<KhachHang>>("customers");
     public Task<List<GiaoDichDoiPin>> GetSwapHistory()=>BssApi.Client.Get<List<GiaoDichDoiPin>>("history/swaps");
     public Task<List<GiaoDichVi>> GetTopUpHistory()=>BssApi.Client.Get<List<GiaoDichVi>>("history/topups");
-    public async Task<Operation> TopUpWallet(int id,decimal amount,string method,string? requestId=null){try{await BssApi.Client.Post<JsonElement>("payments",new CreatePaymentRequest(amount,requestId??Guid.NewGuid().ToString(),id));return new(true);}catch(Exception e){return new(false,e.Message);}}
+    public async Task<Operation> TopUpWallet(int id,decimal amount,string method,string? requestId=null){try{var p=await BssApi.Client.Post<PaymentRequest>("payments",new CreatePaymentRequest(amount,requestId??Guid.NewGuid().ToString(),id));if(AuthService.CurrentUser?.VaiTro=="Admin"&&p.Status=="Pending"){await BssApi.Client.Post<PaymentRequest>($"payments/{p.Id}/result",new PaymentResultRequest("Succeeded"));}return new(true);}catch(Exception e){return new(false,e.Message);}}
 }
 public class BatteryInspectionResult {public bool IsOverheated{get;set;}public bool IsDegraded{get;set;}public string HealthStatusDescription{get;set;}="";public string RecommendedAction{get;set;}="";}
 public class BatteryService

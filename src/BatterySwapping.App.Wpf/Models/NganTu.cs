@@ -90,5 +90,9 @@ namespace BatterySwapping.App.Models
         public string MoTaPin => string.IsNullOrEmpty(MaPinHienTai) ? "[KHOANG TRỐNG]" : $"{MaPinHienTai} ({SoC:N0}%)";
         public SolidColorBrush MauVienHoc => KhoaLoiNhiet ? BrushRed : KhoaNhietTamThoi || KhoaBaoTri || NhietDo >= 55m ? BrushAmber : CuaDangMo ? BrushCyan : SoC >= 90m && CoPin ? BrushGreen : BrushBorderDark;
         public SolidColorBrush NenKhoangTu => KhoaLoiNhiet ? BrushBgDanger : KhoaNhietTamThoi || KhoaBaoTri || NhietDo >= 55m ? BrushBgCooling : CuaDangMo ? BrushBgOpen : BrushBgDark;
+
+        public string NutBaoTriText => KhoaLoiNhiet ? "⚠️ Reset Quá Nhiệt" : KhoaBaoTri ? "🔓 Mở Khóa" : "🔒 Khóa Bảo Trì";
+        public SolidColorBrush MauNutBaoTri => KhoaLoiNhiet ? BrushRed : KhoaBaoTri ? BrushGreen : BrushRed;
+        public SolidColorBrush NenNutBaoTri => KhoaLoiNhiet ? BrushBgDanger : KhoaBaoTri ? BrushBgOpen : BrushBgDark;
     }
 }

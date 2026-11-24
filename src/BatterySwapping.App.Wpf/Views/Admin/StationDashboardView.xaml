@@ -33,6 +33,12 @@
                     </StackPanel>
                     <TextBlock x:Name="lblStationAddress" Text="Trạm Đổi Pin ĐH Bách Khoa Hà Nội • Cổng Parabol Giải Phóng" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                     <TextBlock x:Name="txtCooldownStatus" Text="Đang kiểm tra bảo vệ nhiệt…" TextWrapping="Wrap" MaxWidth="660" HorizontalAlignment="Left" FontSize="12" Foreground="{StaticResource DangerBrush}" Margin="0,8,0,0"/>
+                    <Border x:Name="pnlAdminResetOverheat" Visibility="Collapsed" Background="#EF4444" CornerRadius="6" HorizontalAlignment="Left" Margin="0,8,0,0">
+                        <Button x:Name="btnAdminResetOverheat" Content="⚡ Xác Nhận Reset Ngăn Quá Nhiệt (Admin)" 
+                                Background="Transparent" Foreground="White" BorderThickness="0"
+                                FontWeight="Bold" FontSize="12" Padding="12,6" Cursor="Hand"
+                                Click="BtnAdminResetOverheat_Click"/>
+                    </Border>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -200,8 +206,8 @@
                                                 Background="#334155" Foreground="White" BorderThickness="0" 
                                                 Padding="4,6" FontSize="11" FontWeight="SemiBold" Margin="0,0,3,0" Cursor="Hand"
                                                 Click="BtnOpenDoor_Click" Tag="{Binding SoThuTu}"/>
-                                        <Button Grid.Column="1" Content="Khóa bảo trì" 
-                                                Background="#1E293B" Foreground="#F87171" BorderBrush="#EF4444" BorderThickness="1" 
+                                        <Button Grid.Column="1" Content="{Binding NutBaoTriText}" 
+                                                Background="{Binding NenNutBaoTri}" Foreground="{Binding MauNutBaoTri}" BorderBrush="{Binding MauNutBaoTri}" BorderThickness="1" 
                                                 Padding="4,6" FontSize="11" FontWeight="SemiBold" Margin="3,0,0,0" Cursor="Hand"
                                                 Click="BtnToggleLock_Click" Tag="{Binding SoThuTu}"/>
                                     </Grid>

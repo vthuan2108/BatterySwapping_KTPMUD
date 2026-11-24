@@ -95,7 +95,13 @@ namespace BatterySwapping.App.Views.Admin
         if (active.Count == 0)
         {
             txtCooldownStatus.Text = online ? "Bảo vệ nhiệt: không có ngăn đang trong đợt khóa quá nhiệt." : "Thiết bị offline — chưa thể xác nhận tình trạng an toàn hoặc mở ngăn.";
+            if (pnlAdminResetOverheat != null) pnlAdminResetOverheat.Visibility = Visibility.Collapsed;
             return;
+        }
+        bool hasAdminRequired = active.Any(c => c.RequiresAdmin || c.IncidentCount >= 3);
+        if (pnlAdminResetOverheat != null)
+        {
+            pnlAdminResetOverheat.Visibility = hasAdminRequired ? Visibility.Visible : Visibility.Collapsed;
         }
         var lines = active.Select(c => {
             var seconds = Math.Max(0, (int)Math.Ceiling((c.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
@@ -114,6 +120,57 @@ namespace BatterySwapping.App.Views.Admin
             return $"Ngăn #{c.SlotNumber} • quá nhiệt lần {c.IncidentCount} • {c.BatteryId ?? "chưa rõ pin"} • {temperature}: {state}.";
         });
         txtCooldownStatus.Text = string.Join("\n", lines) + "\nKhông nhận/cấp/rút pin hoặc mở cửa khi còn khóa bảo vệ. Thời gian thực, không tăng tốc theo mô phỏng." + (online ? "" : "\nThiết bị offline — số liệu có thể cũ, tiếp tục giữ khóa.");
+    }
+
+    private async void BtnAdminResetOverheat_Click(object sender, RoutedEventArgs e)
+    {
+        var targetStation = _currentStationId;
+        var active = _cooldowns.Where(c => c.ClearedAt == null && (c.RequiresAdmin || c.IncidentCount >= 3)).ToList();
+        if (active.Count == 0)
+        {
+            MessageBox.Show("Không có ngăn nào đang yêu cầu Admin xác nhận reset.", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var slots = icSlots.ItemsSource as List<NganTu>;
+        int resetCount = 0;
+        List<string> errors = new();
+
+        foreach (var c in active)
+        {
+            var slot = slots?.Find(s => s.SoThuTu == c.SlotNumber);
+            var seconds = Math.Max(0, (int)Math.Ceiling((c.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
+            if (seconds > 0)
+            {
+                errors.Add($"• Ngăn #{c.SlotNumber}: Chưa hết thời gian cách ly 5 phút (còn {seconds / 60:00}:{seconds % 60:00}).");
+                continue;
+            }
+            if (slot != null && slot.NhietDo >= 35)
+            {
+                errors.Add($"• Ngăn #{c.SlotNumber}: Nhiệt độ còn cao ({slot.NhietDo:F1}°C), cần dưới 35.0°C.");
+                continue;
+            }
+
+            try
+            {
+                await _stationService.SetMaintenanceLock(targetStation, c.SlotNumber, false);
+                resetCount++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"• Ngăn #{c.SlotNumber}: {ex.Message}");
+            }
+        }
+
+        if (resetCount > 0)
+        {
+            MessageBox.Show($"Đã xác nhận an toàn và mở khóa thành công cho {resetCount} ngăn tủ!", "Xác nhận Admin", MessageBoxButton.OK, MessageBoxImage.Information);
+            RefreshData();
+        }
+        if (errors.Count > 0)
+        {
+            MessageBox.Show("Các ngăn chưa thể reset an toàn:\n" + string.Join("\n", errors) + "\n\nVui lòng chờ nhiệt độ hạ dưới 35°C và đủ thời gian cách ly.", "Cảnh báo an toàn", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void CheckCooldownBeforeOpening(int slotNumber)

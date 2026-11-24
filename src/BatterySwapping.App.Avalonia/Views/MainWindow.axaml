@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="BatterySwapping.App.Avalonia.Views.MainWindow"
-        Title="⚡ BATTERY SWAPPING SYSTEM (BSS) - KTPMUD"
+        Title="⚡ BSS Vận Hành — Hệ Thống Quản Lý Trạm Đổi Pin Thông Minh"
         Width="1280" Height="820"
         MinWidth="1050" MinHeight="680"
         WindowStartupLocation="CenterScreen"
@@ -13,8 +13,12 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- THANH ĐIỀU HƯỚNG BÊN TRÁI (SIDEBAR) -->
-        <Border Grid.Column="0" Background="{StaticResource SidebarBgBrush}" Padding="16,20">
+        <!-- ========================================================================= -->
+        <!-- THANH ĐIỀU HƯỚNG BÊN TRÁI (MODERN SAAS SIDEBAR) -->
+        <!-- ========================================================================= -->
+        <Border Grid.Column="0" Background="{StaticResource SidebarBgBrush}" 
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0" 
+                Padding="16,18">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -22,57 +26,102 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Logo & Brand Header -->
-                <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                    <StackPanel Orientation="Horizontal" Margin="4,0,0,6" VerticalAlignment="Center">
-                        <Border Width="38" Height="38" CornerRadius="19" Background="{StaticResource PrimaryBrush}" Margin="0,0,10,0">
-                            <TextBlock Text="⚡" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
+                <!-- 1. Logo & Brand Header -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                    <Grid Margin="2,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Circular Brand Dot Icon -->
+                        <Border Grid.Column="0" Width="34" Height="34" CornerRadius="17" 
+                                Background="{StaticResource PrimaryBrush}" Margin="0,0,10,0">
+                            <TextBlock Text="⚡" FontSize="18" HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center" Foreground="White"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="BSS VẬN HÀNH" FontSize="16" FontWeight="Bold" Foreground="White"/>
-                            <TextBlock Text="KTPMUD • ĐHBK Hà Nội" FontSize="11" Foreground="#94A3B8"/>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="bss planner." FontSize="16" FontWeight="Bold" Foreground="#111827"/>
+                            <TextBlock Text="HUSTFlow • Smart Mobility OS" FontSize="11" Foreground="{StaticResource TextCategoryBrush}"/>
                         </StackPanel>
-                    </StackPanel>
-                    <Separator Background="#334155" Margin="0,12,0,0"/>
+                    </Grid>
+                    <Separator Background="{StaticResource BorderBrush}" Margin="0,14,0,0" Height="1"/>
                 </StackPanel>
 
-                <!-- Các nút Menu Phân hệ Chức năng -->
+                <!-- 2. Menu Điều hướng dạng Pill Tabs -->
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="PHÂN HỆ CHỨC NĂNG" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="8,0,0,8"/>
+                    <StackPanel Spacing="2">
+                        <!-- Nhóm 1: VẬN HÀNH & GIÁM SÁT -->
+                        <TextBlock Text="DANH MỤC" FontSize="10" FontWeight="Bold" 
+                                   Foreground="{StaticResource TextCategoryBrush}" Margin="8,4,0,6"/>
 
-                        <Button x:Name="btnNavOverview" Content="📊  Báo cáo quản trị" Classes="menunav" Click="BtnNavOverview_Click"/>
-                        <Button x:Name="btnNavDashboard" Content="🏭  Vận hành trạm" Classes="menunav" Click="BtnNavDashboard_Click"/>
-                        <Button x:Name="btnNavBatteries" Content="🔋  Quản lý danh mục pin" Classes="menunav" Click="BtnNavBatteries_Click"/>
-                        <Button x:Name="btnNavBusiness" Content="Hồ sơ, kho và thanh toán" Classes="menunav" Click="BtnNavBusiness_Click"/>
-                    <Button x:Name="btnNavCustomers" Content="👥  Khách hàng &amp; Ví" Classes="menunav" Click="BtnNavCustomers_Click"/>
-                        <Button x:Name="btnNavTransactions" Content="📜  Giao dịch đổi pin" Classes="menunav" Click="BtnNavTransactions_Click"/>
-                        <Button x:Name="btnNavAlerts" Content="🚨  An toàn &amp; Bảo trì" Classes="menunav" Click="BtnNavAlerts_Click"/>
-                        <Button x:Name="btnNavWallet" Content="💳  Kiosk / Ví cá nhân" Classes="menunav" Click="BtnNavWallet_Click"/>
+                        <Button x:Name="btnNavDashboard" Content="🏭  Vận hành trạm &amp; BMS" 
+                                Classes="menunav" Click="BtnNavDashboard_Click"/>
+                        <Button x:Name="btnNavOverview" Content="📊  Báo cáo tổng quan" 
+                                Classes="menunav" Click="BtnNavOverview_Click"/>
+                        <Button x:Name="btnNavTransactions" Content="📜  Phiên &amp; Lịch sử đổi pin" 
+                                Classes="menunav" Click="BtnNavTransactions_Click"/>
+                        <Button x:Name="btnNavAlerts" Content="🚨  An toàn &amp; Bảo trì IoT" 
+                                Classes="menunav" Click="BtnNavAlerts_Click"/>
+
+                        <!-- Nhóm 2: TÀI SẢN & KHO HÀNG -->
+                        <TextBlock Text="TÀI SẢN &amp; KHO PIN" FontSize="10" FontWeight="Bold" 
+                                   Foreground="{StaticResource TextCategoryBrush}" Margin="8,16,0,6"/>
+
+                        <Button x:Name="btnNavBatteries" Content="🔋  Danh mục pin lưu thông" 
+                                Classes="menunav" Click="BtnNavBatteries_Click"/>
+                        <Button x:Name="btnNavBusiness" Content="📁  Hồ sơ, kho &amp; đối soát" 
+                                Classes="menunav" Click="BtnNavBusiness_Click"/>
+                        <Button x:Name="btnNavCustomers" Content="👥  Khách hàng &amp; Ví tiền" 
+                                Classes="menunav" Click="BtnNavCustomers_Click"/>
+
+                        <!-- Nhóm 3: TRẢI NGHIỆM ĐỔI PIN -->
+                        <TextBlock Text="TRẢI NGHIỆM" FontSize="10" FontWeight="Bold" 
+                                   Foreground="{StaticResource TextCategoryBrush}" Margin="8,16,0,6"/>
+
+                        <Button x:Name="btnNavWallet" Content="💳  Kiosk / Ví cá nhân" 
+                                Classes="menunav" Click="BtnNavWallet_Click"/>
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Thông tin phiên người dùng & Đăng xuất -->
-                <Border Grid.Row="2" Background="#0F172A" CornerRadius="10" Padding="12" Margin="0,10,0,0">
+                <!-- 3. Profile Người dùng & Trạng thái kết nối (Dưới đáy Sidebar) -->
+                <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderBrush}" 
+                        BorderThickness="1" CornerRadius="12" Padding="10,8" Margin="0,8,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock x:Name="lblCurrentUserName" Text="Quản trị viên" FontWeight="Bold" FontSize="13" Foreground="White"/>
-                            <Border x:Name="pnlRolePill" Background="#064E3B" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,4,0,0">
-                                <TextBlock x:Name="lblCurrentUserRole" Text="Vai trò: Admin" FontSize="10" FontWeight="Bold" Foreground="#34D399"/>
+
+                        <!-- Avatar icon tròn -->
+                        <Border Grid.Column="0" Width="32" Height="32" CornerRadius="16" 
+                                Background="{StaticResource PrimaryLightBrush}" Margin="0,0,8,0">
+                            <TextBlock Text="👤" FontSize="14" HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center" Foreground="{StaticResource PrimaryDarkBrush}"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="lblCurrentUserName" Text="Văn Thuận" FontWeight="SemiBold" 
+                                       FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Border x:Name="pnlRolePill" Background="{StaticResource PrimaryLightBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" Margin="0,3,0,0">
+                                <TextBlock x:Name="lblCurrentUserRole" Text="Vai trò: Admin" FontSize="10" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}"/>
                             </Border>
                         </StackPanel>
-                        <Button Grid.Column="1" Content="🚪" ToolTip.Tip="Đăng xuất" Classes="outline"
-                                BorderThickness="0" Foreground="#F87171" FontSize="16" Padding="8,4" Click="BtnLogout_Click"/>
+
+                        <!-- Nút Đăng xuất dạng icon nhỏ -->
+                        <Button Grid.Column="2" Content="🚪" ToolTip.Tip="Đăng xuất khỏi hệ thống" 
+                                Classes="outline" BorderThickness="0" Background="Transparent" Foreground="#9CA3AF" 
+                                FontSize="15" Padding="4,2" Click="BtnLogout_Click"/>
                     </Grid>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- VÙNG NỘI DUNG CHÍNH (CONTENT AREA) -->
+        <!-- ========================================================================= -->
+        <!-- VÙNG NỘI DUNG CHÍNH (CONTENT AREA & TOPBAR) -->
+        <!-- ========================================================================= -->
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -81,7 +130,7 @@
             </Grid.RowDefinitions>
 
             <!-- Global In-App Alert Banner (Non-blocking emergency safety notification) -->
-            <Border Grid.Row="0" x:Name="pnlEmergencyBanner" Background="#DC2626" Padding="16,10" IsVisible="False">
+            <Border Grid.Row="0" x:Name="pnlEmergencyBanner" Background="{StaticResource DangerBrush}" Padding="16,10" IsVisible="False">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -99,7 +148,7 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                        <Button Content="Xem sự cố" Classes="outline" Background="White" Foreground="#DC2626" FontWeight="Bold" 
+                        <Button Content="Xem sự cố" Classes="outline" Background="White" Foreground="{StaticResource DangerBrush}" FontWeight="Bold" 
                                 Padding="10,4" FontSize="11" Click="BtnViewEmergencyAlert_Click"/>
                         <Button Content="✕" Classes="outline" Background="Transparent" Foreground="White" BorderThickness="0" 
                                 FontWeight="Bold" FontSize="14" Padding="6,2" Click="BtnDismissAlert_Click"/>
@@ -107,24 +156,38 @@
                 </Grid>
             </Border>
 
-            <!-- Thanh Topbar -->
-            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="20,12">
+            <!-- Thanh Topbar Breadcrumb phong cách Web App -->
+            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="24,12">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                        <Border Width="10" Height="10" CornerRadius="5" Background="{StaticResource PrimaryBrush}"/>
-                        <TextBlock x:Name="lblSystemStatus" Text="Hệ Thống Trực Tuyến (Online) • Backend Sẵn Sàng" 
-                                   FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <!-- Breadcrumbs & Status Pill -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Không gian làm việc" FontSize="13" Foreground="{StaticResource TextCategoryBrush}"/>
+                        <TextBlock Text=" / " FontSize="13" Foreground="#D1D5DB" Margin="6,0"/>
+                        <TextBlock Text="Vận hành mạng lưới trạm pin" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                        <!-- Status Chip Pill -->
+                        <Border Background="#F3F4F6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" 
+                                CornerRadius="12" Padding="8,3" Margin="16,0,0,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                                <Border Width="6" Height="6" CornerRadius="3" Background="{StaticResource PrimaryBrush}"/>
+                                <TextBlock x:Name="lblSystemStatus" Text="Trực tuyến • Backend Sẵn Sàng" 
+                                           FontSize="11" FontWeight="Medium" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
-                        <TextBlock x:Name="lblClock" Text="12:00:00" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                        <Border Background="#F1F5F9" CornerRadius="6" Padding="8,4">
-                            <TextBlock x:Name="lblRoleInfo" Text="Chế độ: Đầy đủ quyền" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                        <Border Background="#F9FAFB" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" 
+                                CornerRadius="12" Padding="8,4">
+                            <TextBlock x:Name="lblClock" Text="12:00:00" FontSize="11" FontWeight="Medium" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </Border>
+                        <Border Background="{StaticResource PrimaryLightBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="8,4">
+                            <TextBlock x:Name="lblRoleInfo" Text="Toàn quyền Admin" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource PrimaryDarkBrush}"/>
                         </Border>
                     </StackPanel>
                 </Grid>

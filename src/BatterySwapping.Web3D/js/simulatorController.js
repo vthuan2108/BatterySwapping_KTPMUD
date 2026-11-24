@@ -46,10 +46,13 @@ const SimulatorController = (() => {
   let scale = 1;
   let updating = false;
   let currentFee = null;
+  let isKioskMode = false;
 
   function notice(text) {
     const el = $("notice");
     if (el) el.textContent = text;
+    const modalNotice = $("modal-notice");
+    if (modalNotice) modalNotice.textContent = text;
   }
 
   async function api(path, method = "GET", body, authToken = token) {
@@ -212,7 +215,7 @@ const SimulatorController = (() => {
       ["Khóa bảo trì", s.isLocked ? "Đang khóa" : "Bình thường"],
       ["Làm mát tự động", s.isCooling ? "Đang bật" : "Tắt"],
       ["Số lần quá nhiệt", `${s.incidentCount||0} / 3${BmsModel.hardFault(s) ? " — cần quản trị viên" : ""}`],
-      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát" : BmsModel.hardFault(s) ? "Chờ quản trị viên xác nhận" : "Chờ máy chủ tự phục hồi" : "Không khóa"],
+      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát" : BmsModel.hardFault(s) ? "Chờ Admin xác nhận trên App Desktop" : "Chờ máy chủ tự phục hồi" : "Không khóa"],
     ];
 
     const metricsEl = $("metrics");
@@ -235,13 +238,18 @@ const SimulatorController = (() => {
           let b = document.createElement("button");
           b.textContent = `${t.id} · ${t.hasBattery ? Math.round(t.soc) + "%" : "—"}`;
           b.className = t.id === st.selectedSlot ? "selected" : "";
-          b.style.borderColor = BmsModel.hardFault(t)
+          const isEmergencyOrOverheated =
+            t.temperature >= 55 || BmsModel.hardFault(t) || t.requiresAdmin;
+          const isCoolingLocked = BmsModel.locked(t) && !isEmergencyOrOverheated;
+          b.style.borderColor = isEmergencyOrOverheated
             ? "#ef4444"
-            : t.isLocked || BmsModel.locked(t)
+            : isCoolingLocked
             ? "#fbbf24"
+            : !t.hasBattery
+            ? "#40536a"
             : t.soc >= 90
-            ? "#34d399"
-            : "#40536a";
+            ? "#10b981"
+            : "#f59e0b";
           b.setAttribute("aria-label", `Chọn ngăn ${t.id} trạm ${st.id}`);
           b.onclick = () => {
             st.selectedSlot = t.id;
@@ -270,11 +278,18 @@ const SimulatorController = (() => {
       userNameEl.textContent = user ? user.name : "Khách hàng";
     }
 
-    const loginSec = $("kiosk-login-section");
-    const activeSec = $("kiosk-active-section");
-    if (loginSec && activeSec) {
-      loginSec.style.display = user ? "none" : "block";
-      activeSec.style.display = user ? "block" : "none";
+    // Chuyển đổi giữa Bảng thông số BMS và Bảng định hướng Kiosk ở cột bên phải
+    const asideBms = $("aside-bms-view");
+    const asideKiosk = $("aside-kiosk-view");
+    if (asideBms && asideKiosk) {
+      const showKioskAside = !!(user && isKioskMode);
+      asideBms.style.display = showKioskAside ? "none" : "block";
+      asideKiosk.style.display = showKioskAside ? "block" : "none";
+    }
+
+    const kioskAsideTitle = $("kiosk-aside-title");
+    if (kioskAsideTitle) {
+      kioskAsideTitle.textContent = st.id === "TRAM-BK01" ? "Trạm 1: ĐH Bách Khoa (TRAM-BK01)" : "Trạm 2: Cầu Giấy (TRAM-CG02)";
     }
 
     const active = session && !["Completed", "Cancelled", "Expired", "Returned"].includes(session.state);
@@ -311,8 +326,15 @@ const SimulatorController = (() => {
     }
 
     const action = $("physical-action");
-    action.hidden = true;
-    action.disabled = st.resetting || !st.leased || !backend || !MqttSync.connected();
+    const kioskAction = $("kiosk-physical-action");
+    if (action) {
+      action.hidden = true;
+      action.disabled = st.resetting || !st.leased || !backend || !MqttSync.connected();
+    }
+    if (kioskAction) {
+      kioskAction.style.display = "none";
+      kioskAction.disabled = st.resetting || !st.leased || !backend || !MqttSync.connected();
+    }
 
     const physicalSession = (st.snapshot?.sessions || []).find(
       (x) => x.state === "ReturningOldBattery" || x.state === "AwaitingOldBattery" || (x.charged && ["Dispensing", "NeedsAssistance"].includes(x.state))
@@ -322,23 +344,47 @@ const SimulatorController = (() => {
       if (physicalSession.state === "ReturningOldBattery") {
         const t = st.slots.find((x) => x.id === physicalSession.returnSlot);
         if (t?.isDoorOpen && t.batteryId === physicalSession.oldBatteryId && !t.isLocked && !BmsModel.locked(t) && t.temperature <= 45) {
-          action.hidden = false;
-          action.textContent = `[MÔ PHỎNG] Nhận lại pin ${t.batteryId} và đóng ngăn #${t.id}`;
-          action.onclick = () => returnOld(st.id, physicalSession);
+          const txt = `[MÔ PHỎNG] Nhận lại pin ${t.batteryId} và đóng ngăn #${t.id}`;
+          if (action) {
+            action.hidden = false;
+            action.textContent = txt;
+            action.onclick = () => returnOld(st.id, physicalSession);
+          }
+          if (kioskAction) {
+            kioskAction.style.display = "block";
+            kioskAction.textContent = txt;
+            kioskAction.onclick = () => returnOld(st.id, physicalSession);
+          }
         }
       } else if (physicalSession.state === "AwaitingOldBattery") {
         const t = st.slots.find((x) => x.id === physicalSession.returnSlot);
         if (t?.isDoorOpen && !t.hasBattery && !t.isLocked && !BmsModel.locked(t)) {
-          action.hidden = false;
-          action.textContent = `👉 [MÔ PHỎNG] Cắm pin ${physicalSession.oldBatteryId} vào Hộc #${t.id} & Đóng hộc`;
-          action.onclick = () => insertOld(st.id, physicalSession);
+          const txt = `👉 [MÔ PHỎNG] Cắm pin ${physicalSession.oldBatteryId} vào Hộc #${t.id} & Đóng hộc`;
+          if (action) {
+            action.hidden = false;
+            action.textContent = txt;
+            action.onclick = () => insertOld(st.id, physicalSession);
+          }
+          if (kioskAction) {
+            kioskAction.style.display = "block";
+            kioskAction.textContent = txt;
+            kioskAction.onclick = () => insertOld(st.id, physicalSession);
+          }
         }
       } else {
         const t = st.slots.find((x) => x.id === physicalSession.receiveSlot);
         if (t?.isEjected && !t.isLocked && !BmsModel.locked(t) && t.temperature <= 45) {
-          action.hidden = false;
-          action.textContent = `👉 [MÔ PHỎNG] Rút pin mới ${physicalSession.newBatteryId} từ Hộc #${t.id} & Đóng hộc`;
-          action.onclick = () => takeNew(st.id, physicalSession);
+          const txt = `👉 [MÔ PHỎNG] Rút pin mới ${physicalSession.newBatteryId} từ Hộc #${t.id} & Đóng hộc`;
+          if (action) {
+            action.hidden = false;
+            action.textContent = txt;
+            action.onclick = () => takeNew(st.id, physicalSession);
+          }
+          if (kioskAction) {
+            kioskAction.style.display = "block";
+            kioskAction.textContent = txt;
+            kioskAction.onclick = () => takeNew(st.id, physicalSession);
+          }
         }
       }
     }
@@ -375,22 +421,39 @@ const SimulatorController = (() => {
   function visuals(stationId, s) {
     CabinetModel.setBatteryPresence(stationId, s.id, s.hasBattery, false);
     CabinetModel.setBatteryEjected(stationId, s.id, !!s.isEjected, true);
-    CabinetModel.setSlotLedColor(
-      stationId,
-      s.id,
-      BmsModel.hardFault(s)
-        ? 0xef4444
-        : s.isLocked || BmsModel.locked(s)
-        ? 0xfbbf24
-        : !s.hasBattery
-        ? 0x64748b
-        : s.soc >= 90
-        ? 0x84cc16
-        : 0xf59e0b,
-      1.8
-    );
+
+    // Xác định màu LED viền quanh hộp pin theo yêu cầu:
+    // 1. ĐỎ: Lỗi khẩn cấp hoặc quá nhiệt (s.temperature >= 55, BmsModel.hardFault, s.requiresAdmin)
+    // 2. VÀNG CAM: Đang trong quá trình khóa làm mát an toàn sau nhiệt (temperature < 55)
+    // 3. XANH LÁ CÂY: Pin đầy sẵn sàng (s.soc >= 90 hoặc s.soc >= 80 khi không sạc)
+    // 4. VÀNG: Pin đang sạc (s.isCharging hoặc s.soc < 90)
+    // 5. TẮT / XÁM MỜ: Ngăn trống (không có pin)
+    let ledColor = 0x334155;
+    let ledIntensity = 0.6;
+
+    const isEmergencyOrOverheated =
+      s.temperature >= 55 || BmsModel.hardFault(s) || s.requiresAdmin;
+    const isCoolingLocked = BmsModel.locked(s) && !isEmergencyOrOverheated;
+
+    if (isEmergencyOrOverheated) {
+      ledColor = 0xef4444; // ĐỎ: Lỗi khẩn cấp / quá nhiệt
+      ledIntensity = 2.8;
+    } else if (isCoolingLocked) {
+      ledColor = 0xfbbf24; // VÀNG CAM: Làm mát an toàn
+      ledIntensity = 2.0;
+    } else if (s.hasBattery) {
+      if (s.soc >= 90 || (!s.isCharging && s.soc >= 80)) {
+        ledColor = 0x10b981; // XANH LÁ CÂY: Pin đầy sẵn sàng
+        ledIntensity = 2.4;
+      } else {
+        ledColor = 0xf59e0b; // VÀNG: Đang sạc
+        ledIntensity = 2.2;
+      }
+    }
+
+    CabinetModel.setSlotLedColor(stationId, s.id, ledColor, ledIntensity);
     CabinetModel.updateBatteryDisplay(stationId, s.id, s.soc, s.isCharging);
-    CabinetModel.setAlarmLight(stationId, s.id, BmsModel.locked(s) || BmsModel.hardFault(s), BmsModel.hardFault(s) ? 0xef4444 : 0xfbbf24);
+    CabinetModel.setAlarmLight(stationId, s.id, isEmergencyOrOverheated || BmsModel.locked(s), isEmergencyOrOverheated ? 0xef4444 : 0xfbbf24);
 
     const emitterKey = `${stationId}_${s.id}`;
     const stObj = CabinetModel.getStation(stationId);
@@ -818,6 +881,83 @@ const SimulatorController = (() => {
     }
   }
 
+  // Camera helper functions at controller scope
+  function zoomToKiosk(stId) {
+    if (!view || !view.camera || !view.controls) return;
+    const posX = stationData[stId]?.posX ?? (stId === "TRAM-BK01" ? -1.55 : 1.55);
+    if (typeof TWEEN !== "undefined") {
+      new TWEEN.Tween(view.camera.position)
+        .to({ x: posX, y: 1.15, z: 2.2 }, 650)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+      new TWEEN.Tween(view.controls.target)
+        .to({ x: posX, y: 0.95, z: 0.6 }, 650)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+    }
+  }
+
+  function zoomToOverview() {
+    if (!view || !view.camera || !view.controls) return;
+    if (typeof TWEEN !== "undefined") {
+      new TWEEN.Tween(view.camera.position)
+        .to({ x: 0, y: 1.6, z: 7.5 }, 650)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+      new TWEEN.Tween(view.controls.target)
+        .to({ x: 0, y: 0.4, z: 0 }, 650)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+    }
+  }
+
+  function zoomToStationFront(stId) {
+    if (!view || !view.camera || !view.controls) return;
+    const posX = stationData[stId]?.posX ?? (stId === "TRAM-BK01" ? -1.55 : 1.55);
+    if (typeof TWEEN !== "undefined") {
+      new TWEEN.Tween(view.camera.position)
+        .to({ x: posX, y: 0.25, z: 4.2 }, 650)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+      new TWEEN.Tween(view.controls.target)
+        .to({ x: posX, y: 0.15, z: 0 }, 650)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+    }
+  }
+
+  function openKioskModal(stId) {
+    const targetStation = stId || activeStationId;
+    if (targetStation !== activeStationId) {
+      setActiveStation(targetStation, false);
+    }
+    if (user) {
+      // Đã đăng nhập: Chuyển thẳng sang Bảng định hướng Kiosk ở cột bên phải, không hiện pop-up che 3D
+      isKioskMode = true;
+      zoomToStationFront(activeStationId);
+      render();
+      return;
+    }
+    // Chưa đăng nhập: Mở pop-up đăng nhập kèm tài khoản mẫu test
+    zoomToKiosk(activeStationId);
+    const modal = $("kiosk-modal");
+    if (modal) modal.style.display = "flex";
+    render();
+  }
+
+  function closeKioskModal() {
+    const modal = $("kiosk-modal");
+    if (modal) modal.style.display = "none";
+    if (!isKioskMode) {
+      zoomToOverview();
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    window.openKioskModal = openKioskModal;
+    window.closeKioskModal = closeKioskModal;
+  }
+
   function setupScene() {
     view = SceneView.init($("canvas-container"));
     CabinetModel.buildCabinet(view.scene);
@@ -832,54 +972,6 @@ const SimulatorController = (() => {
     };
     window.addEventListener("resize", resize);
     resize();
-
-    // Camera helper functions
-    function zoomToKiosk(stId) {
-      const posX = stationData[stId]?.posX ?? (stId === "TRAM-BK01" ? -1.55 : 1.55);
-      if (typeof TWEEN !== "undefined" && view) {
-        new TWEEN.Tween(view.camera.position)
-          .to({ x: posX, y: 1.15, z: 2.2 }, 650)
-          .easing(TWEEN.Easing.Cubic.Out)
-          .start();
-        new TWEEN.Tween(view.controls.target)
-          .to({ x: posX, y: 0.95, z: 0.6 }, 650)
-          .easing(TWEEN.Easing.Cubic.Out)
-          .start();
-      }
-    }
-
-    function zoomToOverview() {
-      if (typeof TWEEN !== "undefined" && view) {
-        new TWEEN.Tween(view.camera.position)
-          .to({ x: 0, y: 1.6, z: 7.5 }, 650)
-          .easing(TWEEN.Easing.Cubic.Out)
-          .start();
-        new TWEEN.Tween(view.controls.target)
-          .to({ x: 0, y: 0.4, z: 0 }, 650)
-          .easing(TWEEN.Easing.Cubic.Out)
-          .start();
-      }
-    }
-
-    function openKioskModal(stId) {
-      const targetStation = stId || activeStationId;
-      if (targetStation !== activeStationId) {
-        setActiveStation(targetStation, false);
-      }
-      zoomToKiosk(activeStationId);
-      const modal = $("kiosk-modal");
-      if (modal) modal.style.display = "flex";
-      render();
-    }
-
-    function closeKioskModal() {
-      const modal = $("kiosk-modal");
-      if (modal) modal.style.display = "none";
-      zoomToOverview();
-    }
-
-    window.openKioskModal = openKioskModal;
-    window.closeKioskModal = closeKioskModal;
 
     // 3D Pointer Hover: Change cursor to pointer when hovering over Kiosk Touchscreen or Slots
     view.renderer.domElement.addEventListener("pointermove", (e) => {
@@ -1008,14 +1100,19 @@ const SimulatorController = (() => {
     }
 
     const btnQuickLogin = $("btn-quick-login");
+    const fillDemoCreds = () => {
+      const u = $("username");
+      const p = $("password");
+      if (u) u.value = "driver01";
+      if (p) p.value = "123456";
+      notice("Đã điền tài khoản mẫu driver01 / 123456. Hãy bấm 'Đăng nhập'.");
+    };
     if (btnQuickLogin) {
-      btnQuickLogin.onclick = () => {
-        const u = $("username");
-        const p = $("password");
-        if (u) u.value = "driver01";
-        if (p) p.value = "123456";
-        notice("Đã điền tài khoản demo. Bấm Đăng nhập để xác thực bằng mật khẩu.");
-      };
+      btnQuickLogin.onclick = fillDemoCreds;
+    }
+    const btnQuickFillKiosk = $("btn-quick-fill-kiosk");
+    if (btnQuickFillKiosk) {
+      btnQuickFillKiosk.onclick = fillDemoCreds;
     }
 
     $("time-scale").onchange = (e) => (scale = Number(e.target.value));
@@ -1042,12 +1139,51 @@ const SimulatorController = (() => {
         token = r.token;
         user = r.user;
         sessionStorage.setItem("bss-token", token);
-        notice("Đăng nhập thành công.");
+        notice("Đăng nhập thành công vào Kiosk.");
+        closeKioskModal();
+        isKioskMode = true;
+        zoomToStationFront(activeStationId);
         await refresh();
       } catch (err) {
         notice(err.message);
       }
     };
+
+    const closeKioskAside = $("btn-close-kiosk-aside");
+    if (closeKioskAside) {
+      closeKioskAside.onclick = () => {
+        isKioskMode = false;
+        zoomToOverview();
+        render();
+      };
+    }
+
+    const toggleBmsBtn = $("btn-toggle-bms-view");
+    if (toggleBmsBtn) {
+      toggleBmsBtn.onclick = () => {
+        isKioskMode = false;
+        zoomToOverview();
+        render();
+      };
+    }
+
+    const btnKioskTopup = $("btn-kiosk-topup");
+    if (btnKioskTopup) {
+      btnKioskTopup.onclick = async () => {
+        if (!user || !backend) return;
+        btnKioskTopup.disabled = true;
+        try {
+          const reqId = crypto.randomUUID();
+          await api("wallet/topup", "POST", { amount: 100000, requestId: reqId });
+          notice("Đã nạp thành công 100.000 đ vào ví demo.");
+          await refresh();
+        } catch (err) {
+          notice("Lỗi nạp ví: " + err.message);
+        } finally {
+          btnKioskTopup.disabled = false;
+        }
+      };
+    }
 
     $("start-swap").onclick = async () => {
       const st = stationData[activeStationId];
@@ -1083,7 +1219,9 @@ const SimulatorController = (() => {
         token = null;
         user = null;
         session = null;
+        isKioskMode = false;
         sessionStorage.removeItem("bss-token");
+        zoomToOverview();
         render();
       }
     };

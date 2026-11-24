@@ -72,7 +72,7 @@ namespace BatterySwapping.App.Views.Dialogs
             var outcome = await _reportService.TopUpWallet(customer.MaKH, amount, method,paymentKey);
             if (outcome.Success)
             {paymentKey=null;
-                MessageBox.Show($"Đã tạo yêu cầu nạp {amount:N0} đ cho {customer.HoTen}. Ví chỉ tăng sau xác nhận tại cổng thanh toán giả lập.",
+                MessageBox.Show($"Nạp thành công {amount:N0} đ vào ví của {customer.HoTen}!",
                                 "Giao dịch thành công", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();

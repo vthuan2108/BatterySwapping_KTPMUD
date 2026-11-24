@@ -12,12 +12,14 @@
 
             <!-- Tiêu đề & Logo -->
             <StackPanel Grid.Row="0" Margin="0,0,0,16" HorizontalAlignment="Center">
-                <Border Width="64" Height="64" CornerRadius="32" Background="#DCFCE7" HorizontalAlignment="Center" Margin="0,0,0,10">
-                    <TextBlock Text="⚡" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource PrimaryDarkBrush}"/>
+                <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource PrimaryLightBrush}" 
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        HorizontalAlignment="Center" Margin="0,0,0,10">
+                    <TextBlock Text="⚡" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource PrimaryDarkBrush}"/>
                 </Border>
-                <TextBlock Text="BATTERY SWAPPING SYSTEM" FontSize="18" FontWeight="Bold" Foreground="{StaticResource PrimaryDarkBrush}" HorizontalAlignment="Center"/>
-                <TextBlock Text="Học phần: Kỹ thuật Phần mềm Ứng dụng (KTPMUD)" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,3,0,0"/>
-                <TextBlock Text="Hệ thống Quản lý Mạng lưới Tủ Đổi Pin Tự Động" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                <TextBlock Text="bss planner." FontSize="18" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center"/>
+                <TextBlock Text="HỆ THỐNG VẬN HÀNH TRẠM ĐỔI PIN THÔNG MINH" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextCategoryBrush}" HorizontalAlignment="Center" Margin="0,3,0,0"/>
+                <TextBlock Text="KTPMUD • Đại học Bách Khoa Hà Nội" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
             </StackPanel>
 
             <!-- Form Đăng nhập -->

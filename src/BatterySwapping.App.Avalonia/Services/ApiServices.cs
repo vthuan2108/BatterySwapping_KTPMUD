@@ -185,7 +185,14 @@ public class ReportService
     public Task<List<GiaoDichVi>> GetTopUpHistory() => BssApi.Client.Get<List<GiaoDichVi>>("history/topups");
     public async Task<Operation> TopUpWallet(int id, decimal amount, string method,string? requestId=null)
     {
-        try { await BssApi.Client.Post<JsonElement>("payments", new CreatePaymentRequest(amount,requestId??Guid.NewGuid().ToString(),id)); return new(true); }
+        try {
+            var p = await BssApi.Client.Post<PaymentRequest>("payments", new CreatePaymentRequest(amount,requestId??Guid.NewGuid().ToString(),id));
+            if (AuthService.CurrentUser?.VaiTro == "Admin" && p.Status == "Pending")
+            {
+                await BssApi.Client.Post<PaymentRequest>($"payments/{p.Id}/result", new PaymentResultRequest("Succeeded"));
+            }
+            return new(true);
+        }
         catch (Exception e) { return new(false, e.Message); }
     }
 }

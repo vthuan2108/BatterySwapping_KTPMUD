@@ -32,7 +32,7 @@ const CabinetModel = (function () {
       bodyColor: 0x006ec7, // VinFast Electric Blue Metallic
       accentColor: "#38bdf8",
       neonColor: 0x0284c7,
-      ledColor: 0x84cc16,
+      ledColor: 0x10b981,
     },
     {
       id: "TRAM-CG02",
@@ -400,9 +400,9 @@ const CabinetModel = (function () {
     roofMesh.position.y = towerH / 2 + 0.15;
     stationGroup.add(roofMesh);
 
-    // 4. Backlit Overhead Signboard on Roof
-    const signboard = createStationSignboard(cfg);
-    stationGroup.add(signboard);
+    // 4. Backlit Overhead Signboard on Roof (Removed per user request for clean realism)
+    // const signboard = createStationSignboard(cfg);
+    // stationGroup.add(signboard);
 
     // 5. White Accent Frame Line on front face
     const frontZ = towerD / 2 + 0.005;
@@ -459,20 +459,10 @@ const CabinetModel = (function () {
     const screenFrame = createStationKioskScreen(stationData, cfg);
     stationGroup.add(screenFrame);
 
-    // 9. Brand Name Text near bottom
-    const brandCanvas = document.createElement("canvas");
-    brandCanvas.width = 512;
-    brandCanvas.height = 100;
-    const bCtx = brandCanvas.getContext("2d");
-    bCtx.fillStyle = "#ffffff";
-    bCtx.font = "bold 44px sans-serif";
-    bCtx.textAlign = "center";
-    bCtx.fillText(`BSS • ${cfg.id}`, 256, 65);
-    const brandTex = new THREE.CanvasTexture(brandCanvas);
-    const brandMat = new THREE.MeshBasicMaterial({ map: brandTex, transparent: true });
-    const brandMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.24), brandMat);
-    brandMesh.position.set(0, -1.35, frontZ + 0.01);
-    stationGroup.add(brandMesh);
+    // 9. Brand Name Text near bottom (Removed per user request for clean realism)
+    // const brandCanvas = document.createElement("canvas");
+    // ...
+    // stationGroup.add(brandMesh);
 
     // 10. 8 Receptacle Battery Slots (2 Columns x 4 Rows)
     const colX = [-0.52, 0.52];
@@ -494,13 +484,13 @@ const CabinetModel = (function () {
         slotGroup.name = `${cfg.id}_Slot_${slotId}`;
 
         // Slot Receptacle Bezel
-        const bezelGeo = new THREE.BoxGeometry(slotW + 0.04, slotH + 0.04, 0.04);
+        const bezelGeo = new THREE.BoxGeometry(slotW + 0.10, slotH + 0.10, 0.04);
         const bezelMesh = new THREE.Mesh(bezelGeo, materials.cabinetDark);
-        bezelMesh.position.z = -0.01;
+        bezelMesh.position.z = 0.015;
         slotGroup.add(bezelMesh);
 
         // Slot Inner Cavity
-        const cavGeo = new THREE.BoxGeometry(slotW - 0.04, slotH - 0.04, slotD);
+        const cavGeo = new THREE.BoxGeometry(slotW, slotH, slotD);
         const cavMesh = new THREE.Mesh(cavGeo, materials.slotCavity);
         cavMesh.position.z = -slotD / 2;
         slotGroup.add(cavMesh);
@@ -514,27 +504,24 @@ const CabinetModel = (function () {
         slotGroup.add(pin1);
         slotGroup.add(pin2);
 
-        // LED Perimeter Ring
-        const ledRingMat = new THREE.MeshStandardMaterial({
+        // LED Perimeter Ring (Bold, vibrant glowing neon frame framing the slot)
+        const ledRingMat = new THREE.MeshBasicMaterial({
           color: cfg.ledColor,
-          emissive: cfg.ledColor,
-          emissiveIntensity: 2.2,
-          roughness: 0.1,
         });
 
         const ringGroup = new THREE.Group();
-        ringGroup.position.z = 0.02;
-        const rw = slotW - 0.02;
-        const rh = slotH - 0.02;
-        const rt = 0.022;
+        ringGroup.position.z = 0.038;
+        const rw = slotW + 0.02;
+        const rh = slotH + 0.02;
+        const rt = 0.038;
 
-        const rTop = new THREE.Mesh(new THREE.BoxGeometry(rw, rt, 0.02), ledRingMat);
+        const rTop = new THREE.Mesh(new THREE.BoxGeometry(rw, rt, 0.03), ledRingMat);
         rTop.position.y = rh / 2;
-        const rBtm = new THREE.Mesh(new THREE.BoxGeometry(rw, rt, 0.02), ledRingMat);
+        const rBtm = new THREE.Mesh(new THREE.BoxGeometry(rw, rt, 0.03), ledRingMat);
         rBtm.position.y = -rh / 2;
-        const rLeft = new THREE.Mesh(new THREE.BoxGeometry(rt, rh, 0.02), ledRingMat);
+        const rLeft = new THREE.Mesh(new THREE.BoxGeometry(rt, rh, 0.03), ledRingMat);
         rLeft.position.x = -rw / 2;
-        const rRight = new THREE.Mesh(new THREE.BoxGeometry(rt, rh, 0.02), ledRingMat);
+        const rRight = new THREE.Mesh(new THREE.BoxGeometry(rt, rh, 0.03), ledRingMat);
         rRight.position.x = rw / 2;
 
         ringGroup.add(rTop);
@@ -712,11 +699,13 @@ const CabinetModel = (function () {
     if (!slot) return;
 
     slot.ledRingMat.color.setHex(hexColor);
-    slot.ledRingMat.emissive.setHex(hexColor);
-    slot.ledRingMat.emissiveIntensity = intensity;
+    if (slot.ledRingMat.emissive) {
+      slot.ledRingMat.emissive.setHex(hexColor);
+      slot.ledRingMat.emissiveIntensity = intensity;
+    }
 
     slot.slotLight.color.setHex(hexColor);
-    slot.slotLight.intensity = intensity * 0.6;
+    slot.slotLight.intensity = intensity * 0.8;
   }
 
   function updateBatteryDisplay(stationId, slotId, soc, isCharging) {

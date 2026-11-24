@@ -129,16 +129,16 @@ public partial class CustomerDashboardView : UserControl
 
         try
         {
-            await BssApi.Client.Post<JsonElement>("payments", new CreatePaymentRequest(value, _requestKey));
+            await BssApi.Client.Post<PaymentRequest>("wallet/topup", new SelfTopupRequest(value, _requestKey));
             _requestKey = null;
-            if (txtStatus != null) txtStatus.Text = $"Đã tạo yêu cầu nạp {value:N0} đ; chờ xác nhận thanh toán.";
+            if (txtStatus != null) txtStatus.Text = $"Đã nạp thành công {value:N0} đ vào ví!";
             await Reload();
         }
         catch (Exception ex)
         {
             if (txtStatus != null)
             {
-                txtStatus.Text = $"Chưa xác nhận nạp ví: {ex.Message}";
+                txtStatus.Text = $"Lỗi nạp ví: {ex.Message}";
             }
         }
         finally

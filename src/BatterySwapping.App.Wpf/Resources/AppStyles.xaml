@@ -3,45 +3,76 @@
 
     <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
 
-    <!-- Bảng màu chủ đạo hệ thống (Theme Eco Green & Modern Slate) -->
-    <SolidColorBrush x:Key="PrimaryBrush" Color="#10B981"/>
-    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#059669"/>
-    <SolidColorBrush x:Key="PrimaryDarkBrush" Color="#047857"/>
-    <SolidColorBrush x:Key="SecondaryBrush" Color="#3B82F6"/>
-    <SolidColorBrush x:Key="DangerBrush" Color="#EF4444"/>
-    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B"/>
-    <SolidColorBrush x:Key="DarkBgBrush" Color="#0F172A"/>
-    <SolidColorBrush x:Key="SidebarBgBrush" Color="#1E293B"/>
+    <!-- ========================================================================= -->
+    <!-- BẢNG MÀU CHỦ ĐẠO: MODERN WARM WEB-SAAS (INSPIRATION: NOTION / LINEAR / PLANNER) -->
+    <!-- ========================================================================= -->
+    
+    <!-- Màu nền Warm Canvas dịu mắt & Sidebar tinh tế -->
+    <SolidColorBrush x:Key="AppBgBrush" Color="#FBFBF9"/>
+    <SolidColorBrush x:Key="LightBgBrush" Color="#FBFBF9"/>
+    <SolidColorBrush x:Key="SidebarBgBrush" Color="#F7F6F2"/>
     <SolidColorBrush x:Key="CardBgBrush" Color="#FFFFFF"/>
-    <SolidColorBrush x:Key="LightBgBrush" Color="#F8FAFC"/>
-    <SolidColorBrush x:Key="BorderBrush" Color="#E2E8F0"/>
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#0F172A"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#64748B"/>
-    <SolidColorBrush x:Key="TextLightBrush" Color="#F8FAFC"/>
+    <SolidColorBrush x:Key="DarkBgBrush" Color="#111827"/>
 
-    <!-- Kiểu nút bấm chính (Eco Primary Button) -->
+    <!-- Viền mỏng siêu tinh tế (Hairline Borders) -->
+    <SolidColorBrush x:Key="BorderBrush" Color="#E8E9E4"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="#E5E7EB"/>
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="#F0F1ED"/>
+
+    <!-- Điểm nhấn Xanh rừng sang trọng (Chic Forest Green) -->
+    <SolidColorBrush x:Key="PrimaryBrush" Color="#15803D"/>
+    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#166534"/>
+    <SolidColorBrush x:Key="PrimaryDarkBrush" Color="#14532D"/>
+    <SolidColorBrush x:Key="PrimaryLightBrush" Color="#E8F5E9"/>
+    <SolidColorBrush x:Key="PrimaryBadgeBgBrush" Color="#DCFCE7"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="#15803D"/>
+
+    <!-- Màu chức năng bổ trợ -->
+    <SolidColorBrush x:Key="SecondaryBrush" Color="#2563EB"/>
+    <SolidColorBrush x:Key="DangerBrush" Color="#DC2626"/>
+    <SolidColorBrush x:Key="DangerHoverBrush" Color="#B91C1C"/>
+    <SolidColorBrush x:Key="DangerLightBrush" Color="#FEE2E2"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="#D97706"/>
+    <SolidColorBrush x:Key="WarningLightBrush" Color="#FEF3C7"/>
+
+    <!-- Hệ thống phân cấp chữ (Typography Text Hierarchy) -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#111827"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6B7280"/>
+    <SolidColorBrush x:Key="TextCategoryBrush" Color="#9CA3AF"/>
+    <SolidColorBrush x:Key="TextLightBrush" Color="#FFFFFF"/>
+
+    <!-- ========================================================================= -->
+    <!-- CÁC KIỂU NÚT BẤM (BUTTON STYLES) -->
+    <!-- ========================================================================= -->
+
+    <!-- Nút bấm chính dạng Viên thuốc (Forest Green Pill Button) -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="Foreground" Value="White"/>
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Padding" Value="16,10"/>
+        <Setter Property="Padding" Value="18,9"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border Background="{TemplateBinding Background}" 
-                            CornerRadius="8" 
+                    <Border x:Name="btnBorder" 
+                            Background="{TemplateBinding Background}" 
+                            CornerRadius="20" 
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}"/>
+                            <Setter TargetName="btnBorder" Property="Background" Value="{StaticResource PrimaryHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="btnBorder" Property="Background" Value="{StaticResource PrimaryDarkBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Background" Value="#94A3B8"/>
+                            <Setter TargetName="btnBorder" Property="Background" Value="#D1D5DB"/>
+                            <Setter Property="Foreground" Value="#9CA3AF"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -49,29 +80,30 @@
         </Setter>
     </Style>
 
-    <!-- Kiểu nút bấm nguy hiểm / dừng khẩn cấp (Danger Button) -->
+    <!-- Nút bấm cảnh báo / dừng khẩn cấp (Danger Pill Button) -->
     <Style x:Key="DangerButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
         <Setter Property="Foreground" Value="White"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Padding" Value="16,10"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="16,8"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border Background="{TemplateBinding Background}" 
-                            CornerRadius="8" 
+                    <Border x:Name="dangerBorder" 
+                            Background="{TemplateBinding Background}" 
+                            CornerRadius="20" 
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#DC2626"/>
+                            <Setter TargetName="dangerBorder" Property="Background" Value="{StaticResource DangerHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Background" Value="#94A3B8"/>
+                            <Setter TargetName="dangerBorder" Property="Background" Value="#FCA5A5"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -79,32 +111,34 @@
         </Setter>
     </Style>
 
-    <!-- Kiểu nút bấm phụ (Secondary Outline Button) -->
+    <!-- Nút bấm phụ bo tròn viền mỏng (Clean Outline Button) -->
     <Style x:Key="OutlineButtonStyle" TargetType="Button">
-        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Background" Value="White"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Padding" Value="14,8"/>
+        <Setter Property="Padding" Value="14,7"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border Background="{TemplateBinding Background}" 
+                    <Border x:Name="border" 
+                            Background="{TemplateBinding Background}" 
                             BorderBrush="{TemplateBinding BorderBrush}" 
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8" 
+                            CornerRadius="10" 
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#E2E8F0"/>
+                            <Setter TargetName="border" Property="Background" Value="#F3F4F6"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="#D1D5DB"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.5"/>
+                            <Setter Property="Opacity" Value="0.45"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -112,29 +146,34 @@
         </Setter>
     </Style>
 
-    <!-- Kiểu nút Menu Sidebar điều hướng -->
+    <!-- Nút Menu Sidebar phong cách Pill Tab (Web-SaaS Navigation Pill) -->
     <Style x:Key="MenuNavButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="#94A3B8"/>
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Foreground" Value="#4B5563"/>
+        <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Padding" Value="16,12"/>
+        <Setter Property="Padding" Value="12,9"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border Background="{TemplateBinding Background}" 
-                            CornerRadius="6" 
-                            Margin="4,2"
+                    <Border x:Name="navBorder" 
+                            Background="{TemplateBinding Background}" 
+                            CornerRadius="10" 
+                            Margin="2,2"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#334155"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter TargetName="navBorder" Property="Background" Value="#ECECE8"/>
+                            <Setter Property="Foreground" Value="#111827"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="navBorder" Property="Background" Value="{StaticResource PrimaryLightBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryDarkBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -142,62 +181,95 @@
         </Setter>
     </Style>
 
-    <!-- Kiểu ô nhập liệu hiện đại (Modern TextBox) -->
+    <!-- ========================================================================= -->
+    <!-- Ô NHẬP LIỆU & CONTROL FORM (INPUT CONTROLS) -->
+    <!-- ========================================================================= -->
+
+    <!-- Ô nhập liệu bo góc mềm mại (Clean Rounded TextBox) -->
     <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="Padding" Value="12,10"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="12,8"/>
         <Setter Property="Background" Value="White"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <Border Background="{TemplateBinding Background}" 
+                    <Border x:Name="boxBorder" 
+                            Background="{TemplateBinding Background}" 
                             BorderBrush="{TemplateBinding BorderBrush}" 
                             BorderThickness="{TemplateBinding BorderThickness}" 
-                            CornerRadius="8"
+                            CornerRadius="10"
                             Padding="{TemplateBinding Padding}">
                         <ScrollViewer x:Name="PART_ContentHost" Margin="0"/>
                     </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="boxBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="boxBorder" Property="BorderThickness" Value="1.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- Kiểu ô mật khẩu (Modern PasswordBox) -->
+    <!-- Ô nhập mật khẩu (Clean Rounded PasswordBox) -->
     <Style x:Key="ModernPasswordBoxStyle" TargetType="PasswordBox">
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="Padding" Value="12,10"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="12,8"/>
         <Setter Property="Background" Value="White"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="PasswordBox">
-                    <Border Background="{TemplateBinding Background}" 
+                    <Border x:Name="passBorder" 
+                            Background="{TemplateBinding Background}" 
                             BorderBrush="{TemplateBinding BorderBrush}" 
                             BorderThickness="{TemplateBinding BorderThickness}" 
-                            CornerRadius="8"
+                            CornerRadius="10"
                             Padding="{TemplateBinding Padding}">
                         <ScrollViewer x:Name="PART_ContentHost" Margin="0"/>
                     </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="passBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="passBorder" Property="BorderThickness" Value="1.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- Card Container -->
+    <!-- ========================================================================= -->
+    <!-- THẺ CHỨA DỮ LIỆU (MODERN CARD CONTAINERS & BADGES) -->
+    <!-- ========================================================================= -->
+
+    <!-- Card Container phong cách Web SaaS (White card, subtle border & micro-shadow) -->
     <Style x:Key="CardBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="White"/>
-        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="CornerRadius" Value="14"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="20"/>
+        <Setter Property="Padding" Value="18"/>
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect BlurRadius="10" Color="#000000" Opacity="0.05" ShadowDepth="2"/>
+                <DropShadowEffect BlurRadius="12" Color="#000000" Opacity="0.035" ShadowDepth="1" Direction="270"/>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Badge dạng viên thuốc (Chip / Pill Badge) -->
+    <Style x:Key="PillBadgeStyle" TargetType="Border">
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="8,3"/>
+        <Setter Property="Background" Value="#F3F4F6"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
 </ResourceDictionary>

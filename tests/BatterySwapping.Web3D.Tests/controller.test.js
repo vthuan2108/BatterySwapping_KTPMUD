@@ -97,8 +97,9 @@ function checkTint(color,label){
   assert.equal(leds.at(-1)[2],parseInt(color.slice(1),16),label+' 3D LED');
   assert.equal(alarms.at(-1)[3],color==='#ef4444'?0xef4444:0xfbbf24,label+' alarm tint');
 }
-checkTint('#fbbf24','first episode cooling');
-tint.incidentCount=2;tint.temperature=30;checkTint('#fbbf24','second episode before deadline');
+checkTint('#ef4444','first episode active overheat');
+tint.temperature=30;checkTint('#fbbf24','first episode cooling after temp drop');
+tint.incidentCount=2;checkTint('#fbbf24','second episode before deadline');
 now=tint.cooldownUntil+1;checkTint('#fbbf24','cooled device waiting for server confirmation');
 tint.incidentCount=3;checkTint('#ef4444','third episode hard fault even before requiresAdmin flag');
 handleCommand({stationId:st.id,commandId:'stale-flag-auto',command:'AUTO_RESET_ALARM',slotNumber:1,batteryId:'TINT'});
@@ -108,8 +109,8 @@ handleCommand({stationId:st.id,commandId:'tint-admin',command:'RESET_ALARM',slot
 render();visuals(st.id,tint);
 assert.equal(tint.incidentCount,0,'confirmed admin clearance resets the consecutive incident counter');
 assert.equal(Bms.hardFault(tint),false,'confirmed admin clearance removes hard fault');
-assert.equal(elements['slots-grid'].children[0].style.borderColor,'#34d399','confirmed recovered ready battery renders green');
-assert.equal(leds.at(-1)[2],0x84cc16,'confirmed recovered ready battery LED is green');
+assert.equal(elements['slots-grid'].children[0].style.borderColor,'#10b981','confirmed recovered ready battery renders green');
+assert.equal(leds.at(-1)[2],0x10b981,'confirmed recovered ready battery LED is green');
 assert.equal(alarms.at(-1)[2],false,'confirmed recovery switches off alarm');
 
 const early={id:1,batteryId:'EARLY',hasBattery:true,soc:30,soh:90,temperature:65,voltage:72,current:0};

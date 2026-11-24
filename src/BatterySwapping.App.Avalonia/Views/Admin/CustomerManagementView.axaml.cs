@@ -133,7 +133,7 @@ public partial class CustomerManagementView : UserControl
             {paymentKey=null;
                 if (txtTopUpFeedback != null)
                 {
-                    txtTopUpFeedback.Text = $"Đã tạo yêu cầu nạp {amount:N0} đ cho {_targetCustomer.HoTen}; chờ cổng thanh toán giả lập.";
+                    txtTopUpFeedback.Text = $"Nạp thành công {amount:N0} đ cho {_targetCustomer.HoTen}!";
                 }
                 LoadCustomers();
             }
