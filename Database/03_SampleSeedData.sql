@@ -64,7 +64,9 @@ INSERT INTO dbo.Pin (MaPin, LoaiPin, DungLuongThietKe, SoC, SoH, NhietDo, DienAp
 ('PIN-011', N'Lithium LFP 72V-30Ah', 30, 55.00, 92.00, 33.00, 70.50, 15.00, 110, N'DangSac'),
 ('PIN-012', N'Lithium LFP 72V-30Ah', 30, 100.0, 98.00, 26.00, 73.00, 0.00, 30, N'DaDay'),
 ('PIN-013', N'Lithium LFP 72V-30Ah', 30, 94.00, 96.50, 27.80, 72.40, 0.00, 40, N'DaDay'),
-('PIN-014', N'Lithium LFP 72V-30Ah', 30, 35.00, 91.00, 36.20, 69.80, 15.00, 125, N'DangSac');
+('PIN-014', N'Lithium LFP 72V-30Ah', 30, 35.00, 91.00, 36.20, 69.80, 15.00, 125, N'DangSac'),
+('PIN-015', N'Lithium LFP 72V-30Ah', 30, 99.00, 99.00, 27.00, 72.90, 0.00, 12, N'DaDay'),
+('PIN-016', N'Lithium LFP 72V-30Ah', 30, 97.00, 98.00, 28.00, 72.70, 0.00, 18, N'DaDay');
 GO
 
 -- 5. TẠO KHÁCH HÀNG

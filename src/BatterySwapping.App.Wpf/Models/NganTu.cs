@@ -29,6 +29,16 @@ namespace BatterySwapping.App.Models
 
         public bool KhoaNhietTamThoi { get; private set; }
         public bool KhoaLoiNhiet { get; private set; }
+        public int TotalThermalIncidents { get; private set; }
+        public bool HasChronicOverheatHistory => CoPin && TotalThermalIncidents >= 3;
+        public string ChronicOverheatWarningText => HasChronicOverheatHistory
+            ? $"⚠️ Tiền sử quá nhiệt {TotalThermalIncidents} lần — khuyến nghị kiểm định/thay pin (REPLACE_BATTERY)"
+            : string.Empty;
+
+        public void ApplyThermalState(BatterySwapping.Contracts.BatteryThermalState? state)
+        {
+            TotalThermalIncidents = state?.TotalIncidents ?? 0;
+        }
         public void ApplyCooldown(BatterySwapping.Contracts.SlotCooldown? cooldown)
         {
             bool active=cooldown?.ClearedAt==null && cooldown!=null;

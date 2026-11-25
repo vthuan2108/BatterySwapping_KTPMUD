@@ -17,6 +17,8 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 -- DROP CÁC BẢNG THEO THỨ TỰ NGƯỢC RÀNG BUỘC KHÓA NGOẠI
+IF OBJECT_ID('dbo.BssBatteryThermalEvents', 'U') IS NOT NULL DROP TABLE dbo.BssBatteryThermalEvents;
+IF OBJECT_ID('dbo.BssBatteryThermalState', 'U') IS NOT NULL DROP TABLE dbo.BssBatteryThermalState;
 IF OBJECT_ID('dbo.CanhBaoIoT', 'U') IS NOT NULL DROP TABLE dbo.CanhBaoIoT;
 IF OBJECT_ID('dbo.LichSuDoiPin', 'U') IS NOT NULL DROP TABLE dbo.LichSuDoiPin;
 IF OBJECT_ID('dbo.LichSuNapTien', 'U') IS NOT NULL DROP TABLE dbo.LichSuNapTien;
@@ -70,7 +72,7 @@ GO
 -- 4. BẢNG PIN (Pin)
 CREATE TABLE dbo.Pin (
     MaPin VARCHAR(20) PRIMARY KEY,
-    LoaiPin NVARCHAR(50) NOT NULL DEFAULT N'Lithium-ion LFP 72V-30Ah',
+    LoaiPin NVARCHAR(50) NOT NULL DEFAULT N'Lithium LFP 72V-30Ah',
     DungLuongThietKe INT NOT NULL DEFAULT 30, -- Ah
     SoC DECIMAL(5,2) NOT NULL DEFAULT 100.00 CHECK (SoC >= 0 AND SoC <= 100), -- State of Charge (%)
     SoH DECIMAL(5,2) NOT NULL DEFAULT 100.00 CHECK (SoH >= 0 AND SoH <= 100), -- State of Health (%)

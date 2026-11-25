@@ -31,9 +31,9 @@
 
                 <TextBlock Text="Phương thức nạp" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
                 <ComboBox x:Name="cboMethod" Height="36" VerticalContentAlignment="Center">
-                    <ComboBoxItem Content="Chuyển khoản Ngân hàng (QR Napas 24/7)" IsSelected="True"/>
-                    <ComboBoxItem Content="Tiền mặt trực tiếp tại quầy"/>
-                    <ComboBoxItem Content="Thẻ ghi nợ / Tín dụng"/>
+                    <ComboBoxItem Content="Chuyển khoản Ngân hàng (QR Napas 24/7)" Tag="ChuyenKhoan" IsSelected="True"/>
+                    <ComboBoxItem Content="Tiền mặt trực tiếp tại quầy" Tag="TienMat"/>
+                    <ComboBoxItem Content="Thẻ ghi nợ / Tín dụng" Tag="TheNganHang"/>
                 </ComboBox>
             </StackPanel>
         </Border>

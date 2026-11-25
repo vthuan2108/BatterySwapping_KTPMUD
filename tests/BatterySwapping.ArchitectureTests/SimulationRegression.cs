@@ -8,7 +8,7 @@ internal static class SimulationRegression
     {
         // Never target the running application's database or its assets.
         var store = new SqlStore(@"Server=.\SQLEXPRESS;Database=BssArchitectureTests_20261121;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=5;");
-        foreach (string script in new[] { "06_Runtime.sql", "07_Business.sql", "08_Maintenance.sql", "09_Cooldowns.sql", "10_AutoThermal.sql" })
+        foreach (string script in new[] { "06_Runtime.sql", "07_Business.sql", "08_Maintenance.sql", "09_Cooldowns.sql", "10_AutoThermal.sql", "11_ThirdThermal.sql", "12_BatteryThermalIncidents.sql" })
             store.Migrate(File.ReadAllText(Path.Combine("Database", script)));
         string suffix = Guid.NewGuid().ToString("N")[..10], station = "SIM-" + suffix;
         string[] pins = Enumerable.Range(1, 5).Select(n => "SP" + n + "-" + suffix).ToArray();
@@ -115,7 +115,7 @@ internal static class SimulationRegression
             {
                 db.Exec("DELETE dbo.BssMaintenanceLocks WHERE MaintenanceId=@id; DELETE dbo.BssMaintenance WHERE StationId=@s; DELETE dbo.BssReservations WHERE SessionId=@id; DELETE dbo.BssSessions WHERE StationId=@s; DELETE dbo.BssCommands WHERE StationId=@s; DELETE dbo.BssSlotCooldowns WHERE StationId=@s; DELETE dbo.BssDevices WHERE StationId=@s; DELETE dbo.LichSuNapTien WHERE MaKH=@c; DELETE dbo.KhachHang WHERE MaKH=@c; DELETE dbo.CanhBaoIoT WHERE MaTram=@s; DELETE dbo.NganTu WHERE MaTram=@s; DELETE dbo.BssBatteryLocations WHERE BatteryId=@p; DELETE dbo.TramPin WHERE MaTram=@s", ("@id", suffix), ("@s", station), ("@c", customer), ("@p", pins[4]));
                 foreach (string key in keys) db.Exec("DELETE dbo.BssBusinessRequests WHERE Id=@id", ("@id", key));
-                foreach (string pin in pins) db.Exec("DELETE dbo.Pin WHERE MaPin=@p", ("@p", pin));
+                foreach (string pin in pins) { db.Exec("DELETE dbo.BssBatteryThermalEvents WHERE BatteryId=@p; DELETE dbo.BssBatteryThermalState WHERE BatteryId=@p; DELETE dbo.Pin WHERE MaPin=@p", ("@p", pin)); }
                 return true;
             });
         }

@@ -3,7 +3,9 @@ BEGIN TRANSACTION;
 IF OBJECT_ID('dbo.BssBusinessRequests') IS NULL
  CREATE TABLE dbo.BssBusinessRequests(Id varchar(36) PRIMARY KEY,Kind varchar(30) NOT NULL,Payload nvarchar(max) NOT NULL,Result nvarchar(max) NOT NULL);
 IF OBJECT_ID('dbo.BssPayments') IS NULL
- CREATE TABLE dbo.BssPayments(Id varchar(36) PRIMARY KEY,CustomerId int NOT NULL REFERENCES dbo.KhachHang(MaKH),Amount decimal(18,2) NOT NULL CHECK(Amount>0),Status varchar(20) NOT NULL CHECK(Status IN('Pending','Succeeded','Failed','Cancelled')),CreatedAt datetimeoffset NOT NULL DEFAULT SYSDATETIMEOFFSET(),ResolvedAt datetimeoffset NULL,ResolvedBy int NULL);
+ CREATE TABLE dbo.BssPayments(Id varchar(36) PRIMARY KEY,CustomerId int NOT NULL REFERENCES dbo.KhachHang(MaKH),Amount decimal(18,2) NOT NULL CHECK(Amount>0),Status varchar(20) NOT NULL CHECK(Status IN('Pending','Succeeded','Failed','Cancelled')),Method nvarchar(50) NOT NULL CONSTRAINT DF_BssPayments_Method DEFAULT N'CongGiaLap',CreatedAt datetimeoffset NOT NULL DEFAULT SYSDATETIMEOFFSET(),ResolvedAt datetimeoffset NULL,ResolvedBy int NULL);
+IF COL_LENGTH('dbo.BssPayments','Method') IS NULL
+ ALTER TABLE dbo.BssPayments ADD Method nvarchar(50) NOT NULL CONSTRAINT DF_BssPayments_Method DEFAULT N'CongGiaLap';
 IF OBJECT_ID('dbo.BssPolicy') IS NULL
  CREATE TABLE dbo.BssPolicy(Id int PRIMARY KEY CHECK(Id=1),Fee decimal(18,2) NOT NULL CHECK(Fee>=0),SupportedBatteryType nvarchar(50) NOT NULL);
 IF NOT EXISTS(SELECT 1 FROM dbo.BssPolicy WHERE Id=1)

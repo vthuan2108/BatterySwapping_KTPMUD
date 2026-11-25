@@ -178,7 +178,12 @@
                                     <!-- Progress bar SoC -->
                                     <StackPanel Grid.Row="2" Margin="0,0,0,10">
                                         <ProgressBar Value="{Binding SoC}" Minimum="0" Maximum="100" Height="7" Foreground="{Binding MauTrangThai}" Background="#1E293B" BorderThickness="0"/>
-                                    <TextBlock Text="{Binding MoTaTrangThai}" Foreground="{Binding MauTrangThai}" FontSize="10" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
+                                        <TextBlock Text="{Binding MoTaTrangThai}" Foreground="{Binding MauTrangThai}" FontSize="10" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                                        <Border Background="#451A03" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,5,0,0"
+                                                Visibility="{Binding HasChronicOverheatHistory, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="{Binding ChronicOverheatWarningText}" Foreground="#FDE68A" FontSize="10" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        </Border>
+                                    </StackPanel>
 
                                     <!-- Thông số Telemetry BMS -->
                                     <Grid Grid.Row="3" Margin="0,0,0,12">

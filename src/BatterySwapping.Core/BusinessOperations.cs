@@ -40,18 +40,21 @@ public sealed class BusinessOperations(SqlStore store)
         return db.Rows("SELECT * FROM dbo.BssHandovers WHERE Id=@id",("@id",Key(r.RequestId))).Single();
     }));
     public List<Dictionary<string,object?>> Handovers()=>store.Read(db=>db.Rows("SELECT * FROM dbo.BssHandovers ORDER BY CreatedAt DESC"));
-    static PaymentRequest Payment(Dictionary<string,object?> r)=>new((string)r["Id"]!,(int)r["CustomerId"]!,(decimal)r["Amount"]!,(string)r["Status"]!,(DateTimeOffset)r["CreatedAt"]!,r["ResolvedAt"] as DateTimeOffset?);
+    static readonly HashSet<string> AllowedPaymentMethods=new(StringComparer.Ordinal){"CongGiaLap","ChuyenKhoan","TienMat","TheNganHang"};
+    static PaymentRequest Payment(Dictionary<string,object?> r)=>new((string)r["Id"]!,(int)r["CustomerId"]!,(decimal)r["Amount"]!,(string)r["Status"]!,(DateTimeOffset)r["CreatedAt"]!,r["ResolvedAt"] as DateTimeOffset?,r.TryGetValue("Method",out var m)&&m is string ms?ms:"CongGiaLap");
     public List<PaymentRequest> Payments(int? customer)=>store.Read(db=>db.Rows("SELECT * FROM dbo.BssPayments WHERE @c IS NULL OR CustomerId=@c ORDER BY CreatedAt DESC",("@c",customer)).Select(Payment).ToList());
     public PaymentRequest CreatePayment(int customer,CreatePaymentRequest r)=>store.Write(db=>{
         string key=Key(r.RequestId);Require(r.Amount>0&&r.Amount<=10000000&&decimal.Truncate(r.Amount)==r.Amount,"Số tiền nguyên từ 1 đến 10.000.000 đ.",400);
-        var old=db.Rows("SELECT * FROM dbo.BssPayments WHERE Id=@id",("@id",key)).SingleOrDefault();if(old!=null){Require((int)old["CustomerId"]! ==customer&&(decimal)old["Amount"]! ==r.Amount,"Mã yêu cầu đã được sử dụng.");return Payment(old);}
+        string method=string.IsNullOrWhiteSpace(r.Method)?"CongGiaLap":r.Method.Trim();
+        Require(method.Length<=50&&AllowedPaymentMethods.Contains(method),"Phương thức thanh toán không hợp lệ.",400);
+        var old=db.Rows("SELECT * FROM dbo.BssPayments WHERE Id=@id",("@id",key)).SingleOrDefault();if(old!=null){Require((int)old["CustomerId"]! ==customer&&(decimal)old["Amount"]! ==r.Amount&&string.Equals(old.TryGetValue("Method",out var om)?om as string??"CongGiaLap":"CongGiaLap",method,StringComparison.Ordinal),"Mã yêu cầu đã được sử dụng.");return Payment(old);}
         Require(db.Scalar("SELECT MaKH FROM dbo.KhachHang WHERE MaKH=@c",("@c",customer))!=null,"Không tìm thấy khách hàng.",404);
-        db.Exec("INSERT dbo.BssPayments(Id,CustomerId,Amount,Status) VALUES(@id,@c,@a,'Pending')",("@id",key),("@c",customer),("@a",r.Amount));return Payment(db.Rows("SELECT * FROM dbo.BssPayments WHERE Id=@id",("@id",key)).Single());
+        db.Exec("INSERT dbo.BssPayments(Id,CustomerId,Amount,Status,Method) VALUES(@id,@c,@a,'Pending',@m)",("@id",key),("@c",customer),("@a",r.Amount),("@m",method));return Payment(db.Rows("SELECT * FROM dbo.BssPayments WHERE Id=@id",("@id",key)).Single());
     });
     public PaymentRequest ResolvePayment(string id,string result,int actor)=>store.Write(db=>{
         Require(result is "Succeeded" or "Failed" or "Cancelled","Kết quả thanh toán không hợp lệ.",400);var row=db.Rows("SELECT * FROM dbo.BssPayments WHERE Id=@id",("@id",id)).SingleOrDefault();Require(row!=null,"Không tìm thấy yêu cầu nạp.",404);var p=Payment(row!);
         if(p.Status!="Pending"){Require(p.Status==result,"Không được thay đổi kết quả thanh toán đã chốt.");return p;}
-        if(result=="Succeeded")db.Exec("UPDATE dbo.KhachHang SET SoDuVi=SoDuVi+@a WHERE MaKH=@c; INSERT dbo.LichSuNapTien(MaKH,SoTien,PhuongThuc,MaGiaoDichNganHang,TrangThai) VALUES(@c,@a,N'CongGiaLap',@id,N'ThanhCong')",("@a",p.Amount),("@c",p.CustomerId),("@id",p.Id));
+        if(result=="Succeeded")db.Exec("UPDATE dbo.KhachHang SET SoDuVi=SoDuVi+@a WHERE MaKH=@c; INSERT dbo.LichSuNapTien(MaKH,SoTien,PhuongThuc,MaGiaoDichNganHang,TrangThai) VALUES(@c,@a,@m,@id,N'ThanhCong')",("@a",p.Amount),("@c",p.CustomerId),("@m",p.Method),("@id",p.Id));
         db.Exec("UPDATE dbo.BssPayments SET Status=@s,ResolvedAt=SYSDATETIMEOFFSET(),ResolvedBy=@actor WHERE Id=@id",("@s",result),("@actor",actor),("@id",p.Id));return Payment(db.Rows("SELECT * FROM dbo.BssPayments WHERE Id=@id",("@id",p.Id)).Single());
     });
 }

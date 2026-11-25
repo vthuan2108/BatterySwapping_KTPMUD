@@ -49,6 +49,25 @@ public sealed class SimulationOperations(SqlStore store)
             decimal voltage = 67.2m + 12.8m * soc / 100m + current * .04m;
             db.Exec("UPDATE dbo.Pin SET SoC=@soc,SoH=@soh,NhietDo=@t,SoLanSac=@cycles,DienAp=@v,DongDien=@i,TrangThai=@state,NgayCapNhatCuoi=GETDATE() WHERE MaPin=@p", ("@soc", soc), ("@soh", soh), ("@t", temperature), ("@cycles", cycles), ("@v", voltage), ("@i", current), ("@state", soc >= 90 ? "DaDay" : "DangSac"), ("@p", batteries[index]["MaPin"]));
         }
+        if (db.Scalar("SELECT OBJECT_ID('dbo.BssBatteryThermalState')") != null)
+        {
+            var thermalBatteries = db.Rows("SELECT MaPinHienTai BatteryId FROM dbo.NganTu WHERE MaTram=@s AND MaPinHienTai IS NOT NULL UNION SELECT BatteryId FROM dbo.BssSlotCooldowns WHERE StationId=@s AND BatteryId IS NOT NULL", ("@s", station))
+                .Select(r => r["BatteryId"] as string)
+                .Where(b => !string.IsNullOrEmpty(b))
+                .Distinct()
+                .ToList();
+            foreach (var bat in thermalBatteries)
+            {
+                var stateRow = db.Rows("SELECT TotalIncidents FROM dbo.BssBatteryThermalState WHERE BatteryId=@b", ("@b", bat)).SingleOrDefault();
+                if (stateRow != null)
+                {
+                    int total = Convert.ToInt32(stateRow["TotalIncidents"]);
+                    db.Exec("UPDATE dbo.BssBatteryThermalState SET IncidentCount=0,RequiresAdmin=0,LastClearedAt=SYSDATETIMEOFFSET() WHERE BatteryId=@b", ("@b", bat));
+                    if (db.Scalar("SELECT OBJECT_ID('dbo.BssBatteryThermalEvents')") != null)
+                        db.Exec("INSERT dbo.BssBatteryThermalEvents(BatteryId,StationId,SlotNumber,EventType,StreakCount,TotalCount,RequiresAdmin,OccurredAt) VALUES(@b,@s,0,'SimulationReset',0,@t,0,SYSDATETIMEOFFSET())", ("@b", bat), ("@s", station), ("@t", total));
+                }
+            }
+        }
         db.Exec("UPDATE dbo.NganTu SET CuaDangMo=0,KhoaBaoTri=@locked,TrangThaiNgan=CASE WHEN MaPinHienTai IS NULL THEN N'Trong' ELSE N'CoPin' END,NgayCapNhat=GETDATE() WHERE MaTram=@s; DELETE dbo.BssSlotCooldowns WHERE StationId=@s", ("@s", station), ("@locked", isolated));
         // Keep the alert audit rows while acknowledging the explicitly restarted scenario.
         db.Exec("UPDATE dbo.CanhBaoIoT SET DaXuLy=1,NguoiXuLy=N'Admin: reset giả lập',ThoiGianXuLy=GETDATE(),GhiChu=LEFT(CONCAT(N'Đặt lại mô phỏng; reset ',@id,N'. ',GhiChu),255) WHERE MaTram=@s AND DaXuLy=0", ("@id", key), ("@s", station));

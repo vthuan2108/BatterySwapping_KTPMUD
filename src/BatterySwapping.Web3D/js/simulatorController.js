@@ -101,21 +101,62 @@ const SimulatorController = (() => {
     }
   }
 
+  function syncSlotThermalFromSnapshot(slot, snapshot) {
+    if (!Array.isArray(snapshot?.thermalStates)) {
+      slot.incidentCount = 0;
+      slot.totalIncidents = 0;
+      slot.requiresAdmin = false;
+      return;
+    }
+    const ts = slot.batteryId ? snapshot.thermalStates.find((t) => t.batteryId === slot.batteryId) : null;
+    slot.incidentCount = ts ? (ts.incidentCount || 0) : 0;
+    slot.totalIncidents = ts ? (ts.totalIncidents || 0) : 0;
+    slot.requiresAdmin = ts ? !!ts.requiresAdmin : false;
+  }
+
   function syncCooldowns(st, rows=[]) {
     let saved=[];try{saved=JSON.parse(localStorage.getItem("bss-cooldowns:"+st.id)||"[]");}catch{}
+    const thermalStates=Array.isArray(st.snapshot?.thermalStates)?st.snapshot.thermalStates:null;
     for(const slot of st.slots){
       const local=saved.find(r=>r.slotNumber===slot.id);
       if(local && (!local.batteryId || local.batteryId===slot.batteryId)){
-        slot.incidentCount=local.incidentCount||slot.incidentCount||0;slot.requiresAdmin=!!local.requiresAdmin;
+        if(local.batteryId && local.batteryId===slot.batteryId){
+          slot.incidentCount=local.incidentCount||slot.incidentCount||0;
+          slot.requiresAdmin=!!local.requiresAdmin;
+        }
         slot.cooldownStartedAt=slot.cooldownStartedAt||local.startedAt;
         slot.cooldownUntil=Math.max(slot.cooldownUntil||0,local.unlockAfter||0);
       }
-      const server=rows.find(r=>r.slotNumber===slot.id);
+      const slotRows=rows.filter(r=>r.slotNumber===slot.id);
+      const activeServer=slotRows.find(r=>!r.clearedAt);
+      const server=activeServer||slotRows.find(r=>slot.batteryId && r.batteryId===slot.batteryId)||null;
       if(server){
-        slot.incidentCount=server.incidentCount||0;slot.requiresAdmin=!!server.requiresAdmin;
+        const sameBattery=!!(slot.batteryId && server.batteryId===slot.batteryId);
+        if(sameBattery){
+          slot.incidentCount=server.incidentCount||0;
+          slot.requiresAdmin=!!server.requiresAdmin;
+        }
         const start=Date.parse(server.startedAt),until=Date.parse(server.unlockAfter),cleared=server.clearedAt?Date.parse(server.clearedAt):null;
-        if(cleared && (slot.cooldownUntil || slot.isOverheated) && cleared>=(slot.cooldownStartedAt||0) && Date.now()>=(slot.cooldownUntil||0) && slot.temperature<35){BmsModel.clear(slot);if(st.cutOffLatched || (st.snapshot?.operatingState && st.snapshot.operatingState!=="HoatDong"))slot.isLocked=true;}
-        else if(!cleared){slot.cooldownStartedAt=slot.cooldownStartedAt||start;slot.cooldownUntil=Math.max(slot.cooldownUntil||0,until);}
+        if(cleared){
+          if(sameBattery && (slot.cooldownUntil || slot.isOverheated) && cleared>=(slot.cooldownStartedAt||0) && Date.now()>=(slot.cooldownUntil||0) && slot.temperature<35){
+            BmsModel.clear(slot);
+            if(st.cutOffLatched || (st.snapshot?.operatingState && st.snapshot.operatingState!=="HoatDong"))slot.isLocked=true;
+          }
+        } else if(!server.batteryId || sameBattery){
+          slot.cooldownStartedAt=slot.cooldownStartedAt||start;
+          slot.cooldownUntil=Math.max(slot.cooldownUntil||0,until);
+        }
+      }
+      if(thermalStates){
+        const ts=slot.batteryId?thermalStates.find(t=>t.batteryId===slot.batteryId):null;
+        const hasActiveCooldown=!!(activeServer && (!activeServer.batteryId || activeServer.batteryId===slot.batteryId));
+        if(!hasActiveCooldown){
+          slot.incidentCount=ts?(ts.incidentCount||0):0;
+          slot.totalIncidents=ts?(ts.totalIncidents||0):0;
+          slot.requiresAdmin=ts?!!ts.requiresAdmin:false;
+        } else {
+          slot.totalIncidents=ts?(ts.totalIncidents||0):0;
+        }
       }
       BmsModel.protect(slot);
     }
@@ -214,9 +255,10 @@ const SimulatorController = (() => {
       ["Dòng sạc", s.current.toFixed(1) + " A"],
       ["Cửa hộc", s.isDoorOpen ? "Mở" : "Đóng"],
       ["Khóa bảo trì", s.isLocked ? "Đang khóa" : "Bình thường"],
-      ["Làm mát tự động", s.isCooling ? "Đang bật" : "Tắt"],
+      ["Làm mát", s.isCooling ? (BmsModel.locked(s) ? "Đang bật (Tự động)" : "Đang bật (Thủ công)") : "Tắt"],
       ["Số lần quá nhiệt", `${s.incidentCount||0} / 3${BmsModel.hardFault(s) ? " — cần quản trị viên" : ""}`],
-      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát" : BmsModel.hardFault(s) ? "Chờ Admin xác nhận trên App Desktop" : "Chờ máy chủ tự phục hồi" : "Không khóa"],
+      ...(s.hasBattery && (s.totalIncidents || 0) >= 3 ? [["Lịch sử quá nhiệt", `Tổng lịch sử: ${s.totalIncidents} lần — khuyến nghị kiểm định/thay pin`]] : []),
+      ["Khóa an toàn (thời gian thực)", s.cooldownUntil && Date.now()<s.cooldownUntil ? `${Math.floor(Math.ceil((s.cooldownUntil-Date.now())/1000)/60)}:${String(Math.ceil((s.cooldownUntil-Date.now())/1000)%60).padStart(2,"0")} còn lại (5 phút thực, không tăng theo tốc độ) — cấm cắm/rút` : BmsModel.locked(s) ? s.temperature>=35 ? "Đã hết 5 phút — tiếp tục làm mát" : BmsModel.hardFault(s) ? "Chờ Admin xác nhận trên App Desktop" : "Chờ máy chủ tự phục hồi" : "Không khóa"],
     ];
 
     const metricsEl = $("metrics");
@@ -313,6 +355,24 @@ const SimulatorController = (() => {
     }
 
     const active = session && !["Completed", "Cancelled", "Expired", "Returned"].includes(session.state);
+    const sessionAtOtherStation = !!(user && active && session?.stationId && session.stationId !== st.id);
+    const otherHintEl = $("kiosk-other-station-hint");
+    const otherHintTextEl = $("kiosk-other-station-text");
+    const switchStationBtn = $("btn-switch-session-station");
+    if (otherHintEl) {
+      otherHintEl.style.display = sessionAtOtherStation ? "flex" : "none";
+      if (sessionAtOtherStation) {
+        const targetStName = stationData[session.stationId]?.name || session.stationId;
+        if (otherHintTextEl) {
+          otherHintTextEl.textContent = `Bạn đang có phiên đổi pin (${stateNames[session.state] || session.state}) tại ${targetStName} (${session.stationId}). Vui lòng chuyển sang trạm này để tiếp tục thao tác.`;
+        }
+        if (switchStationBtn) {
+          switchStationBtn.textContent = `Chuyển sang ${session.stationId}`;
+          switchStationBtn.onclick = () => setActiveStation(session.stationId, true);
+        }
+      }
+    }
+
     const startSwapBtn = $("start-swap");
     if (startSwapBtn) {
       startSwapBtn.hidden = !user || !!active;
@@ -329,7 +389,8 @@ const SimulatorController = (() => {
     if (stepBadge && stepMainText) {
       if (session) {
         stepBadge.textContent = `BƯỚC: ${stateNames[session.state] || session.state}`;
-        stepMainText.textContent = `${session.oldBatteryId} → Hộc #${session.returnSlot} / Lấy ${session.newBatteryId} tại Hộc #${session.receiveSlot}`;
+        const stationTag = sessionAtOtherStation ? ` [Tại ${session.stationId}]` : "";
+        stepMainText.textContent = `${session.oldBatteryId} → Hộc #${session.returnSlot} / Lấy ${session.newBatteryId} tại Hộc #${session.receiveSlot}${stationTag}`;
       } else if (user) {
         stepBadge.textContent = "BƯỚC 1: SẴN SÀNG";
         stepMainText.textContent = `Sẵn sàng thực hiện đổi pin tại ${st.id}`;
@@ -425,12 +486,28 @@ const SimulatorController = (() => {
         Object.assign(slot,{batteryId:battery.maPin,hasBattery:true,soc:battery.soC,soh:battery.soH,
           designCapacityAh:battery.dungLuongThietKe||30,temperature:battery.nhietDo,voltage:battery.dienAp,current:0,isOverheated:false,isLocked:false,
           isDoorOpen:false,isEjected:false,isCharging:false});
+        syncSlotThermalFromSnapshot(slot, st.snapshot);
         c.waitingReplacement=false; persist(st.id); ack(st.id,id); visuals(st.id,slot); render();
       };
     }
 
-    $("overheat").disabled = st.resetting || !st.leased || !s.hasBattery;
-    $("cool").disabled = st.resetting || !st.leased || !s.hasBattery;
+    const overheatBtn = $("overheat");
+    if (overheatBtn) {
+      const overheatLocked = BmsModel.locked(s);
+      overheatBtn.disabled = st.resetting || !st.leased || !s.hasBattery || overheatLocked;
+      overheatBtn.textContent = overheatLocked
+        ? (BmsModel.hardFault(s) ? "🔒 Quá nhiệt lần 3 (Chờ Admin)" : "🔒 Đang cách ly 5 phút")
+        : "⚠️ Lỗi quá nhiệt 65°C";
+    }
+    const coolBtn = $("cool");
+    if (coolBtn) {
+      coolBtn.disabled = st.resetting || !st.leased || !s.hasBattery;
+      coolBtn.textContent = BmsModel.locked(s)
+        ? "❄️ Đang làm mát (Khóa nhiệt)"
+        : s.isCooling
+        ? "❄️ Tắt làm mát"
+        : "❄️ Bật làm mát";
+    }
 
     const simTimeEl = $("sim-time");
     if (simTimeEl) {
@@ -520,6 +597,7 @@ const SimulatorController = (() => {
       isDoorOpen: false,
       isCharging: false,
     });
+    syncSlotThermalFromSnapshot(t, st.snapshot);
     sendEvent(stationId, "OLD_INSERTED", s, t.id, t.batteryId);
     visuals(stationId, t);
     render();
@@ -541,7 +619,9 @@ const SimulatorController = (() => {
       isDoorOpen: false,
       isCharging: false,
       isEjected: false,
+      isCooling: false,
     });
+    syncSlotThermalFromSnapshot(t, st.snapshot);
     sendEvent(stationId, "NEW_TAKEN", s, t.id, s.newBatteryId);
     visuals(stationId, t);
     render();
@@ -553,7 +633,8 @@ const SimulatorController = (() => {
     if (!st?.snapshot?.sessions.some(x => x.id === session.id && x.state === "ReturningOldBattery")) return;
     if (st?.resetting || !st?.leased || !backend || !MqttSync.connected() || !slot?.isDoorOpen || slot.isLocked || BmsModel.locked(slot) || slot.temperature > 45 || slot.batteryId !== session.oldBatteryId) return;
     if (st.pending.some(e => e.sessionId === session.id && e.event === "OLD_RETURNED")) return;
-    Object.assign(slot, {hasBattery:false,batteryId:null,soc:0,current:0,voltage:0,isDoorOpen:false,isCharging:false,isEjected:false});
+    Object.assign(slot, {hasBattery:false,batteryId:null,soc:0,current:0,voltage:0,isDoorOpen:false,isCharging:false,isEjected:false,isCooling:false});
+    syncSlotThermalFromSnapshot(slot, st.snapshot);
     sendEvent(stationId, "OLD_RETURNED", session, slot.id, session.oldBatteryId);
     visuals(stationId, slot); render();
   }
@@ -573,7 +654,7 @@ const SimulatorController = (() => {
     let waitingForCooling = false;
     const s = st.slots.find((t) => t.id === c.slotNumber);
 
-    if(["UNLOCK_SLOT","EJECT_BATTERY","RETURN_OLD_BATTERY","REPLACE_BATTERY","RESTORE_STATION"].includes(c.command) && (c.command==="RESTORE_STATION"?st.slots.some(t=>BmsModel.locked(t)):BmsModel.locked(s))){
+    if(["UNLOCK_SLOT","EJECT_BATTERY","RETURN_OLD_BATTERY","REPLACE_BATTERY","RESTORE_STATION","UNLOCK_MAINTENANCE"].includes(c.command) && (c.command==="RESTORE_STATION"?st.slots.some(t=>BmsModel.locked(t)):BmsModel.locked(s))){
       st.commands[c.commandId]={success:false,pending:true,slotNumber:c.slotNumber,batteryId:c.batteryId,sessionId:c.sessionId};persist(targetStation);ack(targetStation,c.commandId);return;
     }
     switch (c.command) {
@@ -595,6 +676,13 @@ const SimulatorController = (() => {
           s.isDoorOpen = false;
           s.current = 0;
         } else success = false;
+        break;
+      case "UNLOCK_MAINTENANCE":
+        success = !!s && !BmsModel.locked(s) && s.temperature < 55 && !st.cutOffLatched;
+        if (success) {
+          s.isLocked = false;
+          s.isOverheated = false;
+        }
         break;
       case "EJECT_BATTERY":
         success =
@@ -730,7 +818,8 @@ const SimulatorController = (() => {
       notice(`Trạm ${stationId} đã được một simulator khác tiếp quản.`);
     }
 
-    if (!st.slots.length) {
+    const hadSlots = st.slots.length > 0;
+    if (!hadSlots) {
       st.slots = next.slots.map((n) => ({
         id: n.soThuTu,
         batteryId: n.maPinHienTai,
@@ -789,20 +878,92 @@ const SimulatorController = (() => {
     }
     syncCooldowns(st,next.cooldowns||[]);
 
-    for(const command of Object.values(st.commands)){
-      if(command.waitingForCooling){const slot=st.slots.find(x=>x.id===command.slotNumber);if(slot)slot.isCooling=true;}
-    }
-
     st.pending = st.pending.filter((e) => {
       const s = next.sessions.find((x) => x.id === e.sessionId);
       return !!s && (e.event === "OLD_INSERTED" ? !s.oldInserted : !["Completed", "Returned"].includes(s.state));
     });
 
     for (const c of next.commands) {
-      if (st.commands[c.commandId] && ["Completed", "Failed"].includes(c.status)) {
+      if (st.commands[c.commandId] && ["Completed", "Failed", "Cancelled"].includes(c.status)) {
         st.commands[c.commandId].pending = false;
         st.commands[c.commandId].waitingForCooling = false;
         st.commands[c.commandId].waitingReplacement = false;
+      }
+    }
+
+    for(const command of Object.values(st.commands)){
+      if(command.waitingForCooling){const slot=st.slots.find(x=>x.id===command.slotNumber);if(slot)slot.isCooling=true;}
+    }
+
+    if (hadSlots) {
+      const hasStationWidePending = Object.values(st.commands).some(
+        (c) => c.pending && !c.slotNumber
+      );
+      const activeCooldownSlots = new Set(
+        (next.cooldowns || []).filter((cd) => !cd.clearedAt).map((cd) => cd.slotNumber)
+      );
+      const activeSessionSlots = new Set();
+      for (const sess of next.sessions || []) {
+        if (!["Completed", "Cancelled", "Expired", "Returned"].includes(sess.state)) {
+          if (sess.returnSlot) activeSessionSlots.add(sess.returnSlot);
+          if (sess.receiveSlot) activeSessionSlots.add(sess.receiveSlot);
+        }
+      }
+      for (const n of next.slots || []) {
+        const slot = st.slots.find((x) => x.id === n.soThuTu);
+        if (!slot) continue;
+        const hasPendingEvent = st.pending.some((e) => e.slotNumber === slot.id);
+        const hasPendingCmd = Object.values(st.commands).some(
+          (c) =>
+            c.slotNumber === slot.id &&
+            (c.pending || c.waitingForCooling || c.waitingReplacement)
+        );
+        const isIdle =
+          !hasPendingEvent &&
+          !hasPendingCmd &&
+          !activeSessionSlots.has(slot.id) &&
+          !slot.isDoorOpen &&
+          !slot.isEjected &&
+          !BmsModel.locked(slot);
+        if (!isIdle) continue;
+
+        let changed = false;
+        const nextBatId = n.maPinHienTai || null;
+        if (nextBatId !== (slot.batteryId || null)) {
+          const bat = next.batteries?.find((p) => p.maPin === nextBatId);
+          Object.assign(slot, {
+            batteryId: nextBatId,
+            hasBattery: !!nextBatId,
+            designCapacityAh: bat?.dungLuongThietKe || 30,
+            soc: nextBatId ? n.soC : 0,
+            soh: nextBatId ? n.soH : 0,
+            temperature: nextBatId ? n.nhietDo : 28,
+            voltage: nextBatId ? n.dienAp : 0,
+            current: nextBatId ? n.dongDien : 0,
+            isCharging: !!nextBatId && n.dongDien > 0,
+            isDoorOpen: !!n.cuaDangMo,
+            isLocked: !!n.khoaBaoTri,
+            isOverheated: !!nextBatId && (n.nhietDo >= 55 || n.trangThaiPin === "LoiQuaNhiet"),
+            isEjected: false,
+            isCooling: false,
+          });
+          syncSlotThermalFromSnapshot(slot, next);
+          changed = true;
+        } else if (
+          !hasStationWidePending &&
+          !st.cutOffLatched &&
+          !activeCooldownSlots.has(slot.id) &&
+          typeof n.khoaBaoTri === "boolean" &&
+          slot.isLocked !== n.khoaBaoTri
+        ) {
+          slot.isLocked = n.khoaBaoTri;
+          if (slot.isLocked) {
+            slot.current = 0;
+            slot.isCharging = false;
+          }
+          changed = true;
+        }
+        if (changed) visuals(stationId, slot);
       }
     }
 
@@ -1252,6 +1413,7 @@ const SimulatorController = (() => {
         session = null;
         isKioskMode = false;
         sessionStorage.removeItem("bss-token");
+        sessionStorage.removeItem("bss-request");
         zoomToOverview();
         render();
       }
@@ -1262,6 +1424,15 @@ const SimulatorController = (() => {
       if (!st || !st.leased || st.resetting) return;
       let s = st.slots.find((t) => t.id === st.selectedSlot);
       if (!s?.hasBattery) return;
+      if (BmsModel.locked(s)) {
+        notice(
+          BmsModel.hardFault(s)
+            ? `Ngăn #${s.id} đã quá nhiệt lần ${s.incidentCount || 3}/3 và đang trong cách ly an toàn; sự cố hiện tại phải phục hồi hoàn toàn và được Admin xác nhận reset trước khi lần quá nhiệt tiếp theo được tính.`
+            : `Ngăn #${s.id} đang trong cách ly 5 phút; sự cố hiện tại phải phục hồi hoàn toàn (đủ 5 phút và < 35°C) trước khi lần quá nhiệt tiếp theo được tính.`
+        );
+        render();
+        return;
+      }
 
       s.temperature = 65;
       BmsModel.step(s, 0);
@@ -1278,10 +1449,35 @@ const SimulatorController = (() => {
       const st = stationData[activeStationId];
       if (!st || !st.leased || st.resetting) return;
       let s = st.slots.find((t) => t.id === st.selectedSlot);
-      if (!s) return;
+      if (!s || !s.hasBattery) return;
 
-      s.isCooling = true;
-      notice("Đã bật làm mát giả lập. Nhiệt độ giảm theo thời gian; ngăn vẫn khóa đến khi reset được xác nhận.");
+      if (BmsModel.locked(s)) {
+        s.isCooling = true;
+        if (BmsModel.hardFault(s)) {
+          notice(
+            `Ngăn #${s.id} đang khóa cứng do quá nhiệt lần ${s.incidentCount || 3}/3; làm mát tự động đang bật. Cần Admin xác nhận reset trên Desktop sau khi đủ 5 phút và < 35°C.`
+          );
+        } else {
+          notice(
+            `Ngăn #${s.id} đang bật làm mát tự động và bị khóa an toàn cho đến khi đủ 5 phút, nhiệt độ < 35°C và hoàn tất phục hồi.`
+          );
+        }
+      } else {
+        s.isCooling = !s.isCooling;
+        if (s.isLocked) {
+          notice(
+            s.isCooling
+              ? `Đã bật làm mát chủ động cho ngăn #${s.id} (ngăn đang khóa bảo trì/dừng trạm).`
+              : `Đã tắt làm mát chủ động cho ngăn #${s.id} (ngăn vẫn đang khóa bảo trì/dừng trạm).`
+          );
+        } else {
+          notice(
+            s.isCooling
+              ? `Đã bật quạt làm mát cho ngăn #${s.id}. Nhiệt độ pin đang giảm dần.`
+              : `Đã tắt quạt làm mát cho ngăn #${s.id}.`
+          );
+        }
+      }
       flush(activeStationId);
       render();
     };

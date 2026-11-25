@@ -66,9 +66,12 @@ namespace BatterySwapping.App.Views.Dialogs
                 return;
             }
 
-            string method = (cboMethod?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "ChuyenKhoan";
+            var selectedMethod = cboMethod?.SelectedItem as ComboBoxItem;
+            string method = selectedMethod?.Tag?.ToString() ?? selectedMethod?.Content?.ToString() ?? "ChuyenKhoan";
 
-            string body=customer.MaKH+":"+amount;if(body!=paymentBody){paymentKey=null;paymentBody=body;}paymentKey??=Guid.NewGuid().ToString();
+            string body = $"{customer.MaKH}:{amount}:{method}";
+            if (body != paymentBody) { paymentKey = null; paymentBody = body; }
+            paymentKey ??= Guid.NewGuid().ToString();
             var outcome = await _reportService.TopUpWallet(customer.MaKH, amount, method,paymentKey);
             if (outcome.Success)
             {paymentKey=null;

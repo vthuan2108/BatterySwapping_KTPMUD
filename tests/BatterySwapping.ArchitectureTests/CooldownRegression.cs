@@ -7,7 +7,7 @@ internal static class CooldownRegression
     {
         // This suite never reads the running application's connection string.
         var store=new SqlStore(@"Server=.\SQLEXPRESS;Database=BssArchitectureTests_20261121;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=5;");
-        foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql","11_ThirdThermal.sql"})
+        foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql","11_ThirdThermal.sql","12_BatteryThermalIncidents.sql"})
             store.Migrate(File.ReadAllText(Path.Combine("Database",script)));
         string suffix=Guid.NewGuid().ToString("N")[..10];
         string station="COOL-"+suffix,pin="COOLPIN-"+suffix;
@@ -126,6 +126,8 @@ internal static class CooldownRegression
                     slots[0]=slots[0] with{Temperature=30,IsLocked=command.PreserveStationLock};Send(reset.CommandId);
                     Check(!Locked() && Cooldown().ClearedAt==clock.GetUtcNow() && Cooldown().IncidentCount==0 && !Cooldown().RequiresAdmin,"safe Admin recovery clears the third lock and resets incident counter");
                     Check(engine.MaintenanceOrders().Single(x=>x.Id==reset.Id).Status=="Completed","Admin maintenance completes only after safe acknowledgement");
+                    var thermalAfterFirstReset=engine.ThermalStates().Single(x=>x.BatteryId==pin);
+                    Check(thermalAfterFirstReset.IncidentCount==0 && thermalAfterFirstReset.TotalIncidents==3 && !thermalAfterFirstReset.RequiresAdmin && thermalAfterFirstReset.LastAdminResetAt==clock.GetUtcNow(),"ThermalStates exposes TotalIncidents >= 3 and LastAdminResetAt after first Admin reset");
                 }
             }
             var ordinary=Reset();var ordinaryCommand=Claim(ordinary.CommandId);
@@ -134,11 +136,59 @@ internal static class CooldownRegression
             Check(engine.MaintenanceOrders().Single(x=>x.Id==ordinary.Id).Status=="Completed" && Cooldown().IncidentCount==0,"ordinary maintenance completes without changing cleared thermal history");
             clock.Advance(TimeSpan.FromSeconds(1));slots[0]=slots[0] with{Temperature=65,IsLocked=true};Send();
             Check(Cooldown().IncidentCount==1 && !Cooldown().RequiresAdmin && Cooldown().ClearedAt==null,"first incident after Admin reset begins a new automatic-recovery cycle");
+            Denied(()=>engine.RequestCommand(station,new CommandRequest("UNLOCK_MAINTENANCE",1)),"manual unlock cannot bypass active thermal cooldown");
+            int hotAlertId=store.Write(db=>Convert.ToInt32(db.Scalar("INSERT dbo.CanhBaoIoT(MaTram,MaNgan,MaPin,LoaiCanhBao,GiaTriDo,MucDoNghiemTrong) VALUES(@s,1,@p,N'QuaNhiet',65,N'KhanCap'); SELECT CAST(SCOPE_IDENTITY() AS int)",("@s",station),("@p",pin))));
+            Denied(()=>engine.ResolveAlert(hotAlertId,"Admin (Admin)","Attempt bypass"),"direct alert resolve rejected during active thermal cooldown");
+
+            // Empty slot manual lock/unlock via UNLOCK_MAINTENANCE without requiring a battery.
+            slots[1]=slots[1] with{IsDoorOpen=false,IsLocked=true};
+            var lockEmpty=engine.RequestCommand(station,new CommandRequest("LOCK_SLOT",2));Claim(lockEmpty.CommandId);Send(lockEmpty.CommandId);
+            Check(store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT KhoaBaoTri FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=2",("@s",station)))),"empty slot can be locked for maintenance");
+            var unlockEmpty=engine.RequestCommand(station,new CommandRequest("UNLOCK_MAINTENANCE",2));Claim(unlockEmpty.CommandId);
+            slots[1]=slots[1] with{IsLocked=false,IsDoorOpen=false};Send(unlockEmpty.CommandId);
+            Check(!store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT KhoaBaoTri FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=2",("@s",station)))),"empty slot unlocks cleanly via UNLOCK_MAINTENANCE");
+
+            // Complete episode 1 on slot 1, then move battery to slot 2 to verify cross-slot cumulative IncidentCount.
+            clock.Set(Cooldown().UnlockAfter);slots[0]=slots[0] with{Temperature=30,IsLocked=true};Send();
+            engine.Tick();var autoSlot1=Automatic().OrderByDescending(c=>c.Timestamp).First();Claim(autoSlot1.CommandId);
+            slots[0]=slots[0] with{Temperature=30,IsLocked=false};Send(autoSlot1.CommandId);
+            store.Write(db=>db.Exec("UPDATE dbo.NganTu SET MaPinHienTai=NULL,TrangThaiNgan=N'Trong' WHERE MaTram=@s AND SoThuTu=1; UPDATE dbo.NganTu SET MaPinHienTai=@p,TrangThaiNgan=N'CoPin' WHERE MaTram=@s AND SoThuTu=2",("@s",station),("@p",pin)));
+            slots[0]=new SlotTelemetry(1,null,0,0,28,0,0,false,false,false);
+            slots[1]=new SlotTelemetry(2,pin,95,96,65,73,0,false,false,true);
+            clock.Advance(TimeSpan.FromSeconds(1));Send();
+            var slot2Ep2=engine.Cooldowns(station).Single(c=>c.SlotNumber==2);
+            Check(slot2Ep2.IncidentCount==2 && !slot2Ep2.RequiresAdmin,"moving battery to another slot preserves cumulative IncidentCount (2)");
+            clock.Set(slot2Ep2.UnlockAfter);slots[1]=slots[1] with{Temperature=30,IsLocked=true};Send();
+            engine.Tick();var autoSlot2=Automatic().OrderByDescending(c=>c.Timestamp).First();Claim(autoSlot2.CommandId);
+            slots[1]=slots[1] with{Temperature=30,IsLocked=false};Send(autoSlot2.CommandId);
+            clock.Advance(TimeSpan.FromSeconds(1));slots[1]=slots[1] with{Temperature=65,IsLocked=true};Send();
+            var slot2Ep3=engine.Cooldowns(station).Single(c=>c.SlotNumber==2);
+            Check(slot2Ep3.IncidentCount==3 && slot2Ep3.RequiresAdmin,"third cumulative thermal episode across slots requires Admin");
+            clock.Set(slot2Ep3.UnlockAfter);slots[1]=slots[1] with{Temperature=30,IsLocked=true};Send();
+            var adminReset2=engine.CreateMaintenance(new MaintenanceOrderRequest(station,2,"RESET_ALARM",null,"Admin reset cross-slot",Guid.NewGuid().ToString()),1,true);
+            Claim(adminReset2.CommandId);slots[1]=slots[1] with{Temperature=30,IsLocked=false};Send(adminReset2.CommandId);
+            Check(engine.Cooldowns(station).Single(c=>c.SlotNumber==2).IncidentCount==0,"Admin reset clears cross-slot streak");
+            Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT IncidentCount FROM dbo.BssBatteryThermalState WHERE BatteryId=@p",("@p",pin))))==0 && store.Read(db=>Convert.ToInt32(db.Scalar("SELECT TotalIncidents FROM dbo.BssBatteryThermalState WHERE BatteryId=@p",("@p",pin))))==6,"battery thermal state resets streak while preserving total incident audit");
+            var thermalAfterSecondReset=engine.ThermalStates().Single(x=>x.BatteryId==pin);
+            Check(thermalAfterSecondReset.IncidentCount==0 && thermalAfterSecondReset.TotalIncidents>=3 && thermalAfterSecondReset.TotalIncidents==6 && !thermalAfterSecondReset.RequiresAdmin && thermalAfterSecondReset.LastAdminResetAt==clock.GetUtcNow(),"ThermalStates exposes cumulative TotalIncidents >= 3 after cross-slot Admin reset");
+            Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.BssBatteryThermalEvents WHERE BatteryId=@p AND EventType='AdminReset'",("@p",pin))))==2,"thermal audit log records Admin resets");
+
+            // UNLOCK_MAINTENANCE works on a battery at 40C (>= 35C, < 55C) without thermal cooldown.
+            slots[1]=slots[1] with{Temperature=40,IsLocked=true};Send();
+            var lockWarm=engine.RequestCommand(station,new CommandRequest("LOCK_SLOT",2));Claim(lockWarm.CommandId);Send(lockWarm.CommandId);
+            var unlockWarm=engine.RequestCommand(station,new CommandRequest("UNLOCK_MAINTENANCE",2));Claim(unlockWarm.CommandId);
+            slots[1]=slots[1] with{IsLocked=false,IsDoorOpen=false};Send(unlockWarm.CommandId);
+            Check(!store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT KhoaBaoTri FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=2",("@s",station)))),"UNLOCK_MAINTENANCE unlocks 40C non-overheated slot without <35C requirement");
+
+            // Safe alert resolution for mild alert without locking slot.
+            int mildAlertId=store.Write(db=>Convert.ToInt32(db.Scalar("INSERT dbo.CanhBaoIoT(MaTram,MaNgan,MaPin,LoaiCanhBao,GiaTriDo,MucDoNghiemTrong) VALUES(@s,2,@p,N'NhietDoTang',40,N'CanhBao'); SELECT CAST(SCOPE_IDENTITY() AS int)",("@s",station),("@p",pin))));
+            var resolvedAlert=engine.ResolveAlert(mildAlertId,"Tech (KyThuatVien)","Mild warning checked");
+            Check(Convert.ToBoolean(resolvedAlert["DaXuLy"]) && !store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT KhoaBaoTri FROM dbo.NganTu WHERE MaTram=@s AND SoThuTu=2",("@s",station)))),"safe alert resolve marks DaXuLy=1 without locking healthy slot");
             Console.WriteLine("RESULT cooldown regression passed without waiting or accelerating the production timer");
         }
         finally
         {
-            store.Write(db=>db.Exec("DELETE l FROM dbo.BssMaintenanceLocks l JOIN dbo.BssMaintenance m ON m.Id=l.MaintenanceId WHERE m.StationId=@s; DELETE dbo.BssMaintenance WHERE StationId=@s; DELETE dbo.BssCommands WHERE StationId=@s; DELETE dbo.BssSlotCooldowns WHERE StationId=@s; DELETE dbo.BssDevices WHERE StationId=@s; DELETE dbo.CanhBaoIoT WHERE MaTram=@s; DELETE dbo.NganTu WHERE MaTram=@s; DELETE dbo.Pin WHERE MaPin=@p; DELETE dbo.TramPin WHERE MaTram=@s",("@s",station),("@p",pin)));
+            store.Write(db=>db.Exec("DELETE dbo.BssBatteryThermalEvents WHERE BatteryId=@p OR StationId=@s; DELETE dbo.BssBatteryThermalState WHERE BatteryId=@p; DELETE l FROM dbo.BssMaintenanceLocks l JOIN dbo.BssMaintenance m ON m.Id=l.MaintenanceId WHERE m.StationId=@s; DELETE dbo.BssMaintenance WHERE StationId=@s; DELETE dbo.BssCommands WHERE StationId=@s; DELETE dbo.BssSlotCooldowns WHERE StationId=@s; DELETE dbo.BssDevices WHERE StationId=@s; DELETE dbo.CanhBaoIoT WHERE MaTram=@s; DELETE dbo.NganTu WHERE MaTram=@s; DELETE dbo.Pin WHERE MaPin=@p; DELETE dbo.TramPin WHERE MaTram=@s",("@s",station),("@p",pin)));
         }
     }
     static void Check(bool condition,string message){if(!condition)throw new Exception("FAIL "+message);Console.WriteLine("PASS "+message);}

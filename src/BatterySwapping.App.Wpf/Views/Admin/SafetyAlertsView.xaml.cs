@@ -63,14 +63,28 @@ namespace BatterySwapping.App.Views.Admin
                     return;
                 }
 
+                bool hasActiveCooldown = false;
                 if (alert.MaNgan.HasValue)
                 {
-                    var reason = await BssApi.GetThermalResetBlockReason(alert.MaTram, alert.MaNgan.Value);
-                    if (reason != null)
+                    var cooldowns = await BssApi.Client.Get<List<BatterySwapping.Contracts.SlotCooldown>>($"stations/{alert.MaTram}/cooldowns");
+                    var activeCooldown = cooldowns.Find(c => c.SlotNumber == alert.MaNgan.Value && c.ClearedAt == null);
+                    if (activeCooldown != null)
                     {
-                        MessageBox.Show(reason, "Bảo vệ nhiệt", MessageBoxButton.OK, MessageBoxImage.Information);
-                        LoadAlerts();
-                        return;
+                        hasActiveCooldown = true;
+                        var reason = await BssApi.GetThermalResetBlockReason(alert.MaTram, alert.MaNgan.Value);
+                        if (reason != null)
+                        {
+                            MessageBox.Show(reason, "Bảo vệ nhiệt", MessageBoxButton.OK, MessageBoxImage.Information);
+                            LoadAlerts();
+                            return;
+                        }
+                        var seconds = Math.Max(0, (int)Math.Ceiling((activeCooldown.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
+                        if (seconds > 0)
+                        {
+                            MessageBox.Show($"Ngăn #{alert.MaNgan.Value} đang làm mát tự động. Còn tối thiểu {seconds / 60:00}:{seconds % 60:00} khóa theo thời gian thực.", "Bảo vệ nhiệt", MessageBoxButton.OK, MessageBoxImage.Information);
+                            LoadAlerts();
+                            return;
+                        }
                     }
                 }
 
@@ -78,13 +92,20 @@ namespace BatterySwapping.App.Views.Admin
                     ? $"{AuthService.CurrentUser.HoTen} ({AuthService.CurrentUser.VaiTro})"
                     : "Kỹ thuật viên Trạm";
 
-                string note = $"Đã kiểm tra an toàn tại ngăn #{alert.MaNgan} ({alert.MaTram}), pin {alert.MaPin}. Yêu cầu backend kiểm tra điều kiện an toàn và thiết bị xác nhận reset.";
+                string note = hasActiveCooldown
+                    ? $"Đã kiểm tra an toàn tại ngăn #{alert.MaNgan} ({alert.MaTram}), pin {alert.MaPin ?? "--"}. Yêu cầu backend kiểm tra điều kiện an toàn và thiết bị xác nhận reset."
+                    : alert.MaNgan.HasValue
+                        ? $"Đã kiểm tra và đóng cảnh báo tại ngăn #{alert.MaNgan} ({alert.MaTram}), pin {alert.MaPin ?? "--"}."
+                        : $"Đã kiểm tra và đóng cảnh báo tại trạm {alert.MaTram}.";
 
-                if (await _safetyService.ResolveAlert(alert.MaCB, technicianName, note, moKhoaNganTu: true))
+                if (await _safetyService.ResolveAlert(alert.MaCB, technicianName, note, moKhoaNganTu: hasActiveCooldown))
                 {
+                    string detail = hasActiveCooldown
+                        ? $"• Ngăn #{alert.MaNgan} đã được xác nhận reset an toàn và mở khóa bảo trì."
+                        : "• Trạng thái: Đã đóng cảnh báo (không tác động khóa phần cứng).";
                     MessageBox.Show($"Đã xác nhận khắc phục thành công sự cố #{alert.MaCB}!\n" +
                                     $"• Người xử lý: {technicianName}\n" +
-                                    $"• Ngăn #{alert.MaNgan} đã được mở khóa bảo trì tự động.",
+                                    detail,
                                     "Xử lý thành công", MessageBoxButton.OK, MessageBoxImage.Information);
                     LoadAlerts();
                 }

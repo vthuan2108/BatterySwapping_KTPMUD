@@ -141,6 +141,12 @@
           <button id="logout" type="button" style="padding:5px 12px;font-size:12px;background:rgba(51,65,85,0.6);border:1px solid var(--border-card);border-radius:7px;color:#cbd5e1;cursor:pointer">Đăng xuất</button>
         </div>
 
+        <!-- Cảnh báo khi người dùng đang có phiên đổi pin hoạt động ở trạm khác -->
+        <div id="kiosk-other-station-hint" class="kiosk-other-station-hint" style="display:none" role="status" aria-live="polite">
+          <div id="kiosk-other-station-text"></div>
+          <button id="btn-switch-session-station" type="button" class="btn-switch-station">Chuyển sang trạm đang có phiên</button>
+        </div>
+
         <!-- Thẻ các bước định hướng đổi pin -->
         <div id="swap-step-card" class="swap-step-card">
           <div id="step-badge" class="step-badge">BƯỚC 1: SẴN SÀNG</div>

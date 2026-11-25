@@ -39,11 +39,36 @@ public static class BssApi
             var reason = await GetThermalResetBlockReason(station, slot);
             if (reason != null) throw new InvalidOperationException(reason);
         }
-        string operation=station+":"+slot+":"+action+":"+battery+":"+note;
+        string operation=$"{AuthService.CurrentUser?.MaTK}:{station}:{slot}:{action}:{battery}:{note}";
         if(!MaintenanceKeys.TryGetValue(operation,out var key))MaintenanceKeys[operation]=key=Guid.NewGuid().ToString();
-        var order=await Client.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest(station,slot,action,battery,note,key));
+        MaintenanceOrder order;
+        try
+        {
+            order=await Client.Post<MaintenanceOrder>("maintenance",new MaintenanceOrderRequest(station,slot,action,battery,note,key));
+        }
+        catch
+        {
+            MaintenanceKeys.Remove(operation);
+            throw;
+        }
+        if(order.Status is "Failed" or "Cancelled")
+        {
+            MaintenanceKeys.Remove(operation);
+            throw new InvalidOperationException($"Phiếu {order.Id}: {order.Status}; kiểm tra thiết bị.");
+        }
+        if(order.Status=="Completed")
+        {
+            MaintenanceKeys.Remove(operation);
+            return;
+        }
         var until=DateTime.UtcNow.AddSeconds(12);
-        while(DateTime.UtcNow<until){var cmd=await Client.Get<DeviceCommand>($"commands/{order.CommandId}");if(cmd.Status=="Completed"){MaintenanceKeys.Remove(operation);return;}if(cmd.Status is "Failed" or "Cancelled")throw new InvalidOperationException($"Phiếu {order.Id}: {cmd.Status}; kiểm tra thiết bị.");await Task.Delay(400);}
+        while(DateTime.UtcNow<until)
+        {
+            var cmd=await Client.Get<DeviceCommand>($"commands/{order.CommandId}");
+            if(cmd.Status=="Completed"){MaintenanceKeys.Remove(operation);return;}
+            if(cmd.Status is "Failed" or "Cancelled"){MaintenanceKeys.Remove(operation);throw new InvalidOperationException($"Phiếu {order.Id}: {cmd.Status}; kiểm tra thiết bị.");}
+            await Task.Delay(400);
+        }
         throw new InvalidOperationException($"Phiếu {order.Id} / lệnh {order.CommandId} đang chờ xác nhận. Gửi lại cùng thông tin để tra cứu, không tạo lệnh mới.");
     }
     public static void Error(Exception e)=>System.Windows.MessageBox.Show(e.Message,"Không thể hoàn thành thao tác",System.Windows.MessageBoxButton.OK,System.Windows.MessageBoxImage.Warning);
@@ -62,7 +87,15 @@ public class StationService
     public Task<List<NganTu>> GetCabinetSlots(string station)=>BssApi.Client.Get<List<NganTu>>($"stations/{station}/slots");
     public async Task<Operation> AddStation(TramPin station){try{await BssApi.Client.Post<TramPin>("stations",BssApi.Body(station));return new(true);}catch(Exception e){return new(false,e.Message);}}
     public Task SetDoorState(string station,int number,bool open)=>BssApi.Command(station,open?"UNLOCK_SLOT":"CLOSE_SLOT",number);
-    public Task SetMaintenanceLock(string station,int number,bool locked)=>locked?BssApi.Command(station,"LOCK_SLOT",number):BssApi.Maintenance(station,number,"RESET_ALARM",null,"Kiểm tra an toàn và mở khóa bảo trì");
+    public async Task SetMaintenanceLock(string station,int number,bool locked)
+    {
+        if(locked){await BssApi.Command(station,"LOCK_SLOT",number);return;}
+        var cooldowns=await BssApi.Client.Get<List<SlotCooldown>>($"stations/{station}/cooldowns");
+        if(cooldowns.Any(c=>c.SlotNumber==number&&c.ClearedAt==null))
+            await BssApi.Maintenance(station,number,"RESET_ALARM",null,"Kiểm tra an toàn và mở khóa bảo trì");
+        else
+            await BssApi.Command(station,"UNLOCK_MAINTENANCE",number);
+    }
 }
 public class SystemSummaryStats {public decimal TongDoanhThu{get;set;}public decimal DoanhThuHomNay{get;set;}public int TongLuotDoiPin{get;set;}public int TongSoPin{get;set;}public int SoPinKhaDung{get;set;}public int SoCanhBaoChuaXuLy{get;set;}}
 public class ReportService
@@ -71,12 +104,39 @@ public class ReportService
     public Task<List<KhachHang>> GetAllCustomers()=>BssApi.Client.Get<List<KhachHang>>("customers");
     public Task<List<GiaoDichDoiPin>> GetSwapHistory()=>BssApi.Client.Get<List<GiaoDichDoiPin>>("history/swaps");
     public Task<List<GiaoDichVi>> GetTopUpHistory()=>BssApi.Client.Get<List<GiaoDichVi>>("history/topups");
-    public async Task<Operation> TopUpWallet(int id,decimal amount,string method,string? requestId=null){try{var p=await BssApi.Client.Post<PaymentRequest>("payments",new CreatePaymentRequest(amount,requestId??Guid.NewGuid().ToString(),id));if(AuthService.CurrentUser?.VaiTro=="Admin"&&p.Status=="Pending"){await BssApi.Client.Post<PaymentRequest>($"payments/{p.Id}/result",new PaymentResultRequest("Succeeded"));}return new(true);}catch(Exception e){return new(false,e.Message);}}
+    static string NormalizePaymentMethod(string? method)
+    {
+        if(string.IsNullOrWhiteSpace(method))return "ChuyenKhoan";
+        var m=method.Trim();
+        if(m is "ChuyenKhoan" or "TienMat" or "TheNganHang" or "CongGiaLap")return m;
+        if(m.Contains("Tiền mặt",StringComparison.OrdinalIgnoreCase))return "TienMat";
+        if(m.Contains("Thẻ",StringComparison.OrdinalIgnoreCase))return "TheNganHang";
+        if(m.Contains("Chuyển khoản",StringComparison.OrdinalIgnoreCase))return "ChuyenKhoan";
+        return m;
+    }
+    public async Task<Operation> TopUpWallet(int id,decimal amount,string method,string? requestId=null){try{var normalizedMethod=NormalizePaymentMethod(method);var p=await BssApi.Client.Post<PaymentRequest>("payments",new CreatePaymentRequest(amount,requestId??Guid.NewGuid().ToString(),id,normalizedMethod));if(AuthService.CurrentUser?.VaiTro=="Admin"&&p.Status=="Pending"){await BssApi.Client.Post<PaymentRequest>($"payments/{p.Id}/result",new PaymentResultRequest("Succeeded"));}return new(true);}catch(Exception e){return new(false,e.Message);}}
 }
 public class BatteryInspectionResult {public bool IsOverheated{get;set;}public bool IsDegraded{get;set;}public string HealthStatusDescription{get;set;}="";public string RecommendedAction{get;set;}="";}
 public class BatteryService
 {
     public Task<List<Pin>> GetAllBatteries()=>BssApi.Client.Get<List<Pin>>("batteries");
+    public async Task<List<BatteryThermalState>> GetThermalStatesSafe()
+    {
+        try
+        {
+            return await BssApi.Client.Get<List<BatteryThermalState>>("batteries/thermal-states");
+        }
+        catch
+        {
+            return new List<BatteryThermalState>();
+        }
+    }
+    public async Task<BatteryThermalState?> GetThermalStateSafe(string batteryId)
+    {
+        if (string.IsNullOrWhiteSpace(batteryId)) return null;
+        var states = await GetThermalStatesSafe();
+        return states.Find(s => string.Equals(s.BatteryId, batteryId, StringComparison.OrdinalIgnoreCase));
+    }
     public async Task<BatteryInspectionResult?> InspectBattery(string id){var p=(await GetAllBatteries()).Find(p=>p.MaPin==id);return p==null?null:new(){IsOverheated=p.NhietDo>=55||p.TrangThai=="LoiQuaNhiet",IsDegraded=p.SoH<80,HealthStatusDescription=$"SoC {p.SoC:F1}% • SoH {p.SoH:F1}% • {p.NhietDo:F1}°C",RecommendedAction=p.NhietDo>=55?"Giữ khóa tối thiểu 5 phút thực và làm mát dưới 35°C. Hai lần đầu tự khôi phục; từ lần 3 cần Admin xác nhận.":p.SoH<80?"Thu hồi và thay pin mới.":"Theo dõi thông số BMS."};}
     public async Task<Operation> AddBattery(Pin pin){try{await BssApi.Client.Post<Pin>("batteries",BssApi.Body(pin));return new(true);}catch(Exception e){return new(false,e.Message);}}
     public async Task<Operation> MaintainBattery(string station,int slot,string pin,string technician,string note){try{await BssApi.Maintenance(station,slot,"RESET_ALARM",null,note);return new(true);}catch(Exception e){return new(false,e.Message);}}
@@ -92,7 +152,23 @@ public class SafetyMonitorService
     async void Poll(object? s,EventArgs e){if(reading)return;reading=true;try{foreach(var alert in await GetAlerts(true))if(seen.Add(alert.MaCB))OnEmergencyAlertTriggered?.Invoke(alert);}catch{}finally{reading=false;}}
     public async Task<List<CanhBaoIoT>> GetAlerts(bool unresolved=false){var all=await BssApi.Client.Get<List<CanhBaoIoT>>("alerts");return unresolved?all.FindAll(a=>!a.DaXuLy):all;}
     public Task EmergencyCutoffStation(string station)=>BssApi.Command(station,"CUT_OFF");
-    public async Task<bool> ResolveAlert(int id,string technician,string note,bool moKhoaNganTu=true){var a=(await GetAlerts()).Find(a=>a.MaCB==id);if(a==null)return false;if(a.MaNgan.HasValue)await BssApi.Maintenance(a.MaTram,a.MaNgan.Value,"RESET_ALARM",null,note);else await BssApi.Command(a.MaTram,"RESTORE_STATION");return true;}
+    public async Task<bool> ResolveAlert(int id,string technician,string note,bool moKhoaNganTu=true)
+    {
+        var a=(await GetAlerts()).Find(a=>a.MaCB==id);
+        if(a==null)return false;
+        if(a.MaNgan.HasValue)
+        {
+            var cooldowns=await BssApi.Client.Get<List<SlotCooldown>>($"stations/{a.MaTram}/cooldowns");
+            if(cooldowns.Any(c=>c.SlotNumber==a.MaNgan.Value&&c.ClearedAt==null))
+            {
+                if(!moKhoaNganTu)throw new InvalidOperationException($"Ngăn #{a.MaNgan.Value} đang trong đợt khóa bảo vệ nhiệt; cần xác nhận reset an toàn.");
+                await BssApi.Maintenance(a.MaTram,a.MaNgan.Value,"RESET_ALARM",null,note);
+                return true;
+            }
+        }
+        await BssApi.Client.Post<CanhBaoIoT>($"alerts/{id}/resolve",new ResolveAlertRequest(note));
+        return true;
+    }
 }
 public class SwapResult
 {

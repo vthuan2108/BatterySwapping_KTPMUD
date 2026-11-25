@@ -41,6 +41,10 @@ internal static class BusinessRegression
         var cancelled=business.CreatePayment(customer,new(20000,Guid.NewGuid().ToString()));business.ResolvePayment(cancelled.Id,"Cancelled",1);Denied(()=>business.ResolvePayment(cancelled.Id,"Succeeded",1),"cancelled payment cannot credit wallet");
         Check(store.Read(db=>Convert.ToDecimal(db.Scalar("SELECT SoDuVi FROM dbo.KhachHang WHERE MaKH=@c",("@c",customer))))==50000,"failed and cancelled payments leave wallet unchanged");
         Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.LichSuNapTien WHERE MaGiaoDichNganHang=@id",("@id",payment.Id))))==1,"single payment ledger entry");
+        var methodPay=business.CreatePayment(customer,new(15000,Guid.NewGuid().ToString(),null,"ChuyenKhoan"));
+        business.ResolvePayment(methodPay.Id,"Succeeded",1);
+        Check((string?)store.Read(db=>db.Scalar("SELECT PhuongThuc FROM dbo.LichSuNapTien WHERE MaGiaoDichNganHang=@id",("@id",methodPay.Id)))=="ChuyenKhoan","payment method persists into PhuongThuc ledger");
+        Denied(()=>business.CreatePayment(customer,new(10000,Guid.NewGuid().ToString(),null,"InvalidMethod")),"unknown payment method rejected");
     }
     static void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);Console.WriteLine("PASS "+name);}
     static void Denied(Action action,string name){try{action();}catch(DomainException){Check(true,name);return;}throw new Exception("FAIL "+name);}

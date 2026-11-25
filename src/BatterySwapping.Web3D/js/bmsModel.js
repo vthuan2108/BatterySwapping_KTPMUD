@@ -16,7 +16,7 @@ const BmsModel = (() => {
   function clear(slot) {slot.cooldownUntil=null;slot.cooldownStartedAt=null;slot.isOverheated=false;slot.isCooling=false;slot.isLocked=false;slot.requiresAdmin=false;}
   function step(slot, seconds, scale=1) {
     protect(slot);
-    if (!slot.hasBattery) { slot.current=0;slot.voltage=0;slot.isCharging=false;return; }
+    if (!slot.hasBattery) { slot.current=0;slot.voltage=0;slot.isCharging=false;if(!locked(slot))slot.isCooling=false;return; }
     if(slot.temperature>=55) {slot.isOverheated=true;slot.isLocked=true;slot.isEjected=false;slot.isDoorOpen=false;}
     // Integrate at current-stage boundaries: background delays never discard charge time.
     let remaining=Number.isFinite(seconds)&&Number.isFinite(scale)?Math.max(0,seconds)*Math.max(0,scale):0;

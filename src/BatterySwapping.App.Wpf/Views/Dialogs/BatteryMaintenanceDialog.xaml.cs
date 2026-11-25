@@ -60,8 +60,27 @@ namespace BatterySwapping.App.Views.Dialogs
             lblDienApDongDien.Text = $"{_pin.DienAp:F1} V • {_pin.DongDien:F1} A";
             lblTrangThai.Text = _pin.TrangThai;
 
-            // Đánh giá chẩn đoán chi tiết từ BatteryService
+            // Đánh giá chẩn đoán chi tiết từ BatteryService và lịch sử quá nhiệt tích lũy
             var inspection = await _batteryService.InspectBattery(_pin.MaPin);
+            var thermalState = await _batteryService.GetThermalStateSafe(_pin.MaPin);
+            bool hasChronicOverheat = thermalState != null && thermalState.TotalIncidents >= 3;
+
+            if (hasChronicOverheat)
+            {
+                borderChronicOverheat.Visibility = Visibility.Visible;
+                lblChronicOverheatTitle.Text = $"⚠️ CẢNH BÁO TÁI DIỄN QUÁ NHIỆT ({thermalState!.TotalIncidents} LẦN TRONG LỊCH SỬ)";
+                string resetInfo = thermalState.LastAdminResetAt.HasValue
+                    ? $", Admin reset gần nhất: {thermalState.LastAdminResetAt.Value.ToLocalTime():dd/MM/yyyy HH:mm}"
+                    : "";
+                lblChronicOverheatDesc.Text =
+                    $"Pin {_pin.MaPin} đã ghi nhận tổng cộng {thermalState.TotalIncidents} lần quá nhiệt (đợt hiện tại: {thermalState.IncidentCount} lần{resetInfo}). " +
+                    "Ngay cả khi đã được Admin reset, khuyến nghị kiểm định chuyên sâu hoặc thay thế pin khỏi trạm bằng nghiệp vụ REPLACE_BATTERY (nút \"Thay bằng pin kho\").";
+            }
+            else
+            {
+                borderChronicOverheat.Visibility = Visibility.Collapsed;
+            }
+
             if (inspection != null)
             {
                 lblDiagnosticDesc.Text = $"{inspection.HealthStatusDescription}\nKhuyến nghị: {inspection.RecommendedAction}";
@@ -72,6 +91,10 @@ namespace BatterySwapping.App.Views.Dialogs
                     lblDiagnosticTitle.Text = "🚨 BÁO ĐỘNG SỰ CỐ: PIN QUÁ NHIỆT KHẨN CẤP (> 55°C)";
                     lblDiagnosticTitle.Foreground = new SolidColorBrush(Color.FromRgb(220, 38, 38));
                     lblNhietDo.Foreground = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+                    if (hasChronicOverheat)
+                    {
+                        lblDiagnosticDesc.Text += $"\n⚠️ Đã tích lũy {thermalState!.TotalIncidents} lần quá nhiệt — khuyến nghị kiểm định/thay thế bằng REPLACE_BATTERY.";
+                    }
                 }
                 else if (inspection.IsDegraded)
                 {
@@ -79,6 +102,17 @@ namespace BatterySwapping.App.Views.Dialogs
                     lblDiagnosticTitle.Text = "⚠️ CẢNH BÁO KỸ THUẬT: PIN CHAI (SoH < 80%)";
                     lblDiagnosticTitle.Foreground = new SolidColorBrush(Color.FromRgb(180, 83, 9));
                     lblSoH.Foreground = new SolidColorBrush(Color.FromRgb(180, 83, 9));
+                    if (hasChronicOverheat)
+                    {
+                        lblDiagnosticDesc.Text += $"\n⚠️ Đồng thời pin có {thermalState!.TotalIncidents} lần quá nhiệt — ưu tiên thay thế qua REPLACE_BATTERY.";
+                    }
+                }
+                else if (hasChronicOverheat)
+                {
+                    borderDiagnostic.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199));
+                    lblDiagnosticTitle.Text = $"⚠️ CẢNH BÁO KỸ THUẬT: PIN TÁI DIỄN QUÁ NHIỆT ({thermalState!.TotalIncidents} LẦN)";
+                    lblDiagnosticTitle.Foreground = new SolidColorBrush(Color.FromRgb(180, 83, 9));
+                    lblDiagnosticDesc.Text = $"{inspection.HealthStatusDescription}\nLịch sử tích lũy {thermalState.TotalIncidents} lần quá nhiệt (kể cả sau khi Admin reset đưa bộ đếm đợt về 0). Khuyến nghị kiểm định kỹ thuật hoặc thay pin qua REPLACE_BATTERY.";
                 }
                 else
                 {
@@ -86,6 +120,13 @@ namespace BatterySwapping.App.Views.Dialogs
                     lblDiagnosticTitle.Text = "✅ ĐÁNH GIÁ BMS: PIN HOẠT ĐỘNG BÌNH THƯỜNG VÀ AN TOÀN";
                     lblDiagnosticTitle.Foreground = new SolidColorBrush(Color.FromRgb(21, 128, 61));
                 }
+            }
+            else if (hasChronicOverheat)
+            {
+                borderDiagnostic.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199));
+                lblDiagnosticTitle.Text = $"⚠️ CẢNH BÁO KỸ THUẬT: PIN TÁI DIỄN QUÁ NHIỆT ({thermalState!.TotalIncidents} LẦN)";
+                lblDiagnosticTitle.Foreground = new SolidColorBrush(Color.FromRgb(180, 83, 9));
+                lblDiagnosticDesc.Text = $"Lịch sử tích lũy {thermalState.TotalIncidents} lần quá nhiệt. Khuyến nghị kiểm định kỹ thuật hoặc thay pin qua REPLACE_BATTERY.";
             }
 
             // Gợi ý mã pin mới

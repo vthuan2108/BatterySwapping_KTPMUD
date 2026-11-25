@@ -91,12 +91,12 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
     }
     public DeviceCommand RequestCommand(string station,CommandRequest request) => store.Write(db=>{
         Require(request.Command!="RESTORE_STATION" || !CoolingLocked(db,station),"Trạm còn ngăn đang khóa làm mát.");
-        if(request.Command is "UNLOCK_SLOT" or "REPLACE_BATTERY")Require(!CoolingLocked(db,station,request.SlotNumber),"Ngăn đang khóa làm mát; cần xác nhận an toàn sau tối thiểu 5 phút.");
+        if(request.Command is "UNLOCK_SLOT" or "REPLACE_BATTERY" or "UNLOCK_MAINTENANCE")Require(!CoolingLocked(db,station,request.SlotNumber),"Ngăn đang khóa làm mát; cần xác nhận an toàn sau tối thiểu 5 phút.");
         Require(request.Command!="RESTORE_STATION" || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.CanhBaoIoT WHERE MaTram=@s AND DaXuLy=0",("@s",station)))==0,"Xử lý các cảnh báo đang mở trước khi khôi phục trạm.");
         Require(request.Command != "RESTORE_STATION" || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.BssMaintenance m JOIN dbo.BssMaintenanceLocks l ON l.MaintenanceId=m.Id WHERE m.StationId=@s",("@s",station)))==0,"Trạm còn phiếu bảo trì chưa đối soát.");
         Require(request.Command is not ("RESET_ALARM" or "REPLACE_BATTERY"),"Tạo phiếu bảo trì để xử lý hoặc thay pin.");
         Require(Status(db,station).Online || request.Command=="CUT_OFF","Simulator mất kết nối.");
-        Require(request.Command is "CUT_OFF" or "RESTORE_STATION" or "UNLOCK_SLOT" or "CLOSE_SLOT" or "LOCK_SLOT" or "RESET_ALARM" or "TRIGGER_OVERHEAT" or "REPLACE_BATTERY","Lệnh không được hỗ trợ.");
+        Require(request.Command is "CUT_OFF" or "RESTORE_STATION" or "UNLOCK_SLOT" or "CLOSE_SLOT" or "LOCK_SLOT" or "UNLOCK_MAINTENANCE" or "RESET_ALARM" or "TRIGGER_OVERHEAT" or "REPLACE_BATTERY","Lệnh không được hỗ trợ.");
         if(request.Command=="CUT_OFF")
             db.Exec("UPDATE dbo.TramPin SET TrangThaiHoatDong=N'TamDung' WHERE MaTram=@s; UPDATE n SET KhoaBaoTri=1 FROM dbo.NganTu n WHERE MaTram=@s; UPDATE p SET DongDien=0 FROM dbo.Pin p JOIN dbo.NganTu n ON n.MaPinHienTai=p.MaPin WHERE n.MaTram=@s",("@s",station));
         else if(request.Command=="RESTORE_STATION")
@@ -109,6 +109,11 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
             var reserved=db.Scalar("SELECT SessionId FROM dbo.BssReservations WHERE Resource=@r",("@r",$"slot:{station}:{request.SlotNumber}")) as string;
             Require(reserved==null || request.Command=="RESET_ALARM" && db.Payload<SwapSession>("BssSessions",reserved)?.State=="NeedsAssistance","Ngăn đang được giữ cho giao dịch.");
             if(request.Command=="UNLOCK_SLOT") Require(!(bool)slot!["KhoaBaoTri"]! && Convert.ToDecimal(slot["NhietDo"]??25m)<55,"Ngăn đang bị khóa an toàn.");
+            if(request.Command=="UNLOCK_MAINTENANCE")
+            {
+                Require((string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",station))=="HoatDong","Trạm đang dừng hoặc bảo trì; không thể mở khóa ngăn.");
+                Require(Convert.ToDecimal(slot!["NhietDo"]??25m)<55m,"Ngăn đang quá nhiệt (>= 55°C); không thể mở khóa thủ công.");
+            }
             if(request.Command=="REPLACE_BATTERY")
             {
                 Require(!string.IsNullOrWhiteSpace(request.BatteryId) && request.BatteryId.Length<=20,"Mã pin mới không hợp lệ.");
@@ -223,7 +228,7 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
             db.Exec("UPDATE dbo.BssMaintenance SET Status='Failed',Result=@note WHERE CommandId=@id",("@note",c.Note),("@id",c.CommandId));
             if(c.SessionId!=null){var session=db.Payload<SwapSession>("BssSessions",c.SessionId);if(session!=null && Active(session)){session.State="NeedsAssistance";session.Note=c.Note;Save(db,session);}}return;}
         var t=m.Slots.SingleOrDefault(t=>t.SlotNumber==c.SlotNumber);
-        if(c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY" or "RETURN_OLD_BATTERY" or "REPLACE_BATTERY")Require(!CoolingLocked(db,c.StationId,c.SlotNumber),"Ngăn chưa kết thúc cách ly làm mát.");
+        if(c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY" or "RETURN_OLD_BATTERY" or "REPLACE_BATTERY" or "UNLOCK_MAINTENANCE")Require(!CoolingLocked(db,c.StationId,c.SlotNumber),"Ngăn chưa kết thúc cách ly làm mát.");
         if(c.Command=="RESTORE_STATION")Require(!CoolingLocked(db,c.StationId),"Trạm còn ngăn khóa làm mát.");
         if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM")ValidateThermalRecovery(db,c);
         if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM" or "REPLACE_BATTERY")
@@ -255,9 +260,16 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
             Require(t!=null && (c.Command=="UNLOCK_SLOT" ? t.IsDoorOpen && !t.IsLocked : !t.IsDoorOpen),"Trạng thái cửa chưa xác nhận.");
             db.Exec("UPDATE dbo.NganTu SET CuaDangMo=@o, KhoaBaoTri=CASE WHEN @lock=1 THEN 1 ELSE KhoaBaoTri END WHERE MaTram=@s AND SoThuTu=@n",("@o",t!.IsDoorOpen),("@lock",c.Command=="LOCK_SLOT"),("@s",c.StationId),("@n",c.SlotNumber));
         }
+        else if(c.Command=="UNLOCK_MAINTENANCE")
+        {
+            Require((string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",c.StationId))=="HoatDong","Trạm đã bị ngắt; không thể mở khóa ngăn.");
+            Require(db.Scalar("SELECT MaintenanceId FROM dbo.BssMaintenanceLocks WHERE Resource=@r",("@r",$"slot:{c.StationId}:{c.SlotNumber}"))==null,"Ngăn thuộc phiếu bảo trì chưa kết thúc.");
+            Require(t!=null && !t.IsLocked && !t.IsOverheated && t.Temperature<55,"Chưa xác nhận thiết bị mở khóa an toàn.");
+            db.Exec("UPDATE dbo.NganTu SET KhoaBaoTri=0,CuaDangMo=@o,TrangThaiNgan=CASE WHEN MaPinHienTai IS NULL THEN N'Trong' WHEN TrangThaiNgan=N'Loi' THEN N'CoPin' ELSE TrangThaiNgan END WHERE MaTram=@s AND SoThuTu=@n",("@o",t!.IsDoorOpen),("@s",c.StationId),("@n",c.SlotNumber));
+        }
         else if(c.Command=="RETURN_OLD_BATTERY") Require(t!=null && t.BatteryId==c.BatteryId && t.IsDoorOpen && !t.IsLocked && t.Temperature<=45,"Pin cũ chưa an toàn để trả.");
         else if(c.Command=="EJECT_BATTERY") Require(t!=null && t.BatteryId==c.BatteryId && t.IsDoorOpen && !t.IsLocked && t.Temperature<=45 && t.Soc>=90 && t.Soh>=80,"Pin không thể cấp.");
-        if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM")db.Exec("UPDATE dbo.BssSlotCooldowns SET IncidentCount=CASE WHEN RequiresAdmin=1 AND @admin=1 THEN 0 ELSE IncidentCount END,RequiresAdmin=CASE WHEN @admin=1 THEN 0 ELSE RequiresAdmin END,ClearedAt=@now WHERE StationId=@s AND SlotNumber=@n AND ClearedAt IS NULL",("@now",CooldownNow),("@s",c.StationId),("@n",c.SlotNumber),("@admin",c.AdminThermalReset));
+        if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM")ClearThermalCooldown(db,c);
         c.Status="Completed";Save(db,c);
         CompleteMaintenance(db,c);
         if(c.Command=="CLOSE_SLOT" && c.SessionId!=null)
@@ -287,11 +299,14 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
             if(s==null || (!Active(s) && c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY")) { c.Status="Cancelled";Save(db,c);return null; }
         }
         if(c.Command=="RESTORE_STATION" && (CoolingLocked(db,c.StationId) || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.CanhBaoIoT WHERE MaTram=@s AND DaXuLy=0",("@s",c.StationId)))>0 || Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.BssMaintenance m JOIN dbo.BssMaintenanceLocks l ON l.MaintenanceId=m.Id WHERE m.StationId=@s",("@s",c.StationId)))>0)){c.Status="Failed";c.Note="Trạm chưa hoàn tất xử lý cảnh báo/bảo trì.";Save(db,c);return null;}
-        if(c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY" or "RETURN_OLD_BATTERY" or "REPLACE_BATTERY" && CoolingLocked(db,c.StationId,c.SlotNumber)){
+        if(c.Command is "UNLOCK_SLOT" or "EJECT_BATTERY" or "RETURN_OLD_BATTERY" or "REPLACE_BATTERY" or "UNLOCK_MAINTENANCE" && CoolingLocked(db,c.StationId,c.SlotNumber)){
             c.Status="Failed";c.Note="Ngăn đang khóa làm mát.";Save(db,c);
             db.Exec("UPDATE dbo.BssMaintenance SET Status='Cancelled',Result=@note WHERE CommandId=@id; DELETE l FROM dbo.BssMaintenanceLocks l JOIN dbo.BssMaintenance m ON m.Id=l.MaintenanceId WHERE m.CommandId=@id",("@note",c.Note),("@id",c.CommandId));
             if(c.SessionId!=null){var interrupted=db.Payload<SwapSession>("BssSessions",c.SessionId);if(interrupted!=null&&Active(interrupted)){interrupted.State="NeedsAssistance";interrupted.Note=c.Note;Save(db,interrupted);}}
             return null;
+        }
+        if(c.Command=="UNLOCK_MAINTENANCE" && ((string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",c.StationId))!="HoatDong" || db.Scalar("SELECT MaintenanceId FROM dbo.BssMaintenanceLocks WHERE Resource=@r",("@r",$"slot:{c.StationId}:{c.SlotNumber}"))!=null || Convert.ToDecimal(db.Scalar("SELECT COALESCE(p.NhietDo,25) FROM dbo.NganTu n LEFT JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE n.MaTram=@s AND n.SoThuTu=@n",("@s",c.StationId),("@n",c.SlotNumber))??25m)>=55m)){
+            c.Status="Failed";c.Note="Ngăn không đủ điều kiện mở khóa bảo trì thủ công.";Save(db,c);return null;
         }
         if(c.Command is "RESET_ALARM" or "AUTO_RESET_ALARM" or "REPLACE_BATTERY")c.PreserveStationLock=(string?)db.Scalar("SELECT TrangThaiHoatDong FROM dbo.TramPin WHERE MaTram=@s",("@s",c.StationId))!="HoatDong";
         c.Status="Sent";c.SentAt=DateTimeOffset.UtcNow;Save(db,c);return c;
@@ -307,5 +322,33 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
         }
         QueueAutomaticThermalRecovery(db);
         db.Exec("DELETE dbo.BssMessages WHERE ReceivedAt<DATEADD(day,-1,SYSDATETIMEOFFSET())");return true;
+    });
+    public Dictionary<string,object?> ResolveAlert(int id,string actorName,string? note=null)=>store.Write(db=>{
+        var alert=db.Rows("SELECT * FROM dbo.CanhBaoIoT WHERE MaCB=@id",("@id",id)).SingleOrDefault()??throw new DomainException("Không tìm thấy cảnh báo.",404);
+        if(Convert.ToBoolean(alert["DaXuLy"]))return alert;
+        string station=(string)alert["MaTram"]!;
+        int? slotNumber=alert["MaNgan"] as int?;
+        string? alertPin=alert["MaPin"] as string;
+        if(slotNumber.HasValue){
+            Require(!CoolingLocked(db,station,slotNumber.Value),"Ngăn đang khóa làm mát do quá nhiệt; phải chờ đủ 5 phút và xác nhận an toàn thiết bị.");
+            var slotInfo=db.Rows("SELECT p.NhietDo,p.TrangThai FROM dbo.NganTu n LEFT JOIN dbo.Pin p ON p.MaPin=n.MaPinHienTai WHERE n.MaTram=@s AND n.SoThuTu=@n",("@s",station),("@n",slotNumber.Value)).SingleOrDefault();
+            if(slotInfo!=null && slotInfo["NhietDo"]!=null)
+                Require(Convert.ToDecimal(slotInfo["NhietDo"])<55m,"Nhiệt độ tại ngăn đang >= 55°C; không thể đóng cảnh báo trực tiếp.");
+            if(slotInfo!=null && string.Equals(slotInfo["TrangThai"] as string,"LoiQuaNhiet",StringComparison.Ordinal))
+                Require(false,"Pin tại ngăn đang ở trạng thái lỗi quá nhiệt; cần hoàn tất quy trình bảo vệ nhiệt.");
+        }else if(!string.IsNullOrWhiteSpace(alertPin)){
+            var pinInfo=db.Rows("SELECT NhietDo,TrangThai FROM dbo.Pin WHERE MaPin=@p",("@p",alertPin)).SingleOrDefault();
+            if(pinInfo!=null){
+                Require(Convert.ToDecimal(pinInfo["NhietDo"])<55m,"Pin liên quan đang >= 55°C; không thể đóng cảnh báo trực tiếp.");
+                Require(!string.Equals(pinInfo["TrangThai"] as string,"LoiQuaNhiet",StringComparison.Ordinal),"Pin liên quan đang ở trạng thái lỗi quá nhiệt.");
+            }
+            Require(Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.BssSlotCooldowns WHERE BatteryId=@p AND ClearedAt IS NULL",("@p",alertPin)))==0,"Pin liên quan đang trong đợt khóa làm mát.");
+        }
+        string safeActor=string.IsNullOrWhiteSpace(actorName)?"System":actorName.Trim();
+        if(safeActor.Length>100)safeActor=safeActor[..100];
+        string? safeNote=string.IsNullOrWhiteSpace(note)?null:note.Trim();
+        if(safeNote is {Length:>255})safeNote=safeNote[..255];
+        db.Exec("UPDATE dbo.CanhBaoIoT SET DaXuLy=1,NguoiXuLy=@actor,ThoiGianXuLy=GETDATE(),GhiChu=COALESCE(@note,GhiChu) WHERE MaCB=@id",("@actor",safeActor),("@note",safeNote),("@id",id));
+        return db.Rows("SELECT * FROM dbo.CanhBaoIoT WHERE MaCB=@id",("@id",id)).Single();
     });
 }

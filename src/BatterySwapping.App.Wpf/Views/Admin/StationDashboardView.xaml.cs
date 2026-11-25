@@ -17,6 +17,7 @@ namespace BatterySwapping.App.Views.Admin
     {
         private readonly StationService _stationService;
         private readonly ReportService _reportService;
+        private readonly BatteryService _batteryService;
         private DispatcherTimer? _refreshTimer;
         public void SelectStation(string station){_currentStationId=station;if(cboStations.ItemsSource!=null)cboStations.SelectedValue=station;}
         public string CurrentStationId => _currentStationId;
@@ -29,6 +30,7 @@ namespace BatterySwapping.App.Views.Admin
             if(AuthService.CurrentUser?.VaiTro=="KyThuatVien"){revenueCard.Visibility=Visibility.Collapsed;swapCard.Visibility=Visibility.Collapsed;}
             _stationService = new StationService();
             _reportService = new ReportService();
+            _batteryService = new BatteryService();
 
             Loaded += StationDashboardView_Loaded;
             Unloaded += StationDashboardView_Unloaded;
@@ -92,23 +94,32 @@ namespace BatterySwapping.App.Views.Admin
     private void ShowCooldowns(List<NganTu> slots, bool online)
     {
         _cooldownDeviceOnline = online;
+        bool isAdmin = AuthService.CurrentUser?.VaiTro == "Admin";
+        var chronicSlots = slots.Where(s => s.HasChronicOverheatHistory).OrderBy(s => s.SoThuTu).ToList();
+        string chronicNote = chronicSlots.Count > 0
+            ? "\n⚠️ Cảnh báo kỹ thuật (tổng ≥ 3 lần quá nhiệt): " +
+              string.Join("; ", chronicSlots.Select(s => $"Ngăn #{s.SoThuTu} ({s.MaPinHienTai}: {s.TotalThermalIncidents} lần)")) +
+              " — khuyến nghị kiểm định hoặc thay thế pin qua nghiệp vụ REPLACE_BATTERY."
+            : "";
+
         var active = _cooldowns.Where(c => c.ClearedAt == null).OrderBy(c => c.SlotNumber).ToList();
         if (active.Count == 0)
         {
-            txtCooldownStatus.Text = online ? "Bảo vệ nhiệt: không có ngăn đang trong đợt khóa quá nhiệt." : "Thiết bị offline — chưa thể xác nhận tình trạng an toàn hoặc mở ngăn.";
+            txtCooldownStatus.Text = (online ? "Bảo vệ nhiệt: không có ngăn đang trong đợt khóa quá nhiệt." : "Thiết bị offline — chưa thể xác nhận tình trạng an toàn hoặc mở ngăn.") + chronicNote;
             if (pnlAdminResetOverheat != null) pnlAdminResetOverheat.Visibility = Visibility.Collapsed;
             return;
         }
         bool hasAdminRequired = active.Any(c => c.RequiresAdmin || c.IncidentCount >= 3);
         if (pnlAdminResetOverheat != null)
         {
-            pnlAdminResetOverheat.Visibility = hasAdminRequired ? Visibility.Visible : Visibility.Collapsed;
+            pnlAdminResetOverheat.Visibility = hasAdminRequired && isAdmin ? Visibility.Visible : Visibility.Collapsed;
         }
         var lines = active.Select(c => {
             var seconds = Math.Max(0, (int)Math.Ceiling((c.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
             var slot = slots.Find(n => n.SoThuTu == c.SlotNumber);
             string temperature = slot == null ? "chưa có số liệu" : $"{slot.NhietDo:F1}°C";
             bool requiresAdmin = c.RequiresAdmin || c.IncidentCount >= 3;
+            int totalIncidents = Math.Max(c.IncidentCount, slot?.TotalThermalIncidents ?? 0);
             string state = seconds > 0
                 ? $"đang làm mát tự động; khóa tối thiểu còn {seconds / 60:00}:{seconds % 60:00}"
                 : slot == null || slot.NhietDo >= 35
@@ -118,9 +129,13 @@ namespace BatterySwapping.App.Views.Admin
                         : "đã đủ thời gian và dưới 35°C; chờ hệ thống và thiết bị tự động khôi phục, không cần xác nhận";
             if (requiresAdmin && (seconds > 0 || slot == null || slot.NhietDo >= 35))
                 state += "; sau khi an toàn vẫn cần Admin xác nhận";
-            return $"Ngăn #{c.SlotNumber} • quá nhiệt lần {c.IncidentCount} • {c.BatteryId ?? "chưa rõ pin"} • {temperature}: {state}.";
+            string totalInfo = totalIncidents >= 3 ? $" (tổng lịch sử {totalIncidents} lần)" : "";
+            return $"Ngăn #{c.SlotNumber} • quá nhiệt lần {c.IncidentCount}{totalInfo} • {c.BatteryId ?? "chưa rõ pin"} • {temperature}: {state}.";
         });
-        txtCooldownStatus.Text = string.Join("\n", lines) + "\nKhông nhận/cấp/rút pin hoặc mở cửa khi còn khóa bảo vệ. Thời gian thực, không tăng tốc theo mô phỏng." + (online ? "" : "\nThiết bị offline — số liệu có thể cũ, tiếp tục giữ khóa.");
+        string adminNotice = hasAdminRequired && !isAdmin
+            ? "\n🔒 Yêu cầu xác nhận của Admin để reset ngăn quá nhiệt từ lần 3 trở lên (Kỹ thuật viên không thể tự mở khóa)."
+            : "";
+        txtCooldownStatus.Text = string.Join("\n", lines) + "\nKhông nhận/cấp/rút pin hoặc mở cửa khi còn khóa bảo vệ. Thời gian thực, không tăng tốc theo mô phỏng." + (online ? "" : "\nThiết bị offline — số liệu có thể cũ, tiếp tục giữ khóa.") + adminNotice + chronicNote;
     }
 
     private async void BtnAdminResetOverheat_Click(object sender, RoutedEventArgs e)
@@ -242,6 +257,18 @@ namespace BatterySwapping.App.Views.Admin
                 // Cập nhật danh sách ngăn tủ
                 var slots = await _stationService.GetCabinetSlots(targetStation);
                 if(targetStation!=_currentStationId)return;
+                var thermalStates = await _batteryService.GetThermalStatesSafe();
+                if(targetStation!=_currentStationId)return;
+                var thermalByBattery = thermalStates
+                    .GroupBy(t => t.BatteryId, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+                foreach (var slot in slots)
+                {
+                    if (!string.IsNullOrEmpty(slot.MaPinHienTai) && thermalByBattery.TryGetValue(slot.MaPinHienTai, out var thermalState))
+                        slot.ApplyThermalState(thermalState);
+                    else
+                        slot.ApplyThermalState(null);
+                }
                 _cooldownReadValid = false;
                 try {
                     var cooldowns = await BssApi.Client.Get<List<SlotCooldown>>($"stations/{targetStation}/cooldowns");
@@ -329,6 +356,21 @@ namespace BatterySwapping.App.Views.Admin
                 var slots = icSlots.ItemsSource as List<NganTu>;
                 var slot = slots?.Find(s => s.SoThuTu == slotNumber);
                 bool nextLockState = slot == null || !slot.KhoaBaoTri;
+
+                if (!nextLockState && slot != null && _cooldownReadValid && _cooldownStation == targetStation)
+                {
+                    var activeCooldown = _cooldowns.Find(c => c.SlotNumber == slotNumber && c.ClearedAt == null);
+                    if (activeCooldown != null)
+                    {
+                        var reason = await BssApi.GetThermalResetBlockReason(targetStation, slotNumber);
+                        if (reason != null) throw new InvalidOperationException(reason);
+                        var seconds = Math.Max(0, (int)Math.Ceiling((activeCooldown.UnlockAfter - DateTimeOffset.UtcNow).TotalSeconds));
+                        if (seconds > 0)
+                            throw new InvalidOperationException($"Ngăn #{slotNumber} chưa hết thời gian cách ly 5 phút (còn {seconds / 60:00}:{seconds % 60:00}).");
+                        if (slot.NhietDo >= 35)
+                            throw new InvalidOperationException($"Ngăn #{slotNumber} nhiệt độ còn cao ({slot.NhietDo:F1}°C), cần dưới 35.0°C.");
+                    }
+                }
 
                 await _stationService.SetMaintenanceLock(targetStation, slotNumber, nextLockState);
                 if (nextLockState)

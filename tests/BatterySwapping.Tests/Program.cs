@@ -72,6 +72,18 @@ try{
     await admin.Post<PaymentRequest>($"payments/{payment.Id}/result",new PaymentResultRequest("Succeeded"));
     Check(store.Read(db=>Convert.ToDecimal(db.Scalar("SELECT SoDuVi FROM dbo.KhachHang WHERE MaKH=1")))==135000,"payment callback credits once");
     try{await other.Post<PaymentRequest>("payments",new CreatePaymentRequest(10000,Guid.NewGuid().ToString(),1));throw new Exception("otherwallet bypass");}catch(InvalidOperationException){Check(true,"customer cannot create payment for someone else");}
+    try{await admin.Post<PaymentRequest>("wallet/topup",new SelfTopupRequest(10000,Guid.NewGuid().ToString()));throw new Exception("admin self-topup bypass");}catch(InvalidOperationException){Check(true,"admin cannot use customer self-topup fallback");}
+    var bankPay=await other.Post<PaymentRequest>("payments",new CreatePaymentRequest(12000,Guid.NewGuid().ToString(),null,"ChuyenKhoan"));
+    await admin.Post<PaymentRequest>($"payments/{bankPay.Id}/result",new PaymentResultRequest("Succeeded"));
+    Check((string?)store.Read(db=>db.Scalar("SELECT PhuongThuc FROM dbo.LichSuNapTien WHERE MaGiaoDichNganHang=@id",("@id",bankPay.Id)))=="ChuyenKhoan","payment callback persists chosen PhuongThuc");
+    var lockEmptyCmd=await admin.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("LOCK_SLOT",6));await device.ExecuteUntil("LOCK_SLOT",null);
+    await Wait(async()=>(await admin.Get<DeviceCommand>($"commands/{lockEmptyCmd.CommandId}")).Status=="Completed");
+    var unlockEmptyCmd=await admin.Post<DeviceCommand>("stations/TRAM-BK01/commands",new CommandRequest("UNLOCK_MAINTENANCE",6));await device.ExecuteUntil("UNLOCK_MAINTENANCE",null);
+    await Wait(async()=>(await admin.Get<DeviceCommand>($"commands/{unlockEmptyCmd.CommandId}")).Status=="Completed");
+    Check(!store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT KhoaBaoTri FROM dbo.NganTu WHERE MaTram='TRAM-BK01' AND SoThuTu=6"))),"UNLOCK_MAINTENANCE unlocks empty slot cleanly");
+    int mildId=store.Read(db=>Convert.ToInt32(db.Scalar("SELECT TOP 1 MaCB FROM dbo.CanhBaoIoT WHERE MaTram='TRAM-BK01' AND MaNgan=5 AND DaXuLy=0 ORDER BY MaCB DESC")));
+    await tech.Post<JsonElement>($"alerts/{mildId}/resolve",new ResolveAlertRequest("Kiểm tra nhiệt độ ổn định"));
+    Check(store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT DaXuLy FROM dbo.CanhBaoIoT WHERE MaCB=@id",("@id",mildId)))) && !store.Read(db=>Convert.ToBoolean(db.Scalar("SELECT KhoaBaoTri FROM dbo.NganTu WHERE MaTram='TRAM-BK01' AND SoThuTu=5"))),"safe alert resolution marks DaXuLy=1 without locking healthy slot");
     var recovery=await driver.Post<SwapSession>("swaps",new StartSwap("TRAM-BK01",Guid.NewGuid().ToString("N")));
     await device.ExecuteUntil("UNLOCK_SLOT",recovery.Id);
     device.Change(recovery.ReturnSlot,t=>t with{BatteryId=recovery.OldBatteryId,Temperature=60,IsDoorOpen=false,IsLocked=true,Current=0});
@@ -177,6 +189,8 @@ sealed class TestDevice(HttpClient http,List<NganTu> slots):IAsyncDisposable
         while(true){var c=await commands.Reader.ReadAsync(timeout.Token);switch(c.Command){
             case "UNLOCK_SLOT":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=true,Current=0});break;
             case "CLOSE_SLOT":Change(c.SlotNumber!.Value,t=>t with{IsDoorOpen=false});break;
+            case "LOCK_SLOT":Change(c.SlotNumber!.Value,t=>t with{IsLocked=true,IsDoorOpen=false,Current=0});break;
+            case "UNLOCK_MAINTENANCE":Change(c.SlotNumber!.Value,t=>t with{IsLocked=false,IsOverheated=false});break;
             case "REPLACE_BATTERY":
                 var snapshot=await http.GetFromJsonAsync<JsonElement>("/api/v1/device/TRAM-BK01/snapshot");
                 var p=snapshot.GetProperty("batteries").EnumerateArray().Single(p=>p.GetProperty("maPin").GetString()==c.BatteryId);
