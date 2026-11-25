@@ -79,7 +79,7 @@ namespace BatterySwapping.Core.Services
         public List<KhachHang> GetAllCustomers()
         {
             var list = new List<KhachHang>();
-            string sql = "SELECT MaKH, MaTK, HoTen, SoDienThoai, Email, BienSoXe, SoDuVi, MaPinDangMuon, NgayDangKy FROM dbo.KhachHang ORDER BY MaKH DESC";
+            string sql = "SELECT MaKH, MaTK, HoTen, SoDienThoai, Email, BienSoXe, SoDuVi, MaPinDangMuon, MaTheRFID, MaQR, NgayDangKy FROM dbo.KhachHang ORDER BY MaKH DESC";
             DataTable dt = DatabaseHelper.ExecuteDataTable(sql);
 
             foreach (DataRow row in dt.Rows)
@@ -94,6 +94,8 @@ namespace BatterySwapping.Core.Services
                     BienSoXe = row["BienSoXe"] != DBNull.Value ? row["BienSoXe"].ToString()! : string.Empty,
                     SoDuVi = row["SoDuVi"] != DBNull.Value ? Convert.ToDecimal(row["SoDuVi"]) : 0.0m,
                     MaPinDangMuon = row["MaPinDangMuon"] != DBNull.Value ? row["MaPinDangMuon"].ToString() : null,
+                    MaTheRFID = dt.Columns.Contains("MaTheRFID") && row["MaTheRFID"] != DBNull.Value ? row["MaTheRFID"].ToString() : null,
+                    MaQR = dt.Columns.Contains("MaQR") && row["MaQR"] != DBNull.Value ? row["MaQR"].ToString() : null,
                     NgayDangKy = row["NgayDangKy"] != DBNull.Value ? Convert.ToDateTime(row["NgayDangKy"]) : DateTime.Now
                 });
             }

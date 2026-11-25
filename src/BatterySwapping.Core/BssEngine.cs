@@ -21,6 +21,29 @@ public sealed partial class BssEngine(SqlStore store,TimeProvider? clock=null)
             return new UserInfo((int)r["MaTK"]!, (string)r["TenDangNhap"]!, (string)r["HoTen"]!, (string)r["VaiTro"]!, r["MaKH"] as int?);
         });
     }
+    public UserInfo KioskScan(KioskScanRequest request)
+    {
+        if (request is null)
+            throw new DomainException("Yêu cầu quét không hợp lệ.", 400);
+        string method = request.Method?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (method is not ("QR" or "RFID"))
+            throw new DomainException("Phương thức xác thực phải là QR hoặc RFID.", 400);
+        string code = request.Code?.Trim() ?? string.Empty;
+        if (code.Length is < 6 or > 128)
+            throw new DomainException("Mã QR hoặc thẻ RFID không hợp lệ.", 400);
+
+        string sql = method == "RFID"
+            ? "SELECT t.MaTK,t.TenDangNhap,t.HoTen,t.VaiTro,t.TrangThai,k.MaKH FROM dbo.TaiKhoan t JOIN dbo.KhachHang k ON k.MaTK=t.MaTK WHERE k.MaTheRFID=@c"
+            : "SELECT t.MaTK,t.TenDangNhap,t.HoTen,t.VaiTro,t.TrangThai,k.MaKH FROM dbo.TaiKhoan t JOIN dbo.KhachHang k ON k.MaTK=t.MaTK WHERE k.MaQR=@c";
+
+        return store.Read(db =>
+        {
+            var r = db.Rows(sql, ("@c", code)).SingleOrDefault();
+            if (r is null || (string)r["TrangThai"]! != "HoatDong" || (string)r["VaiTro"]! != "KhachHang")
+                throw new DomainException("Mã QR hoặc thẻ RFID không hợp lệ hoặc chưa được đăng ký.", 401);
+            return new UserInfo((int)r["MaTK"]!, (string)r["TenDangNhap"]!, (string)r["HoTen"]!, (string)r["VaiTro"]!, r["MaKH"] as int?);
+        });
+    }
     public StationStatus Status(string station) => store.Read(db => Status(db,station));
     static StationStatus Status(Db db,string station)
     {

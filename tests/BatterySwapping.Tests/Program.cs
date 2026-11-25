@@ -65,6 +65,36 @@ try{
     Check((await raw.PostAsJsonAsync("/api/v1/auth/kiosk",new KioskAuthRequest("0987654321"))).StatusCode==HttpStatusCode.NotFound,"identifier cannot issue login token");
     Check((await raw.PostAsJsonAsync($"/api/v1/swaps/{s.Id}/events",new SwapEventRequest("OLD_INSERTED"))).StatusCode==HttpStatusCode.NotFound,"HTTP cannot forge physical swap events");
     Check(store.Read(db=>Convert.ToInt32(db.Scalar("SELECT COUNT(*) FROM dbo.TaiKhoan")))==beforeAccounts,"identifier cannot provision customer");
+    var qrResp=await raw.PostAsJsonAsync("/api/v1/auth/kiosk-scan",new KioskScanRequest("qr"," BSS-QR-DRV01-AN "));
+    Check(qrResp.StatusCode==HttpStatusCode.OK,"valid QR code logs in driver01");
+    var qrLogin=(await qrResp.Content.ReadFromJsonAsync<LoginResponse>())!;
+    Check(qrLogin.User.Username=="driver01" && qrLogin.User.Role=="KhachHang" && !string.IsNullOrWhiteSpace(qrLogin.Token),"QR login returns driver01 KhachHang session");
+    var rfidResp=await raw.PostAsJsonAsync("/api/v1/auth/kiosk-scan",new KioskScanRequest("RFID","RFID-AN-8801"));
+    Check(rfidResp.StatusCode==HttpStatusCode.OK,"valid RFID card logs in driver01");
+    var rfidLogin=(await rfidResp.Content.ReadFromJsonAsync<LoginResponse>())!;
+    Check(rfidLogin.User.Username=="driver01" && rfidLogin.User.Role=="KhachHang" && !string.IsNullOrWhiteSpace(rfidLogin.Token),"RFID login returns driver01 KhachHang session");
+    Check((await raw.PostAsJsonAsync("/api/v1/auth/kiosk-scan",new KioskScanRequest("QR","BSS-QR-INVALID-999"))).StatusCode==HttpStatusCode.Unauthorized,"invalid QR code returns 401");
+    Check((await raw.PostAsJsonAsync("/api/v1/auth/kiosk-scan",new KioskScanRequest("RFID","0987654321"))).StatusCode==HttpStatusCode.Unauthorized,"phone number rejected by kiosk-scan");
+    Check((await raw.PostAsJsonAsync("/api/v1/auth/kiosk-scan",new KioskScanRequest("PHONE","0987654321"))).StatusCode==HttpStatusCode.BadRequest,"unsupported scan method returns 400");
+    Check((await raw.PostAsJsonAsync("/api/v1/auth/kiosk-scan",new KioskScanRequest("QR","123"))).StatusCode==HttpStatusCode.BadRequest,"short scan code returns 400");
+    int adminTk=store.Read(db=>Convert.ToInt32(db.Scalar("SELECT MaTK FROM dbo.TaiKhoan WHERE TenDangNhap='admin'")));
+    string adminQr="BSS-QR-ADMIN-"+Guid.NewGuid().ToString("N")[..8];
+    bool createdAdminCustomer=false;
+    if(store.Read(db=>db.Scalar("SELECT MaKH FROM dbo.KhachHang WHERE MaTK=@tk",("@tk",adminTk)))==null)
+    {
+        store.Write(db=>db.Exec("INSERT dbo.KhachHang(MaTK,HoTen,SoDienThoai,BienSoXe,MaQR) VALUES(@tk,N'Admin Test','0999888777','29Z9-99999',@qr)",("@tk",adminTk),("@qr",adminQr)));
+        createdAdminCustomer=true;
+    }
+    try
+    {
+        if(createdAdminCustomer)
+            Check((await raw.PostAsJsonAsync("/api/v1/auth/kiosk-scan",new KioskScanRequest("QR",adminQr))).StatusCode==HttpStatusCode.Unauthorized,"admin role cannot log in via kiosk-scan");
+    }
+    finally
+    {
+        if(createdAdminCustomer)
+            store.Write(db=>db.Exec("DELETE FROM dbo.KhachHang WHERE MaTK=@tk AND MaQR=@qr",("@tk",adminTk),("@qr",adminQr)));
+    }
     var payment=await driver.Post<PaymentRequest>("payments",new CreatePaymentRequest(10000,Guid.NewGuid().ToString()));
     Check(payment.Status=="Pending","topup request starts pending");
     try{await tech.Post<PaymentRequest>($"payments/{payment.Id}/result",new PaymentResultRequest("Succeeded"));throw new Exception("technician payment bypass");}catch(InvalidOperationException){Check(true,"technician cannot confirm payment");}

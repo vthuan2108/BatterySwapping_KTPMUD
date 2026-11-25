@@ -8,6 +8,8 @@ public class KhachHang {
         public string BienSoXe { get; set; } = string.Empty;
         public decimal SoDuVi { get; set; } = 0.0m;
         public string? MaPinDangMuon { get; set; }
+        public string? MaTheRFID { get; set; }
+        public string? MaQR { get; set; }
         public DateTime NgayDangKy { get; set; } = DateTime.Now;
         public string SoDuFormatted => string.Format("{0:N0} đ", SoDuVi);
         public string PinDangMuonDisplay => !string.IsNullOrEmpty(MaPinDangMuon) ? MaPinDangMuon : "Chưa mượn pin";

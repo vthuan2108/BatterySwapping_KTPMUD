@@ -43,8 +43,7 @@
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="bss planner." FontSize="16" FontWeight="Bold" Foreground="#111827"/>
-                            <TextBlock Text="HUSTFlow • Smart Mobility OS" FontSize="11" Foreground="{StaticResource TextCategoryBrush}"/>
+                            <TextBlock Text="Battery Swapping System" FontSize="15" FontWeight="Bold" Foreground="#111827" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
                     <Separator Background="{StaticResource BorderBrush}" Margin="0,14,0,0" Height="1"/>

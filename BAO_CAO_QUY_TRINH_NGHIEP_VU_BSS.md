@@ -14,7 +14,7 @@ Hệ thống **BSS** vận hành dựa trên sự kết hợp đồng bộ giữ
 - **Công nghệ:** HTML5, CSS3, JavaScript (Three.js, Web Worker, MQTT.js).
 - **Chức năng:**
   - Mô phỏng tủ trạm 3D thời gian thực với 8 ngăn chứa pin cho 2 trạm (`TRAM-BK01` và `TRAM-CG02`).
-  - Tích hợp giao diện màn hình cảm ứng Kiosk dành cho tài xế xe điện (Driver): hỗ trợ đăng nhập, nạp nhanh ví, khởi tạo/hủy đổi pin và cảnh báo rõ ràng nếu tài xế đang có phiên hoạt động tại trạm khác.
+  - Tích hợp giao diện màn hình cảm ứng Kiosk dành cho tài xế xe điện (Driver): hỗ trợ đăng nhập, xem số dư ví, khởi tạo/hủy đổi pin và cảnh báo rõ ràng nếu tài xế đang có phiên hoạt động tại trạm khác.
   - Mô phỏng động học BMS của từng viên pin: mức pin (SoC), độ chai pin (SoH), nhiệt độ tăng/giảm theo dòng sạc, điện áp, đóng/mở cửa tủ, rút/cắm pin và bật/tắt quạt làm mát chủ động trên ngăn bình thường (tách biệt với khóa làm mát tự động khi quá nhiệt).
   - Sử dụng luồng **Web Worker chạy ngầm** để phát gói tin Telemetry đều đặn mỗi 1 giây (1 Hz) lên MQTT Broker, không bị trình duyệt tạm dừng khi ẩn tab.
 
@@ -48,7 +48,7 @@ Hệ thống **BSS** vận hành dựa trên sự kết hợp đồng bộ giữ
 - **Hành động được phép:**
   - Đăng nhập tài khoản bằng tên đăng nhập và mật khẩu; khi đăng xuất sẽ xóa sạch token và khóa yêu cầu phiên (`bss-request`) khỏi trình duyệt.
   - Xem thông tin số dư ví tiền hiện tại, số dư khả dụng và mã pin đang thuê mang theo xe.
-  - Tự nạp tiền vào ví tại Kiosk qua `POST /api/v1/wallet/topup` (endpoint này chỉ cho phép vai trò `KhachHang` có hồ sơ `MaKH` hợp lệ thực hiện, loại bỏ hoàn toàn việc mượn quyền Admin) hoặc tạo yêu cầu nạp tiền qua `POST /api/v1/payments`.
+  - Tự nạp tiền vào ví trên ứng dụng WPF App (`CustomerDashboardView` / `TopUpWalletDialog`) qua `POST /api/v1/wallet/topup` (endpoint này chỉ cho phép vai trò `KhachHang` có hồ sơ `MaKH` hợp lệ thực hiện, loại bỏ hoàn toàn việc mượn quyền Admin) hoặc tạo yêu cầu nạp tiền qua `POST /api/v1/payments`.
   - Bấm nút khởi tạo yêu cầu đổi pin tự động, thực hiện thao tác vật lý cắm pin cũ và rút pin mới.
 
 ### Vai trò 2: Kỹ thuật viên trạm (`KyThuatVien` / Technician)
@@ -139,8 +139,8 @@ Hệ thống **BSS** vận hành dựa trên sự kết hợp đồng bộ giữ
 
 ### QUY TRÌNH 2: NẠP TIỀN VÍ, ĐỐI SOÁT TÀI CHÍNH & QUẢN LÝ KHO PIN
 
-1. **Nạp tiền tự động tại Kiosk (Chỉ dành cho `KhachHang`):**
-   - Tài xế nhập số tiền hoặc bấm nạp nhanh trên Kiosk Web3D (`POST /api/v1/wallet/topup`).
+1. **Nạp tiền tự động trên ứng dụng WPF App (Chỉ dành cho `KhachHang`):**
+   - Tài xế thực hiện nạp tiền qua giao diện `CustomerDashboardView` / `TopUpWalletDialog` trên ứng dụng WPF App (`POST /api/v1/wallet/topup`; giao diện Web3D Kiosk chỉ hiển thị số dư ví và thao tác đổi pin).
    - Endpoint này áp dụng kiểm soát phân quyền nghiêm ngặt chỉ cho vai trò `KhachHang` có hồ sơ `CustomerId` hợp lệ tự nạp vào ví của chính mình (không cho phép Admin hay vai trò khác dùng endpoint tự nạp).
    - Hệ thống kiểm tra số tiền nguyên hợp lệ (`1` đến `10.000.000 đ`), tạo yêu cầu nạp và tự động chốt `Succeeded`, cộng trực tiếp vào `KhachHang.SoDuVi` và lưu lịch sử vào `LichSuNapTien`.
 

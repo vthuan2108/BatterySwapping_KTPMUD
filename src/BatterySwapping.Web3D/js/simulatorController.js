@@ -47,6 +47,199 @@ const SimulatorController = (() => {
   let updating = false;
   let currentFee = null;
   let isKioskMode = false;
+  let activeAuthTab = "qr";
+  let scanInFlight = false;
+  let readerErrorTimer = null;
+
+  const READER_DEFAULT_TEXT = {
+    QR: "Kéo thẻ QR thả vào đầu đọc",
+    RFID: "Kéo thẻ RFID chạm vào đầu đọc",
+  };
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function playReaderBeep(type = "scan") {
+    try {
+      const AudioCtx = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const playTone = (freq, startOffset, duration, gainVal = 0.07, wave = "sine") => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = wave;
+        osc.frequency.setValueAtTime(freq, now + startOffset);
+        gain.gain.setValueAtTime(gainVal, now + startOffset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + startOffset + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + startOffset);
+        osc.stop(now + startOffset + duration);
+      };
+      if (type === "scan") {
+        playTone(1320, 0, 0.07, 0.055, "sine");
+      } else if (type === "success") {
+        playTone(880, 0, 0.09, 0.065, "triangle");
+        playTone(1318.5, 0.09, 0.14, 0.075, "triangle");
+      } else if (type === "error") {
+        playTone(260, 0, 0.12, 0.07, "sawtooth");
+        playTone(210, 0.13, 0.16, 0.07, "sawtooth");
+      }
+      setTimeout(() => {
+        try {
+          ctx.close?.()?.catch?.(() => {});
+        } catch {}
+      }, 500);
+    } catch {}
+  }
+
+  function getReaderZone(method) {
+    return method === "RFID" ? $("rfid-reader-zone") : $("qr-reader-zone");
+  }
+
+  function getReaderStatusEl(method) {
+    return method === "RFID" ? $("rfid-reader-status") : $("qr-reader-status");
+  }
+
+  function resetReaderState(method) {
+    const methods = method ? [method] : ["QR", "RFID"];
+    if (readerErrorTimer) {
+      clearTimeout(readerErrorTimer);
+      readerErrorTimer = null;
+    }
+    for (const m of methods) {
+      const zone = getReaderZone(m);
+      zone?.classList?.remove?.("is-drag-over", "is-scanning", "is-success", "is-error");
+      const statusEl = getReaderStatusEl(m);
+      if (statusEl) statusEl.textContent = READER_DEFAULT_TEXT[m];
+    }
+  }
+
+  function switchAuthTab(tabName) {
+    activeAuthTab = ["qr", "rfid", "password"].includes(tabName) ? tabName : "qr";
+    const tabs = {
+      qr: $("tab-auth-qr"),
+      rfid: $("tab-auth-rfid"),
+      password: $("tab-auth-password"),
+    };
+    const panels = {
+      qr: $("auth-panel-qr"),
+      rfid: $("auth-panel-rfid"),
+      password: $("auth-panel-password"),
+    };
+    for (const key of ["qr", "rfid", "password"]) {
+      const isSelected = key === activeAuthTab;
+      tabs[key]?.classList?.toggle?.("active", isSelected);
+      tabs[key]?.setAttribute?.("aria-selected", isSelected ? "true" : "false");
+      if (panels[key]) panels[key].hidden = !isSelected;
+    }
+    resetReaderState();
+    const modalNotice = $("modal-notice");
+    if (modalNotice) modalNotice.textContent = "";
+  }
+
+  function isOverReaderZone(clientX, clientY, ghostRect, readerEl) {
+    if (!readerEl || typeof readerEl.getBoundingClientRect !== "function") return false;
+    const r = readerEl.getBoundingClientRect();
+    if (!r || r.width === 0 || r.height === 0) return false;
+    const pad = 16;
+    if (
+      clientX >= r.left - pad &&
+      clientX <= r.right + pad &&
+      clientY >= r.top - pad &&
+      clientY <= r.bottom + pad
+    ) {
+      return true;
+    }
+    if (!ghostRect) return false;
+    return !(
+      ghostRect.right < r.left ||
+      ghostRect.left > r.right ||
+      ghostRect.bottom < r.top ||
+      ghostRect.top > r.bottom
+    );
+  }
+
+  async function performKioskScan(method, rawCode) {
+    if (scanInFlight) return;
+    const cleanMethod = String(method || "QR").trim().toUpperCase() === "RFID" ? "RFID" : "QR";
+    const cleanCode = String(rawCode || "").trim();
+    const zone = getReaderZone(cleanMethod);
+    const statusEl = getReaderStatusEl(cleanMethod);
+
+    if (readerErrorTimer) {
+      clearTimeout(readerErrorTimer);
+      readerErrorTimer = null;
+    }
+    zone?.classList?.remove?.("is-drag-over", "is-success", "is-error");
+
+    if (!cleanCode) {
+      zone?.classList?.add?.("is-error");
+      playReaderBeep("error");
+      const errMsg = cleanMethod === "QR" ? "Vui lòng nhập hoặc quét mã QR." : "Vui lòng nhập hoặc quẹt mã thẻ RFID.";
+      if (statusEl) statusEl.textContent = "✕ " + errMsg;
+      notice(errMsg);
+      return;
+    }
+
+    scanInFlight = true;
+    zone?.classList?.add?.("is-scanning");
+    if (statusEl) {
+      statusEl.textContent =
+        cleanMethod === "QR" ? "Đang giải mã QR & xác thực..." : "Đang đọc chip RFID & xác thực...";
+    }
+    notice(cleanMethod === "QR" ? `Đang quét mã QR (${cleanCode})...` : `Đang đọc thẻ RFID (${cleanCode})...`);
+    playReaderBeep("scan");
+
+    try {
+      const [, apiResult] = await Promise.allSettled([
+        delay(700),
+        api("auth/kiosk-scan", "POST", { method: cleanMethod, code: cleanCode }),
+      ]);
+
+      if (apiResult.status !== "fulfilled") {
+        throw apiResult.reason || Error("Mã QR hoặc thẻ RFID không hợp lệ.");
+      }
+
+      const r = apiResult.value;
+      if (!r?.user || r.user.role !== "KhachHang") {
+        throw Error("Kiosk yêu cầu tài khoản khách hàng. Quản trị dùng Desktop.");
+      }
+
+      zone?.classList?.remove?.("is-scanning", "is-error");
+      zone?.classList?.add?.("is-success");
+      const successText = "✓ Xác thực thành công: " + r.user.name;
+      if (statusEl) statusEl.textContent = successText;
+      notice(successText);
+      playReaderBeep("success");
+
+      await delay(550);
+
+      token = r.token;
+      user = r.user;
+      sessionStorage.setItem("bss-token", token);
+      closeKioskModal();
+      isKioskMode = true;
+      zoomToStationFront(activeStationId);
+      await refresh();
+    } catch (err) {
+      zone?.classList?.remove?.("is-scanning", "is-success");
+      zone?.classList?.add?.("is-error");
+      playReaderBeep("error");
+      const msg = err?.message || "Mã QR hoặc thẻ RFID không hợp lệ.";
+      if (statusEl) statusEl.textContent = "✕ " + msg;
+      notice(msg);
+      readerErrorTimer = setTimeout(() => {
+        if (!scanInFlight) {
+          zone?.classList?.remove?.("is-error");
+        }
+      }, 2200);
+    } finally {
+      scanInFlight = false;
+    }
+  }
 
   function notice(text) {
     const el = $("notice");
@@ -1130,14 +1323,16 @@ const SimulatorController = (() => {
       render();
       return;
     }
-    // Chưa đăng nhập: Mở pop-up đăng nhập kèm tài khoản mẫu test
+    // Chưa đăng nhập: Mở pop-up xác thực Kiosk (QR / RFID / Tài khoản)
     zoomToKiosk(activeStationId);
+    switchAuthTab("qr");
     const modal = $("kiosk-modal");
     if (modal) modal.style.display = "flex";
     render();
   }
 
   function closeKioskModal() {
+    resetReaderState();
     const modal = $("kiosk-modal");
     if (modal) modal.style.display = "none";
     if (!isKioskMode) {
@@ -1259,8 +1454,228 @@ const SimulatorController = (() => {
     render();
   }
 
+  function setupKioskAuth() {
+    if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return;
+
+    // 1. Mode switch tabs
+    for (const tabBtn of document.querySelectorAll("[data-auth-tab]")) {
+      tabBtn.addEventListener("click", () => {
+        if (!scanInFlight) switchAuthTab(tabBtn.dataset.authTab);
+      });
+    }
+    switchAuthTab("qr");
+
+    // 2. Quick scan / tap buttons
+    for (const btn of document.querySelectorAll(".btn-quick-scan")) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        performKioskScan(btn.dataset.method, btn.dataset.code);
+      });
+    }
+
+    // 3. Manual code fallback forms
+    const qrManualForm = $("qr-manual-form");
+    if (qrManualForm) {
+      qrManualForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        performKioskScan("QR", $("qr-manual-code")?.value || "");
+      });
+    }
+    const rfidManualForm = $("rfid-manual-form");
+    if (rfidManualForm) {
+      rfidManualForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        performKioskScan("RFID", $("rfid-manual-code")?.value || "");
+      });
+    }
+
+    // 4. Pointer Events smooth mouse dragging + snap-to-reader animation
+    let activePointerDrag = false;
+    for (const card of document.querySelectorAll(".kiosk-pass-card")) {
+      card.addEventListener("mousedown", (e) => {
+        if (e.button === 0 && !e.target?.closest?.("button, input, a")) {
+          // Keep draggable="true" HTML5 fallback intact while letting Pointer Events drive mouse drags
+          e.preventDefault();
+        }
+      });
+
+      card.addEventListener("pointerdown", (e) => {
+        if (scanInFlight) return;
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        if (e.target?.closest?.("button, input, a")) return;
+
+        e.preventDefault();
+        activePointerDrag = true;
+
+        const method = card.dataset.method || "QR";
+        const code = card.dataset.code || "";
+        const readerZone = getReaderZone(method);
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const cardRect = card.getBoundingClientRect();
+        const offsetX = e.clientX - cardRect.left;
+        const offsetY = e.clientY - cardRect.top;
+
+        let dragging = false;
+        let ghost = null;
+        let lastX = startX;
+
+        function spawnGhost(clientX, clientY) {
+          ghost = card.cloneNode(true);
+          ghost.removeAttribute?.("id");
+          ghost.classList.add("kiosk-drag-ghost");
+          Object.assign(ghost.style, {
+            position: "fixed",
+            left: "0px",
+            top: "0px",
+            width: `${cardRect.width}px`,
+            height: `${cardRect.height}px`,
+            margin: "0",
+            pointerEvents: "none",
+            zIndex: "9999",
+            transition: "none",
+            transform: `translate3d(${clientX - offsetX}px, ${clientY - offsetY}px, 0) rotate(-2deg) scale(1.04)`,
+          });
+          document.body.appendChild(ghost);
+          card.classList.add("is-dragging");
+          document.body.classList.add("is-kiosk-dragging");
+        }
+
+        function cleanupDragListeners() {
+          activePointerDrag = false;
+          window.removeEventListener("pointermove", onPointerMove);
+          window.removeEventListener("pointerup", onPointerUp);
+          window.removeEventListener("pointercancel", onPointerCancel);
+          card.classList.remove("is-dragging");
+          document.body.classList.remove("is-kiosk-dragging");
+          readerZone?.classList?.remove?.("is-drag-over");
+        }
+
+        function onPointerMove(ev) {
+          const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
+          if (!dragging && dist > 5) {
+            dragging = true;
+            spawnGhost(ev.clientX, ev.clientY);
+          }
+          if (!dragging || !ghost) return;
+
+          const dx = ev.clientX - lastX;
+          lastX = ev.clientX;
+          const tilt = Math.max(-5, Math.min(5, dx * 0.35 - 1.5));
+          const x = ev.clientX - offsetX;
+          const y = ev.clientY - offsetY;
+          ghost.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${tilt.toFixed(1)}deg) scale(1.04)`;
+
+          const ghostRect = ghost.getBoundingClientRect();
+          const over = isOverReaderZone(ev.clientX, ev.clientY, ghostRect, readerZone);
+          readerZone?.classList?.toggle?.("is-drag-over", over);
+          ghost.classList.toggle("is-over-target", over);
+        }
+
+        function onPointerUp(ev) {
+          cleanupDragListeners();
+          if (!dragging || !ghost) return;
+
+          const activeGhost = ghost;
+          ghost = null;
+          const ghostRect = activeGhost.getBoundingClientRect();
+          const over = isOverReaderZone(ev.clientX, ev.clientY, ghostRect, readerZone);
+
+          if (over && readerZone) {
+            const rRect = readerZone.getBoundingClientRect();
+            const targetX = rRect.left + (rRect.width - cardRect.width) / 2;
+            const targetY = rRect.top + (rRect.height - cardRect.height) / 2;
+            activeGhost.style.transition =
+              "transform 230ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease";
+            requestAnimationFrame(() => {
+              activeGhost.style.transform = `translate3d(${targetX}px, ${targetY}px, 0) rotate(0deg) scale(0.76)`;
+              activeGhost.style.opacity = "0";
+            });
+            setTimeout(() => activeGhost.remove(), 290);
+            performKioskScan(method, code);
+          } else {
+            activeGhost.style.transition = "transform 180ms ease, opacity 180ms ease";
+            requestAnimationFrame(() => {
+              activeGhost.style.transform = `translate3d(${cardRect.left}px, ${cardRect.top}px, 0) scale(0.98)`;
+              activeGhost.style.opacity = "0";
+            });
+            setTimeout(() => activeGhost.remove(), 200);
+          }
+        }
+
+        function onPointerCancel() {
+          cleanupDragListeners();
+          if (ghost) {
+            ghost.remove();
+            ghost = null;
+          }
+        }
+
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", onPointerUp);
+        window.addEventListener("pointercancel", onPointerCancel);
+      });
+
+      // Native HTML5 drag-and-drop fallback
+      card.addEventListener("dragstart", (e) => {
+        if (scanInFlight || activePointerDrag) {
+          e.preventDefault();
+          return;
+        }
+        const payload = JSON.stringify({
+          method: card.dataset.method || "QR",
+          code: card.dataset.code || "",
+        });
+        e.dataTransfer?.setData?.("text/plain", payload);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+        card.classList.add("is-dragging");
+      });
+
+      card.addEventListener("dragend", () => {
+        card.classList.remove("is-dragging");
+        getReaderZone("QR")?.classList?.remove?.("is-drag-over");
+        getReaderZone("RFID")?.classList?.remove?.("is-drag-over");
+      });
+    }
+
+    for (const readerEl of [getReaderZone("QR"), getReaderZone("RFID")]) {
+      if (!readerEl) continue;
+      const expectedMethod = readerEl.dataset.readerMethod || "QR";
+
+      readerEl.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        readerEl.classList.add("is-drag-over");
+      });
+
+      readerEl.addEventListener("dragleave", (e) => {
+        if (!readerEl.contains(e.relatedTarget)) {
+          readerEl.classList.remove("is-drag-over");
+        }
+      });
+
+      readerEl.addEventListener("drop", (e) => {
+        e.preventDefault();
+        readerEl.classList.remove("is-drag-over");
+        if (scanInFlight) return;
+        const raw = e.dataTransfer?.getData?.("text/plain") || "";
+        let method = expectedMethod;
+        let code = raw;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.code === "string") {
+            method = parsed.method || expectedMethod;
+            code = parsed.code;
+          }
+        } catch {}
+        performKioskScan(method, code);
+      });
+    }
+  }
+
   async function init() {
     setupScene();
+    setupKioskAuth();
 
     // Station Switcher Button listeners (Header & Aside)
     const btnBk = $("btn-station-bk");
@@ -1356,24 +1771,6 @@ const SimulatorController = (() => {
         isKioskMode = false;
         zoomToOverview();
         render();
-      };
-    }
-
-    const btnKioskTopup = $("btn-kiosk-topup");
-    if (btnKioskTopup) {
-      btnKioskTopup.onclick = async () => {
-        if (!user || !backend) return;
-        btnKioskTopup.disabled = true;
-        try {
-          const reqId = crypto.randomUUID();
-          await api("wallet/topup", "POST", { amount: 100000, requestId: reqId });
-          notice("Đã nạp thành công 100.000 đ vào ví demo.");
-          await refresh();
-        } catch (err) {
-          notice("Lỗi nạp ví: " + err.message);
-        } finally {
-          btnKioskTopup.disabled = false;
-        }
       };
     }
 

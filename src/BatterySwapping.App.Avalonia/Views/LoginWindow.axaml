@@ -17,7 +17,7 @@
                         HorizontalAlignment="Center" Margin="0,0,0,10">
                     <TextBlock Text="⚡" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource PrimaryDarkBrush}"/>
                 </Border>
-                <TextBlock Text="bss planner." FontSize="18" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center"/>
+                <TextBlock Text="Battery Swapping System" FontSize="18" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center"/>
                 <TextBlock Text="HỆ THỐNG VẬN HÀNH TRẠM ĐỔI PIN THÔNG MINH" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextCategoryBrush}" HorizontalAlignment="Center" Margin="0,3,0,0"/>
                 <TextBlock Text="KTPMUD • Đại học Bách Khoa Hà Nội" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
             </StackPanel>

@@ -28,7 +28,7 @@ if(existingIssues.Count>0){
     File.WriteAllText(report,System.Text.Json.JsonSerializer.Serialize(existingIssues));
     app.Logger.LogWarning("Inventory consistency requires review: {Count} issues. Report {ReportPath}",existingIssues.Count,report);
 }
-foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql","11_ThirdThermal.sql","12_BatteryThermalIncidents.sql"})
+foreach(var script in new[]{"06_Runtime.sql","07_Business.sql","08_Maintenance.sql","09_Cooldowns.sql","10_AutoThermal.sql","11_ThirdThermal.sql","12_BatteryThermalIncidents.sql","13_KioskQrRfid.sql"})
     app.Services.GetRequiredService<SqlStore>().Migrate(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,script)));
 app.Use(async(ctx,next)=>{
     if(ctx.Connection.RemoteIpAddress is not null && !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)){ctx.Response.StatusCode=403;return;}
@@ -44,6 +44,7 @@ app.UseRouting();app.UseRateLimiter();
 app.UseDefaultFiles();app.UseStaticFiles();
 app.MapGet("/health",(MqttWorker mqtt,SqlStore db)=>{db.Read(x=>x.Scalar("SELECT 1"));return Results.Ok(new{server="online",database="online",mqtt=mqtt.Connected});});
 app.MapPost("/api/v1/auth/login",(LoginRequest r,BssEngine e,AuthSessions auth)=>{var u=e.Login(r);return new LoginResponse(auth.Create(u),u);}).RequireRateLimiting("login");
+app.MapPost("/api/v1/auth/kiosk-scan",(KioskScanRequest r,BssEngine e,AuthSessions auth)=>{var u=e.KioskScan(r);return new LoginResponse(auth.Create(u),u);}).RequireRateLimiting("login");
 // Simulator bootstrap is loopback-only; these credentials grant device topics, never admin APIs.
 app.MapGet("/api/v1/device/config",(IConfiguration c)=>new{brokerUrl=c["Broker:WebSocketUrl"]??"ws://127.0.0.1:19001/mqtt",port=c.GetValue<int?>("Broker:Port")??18883,username="simulator",password=c["Broker:SimulatorPassword"]});
 app.MapPost("/api/v1/device/lease",(DeviceLease r,BssEngine e)=>e.Lease(r));

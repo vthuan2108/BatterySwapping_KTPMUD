@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BSS — Mô phỏng 3D Mạng Lưới 2 Trạm Đổi Pin</title>
-  <link rel="stylesheet" href="css/integrated.css?v=20261124_v7_clean_saas">
+  <link rel="stylesheet" href="css/integrated.css?v=20261125_kiosk_qr_rfid">
   <link rel="icon" href="data:,">
 </head>
 <body>
@@ -56,55 +56,323 @@
           </div>
 
           <div class="kiosk-modal-body">
-            <!-- Form Đăng nhập khi chưa đăng nhập -->
+            <!-- Form Đăng nhập / Xác thực Kiosk khi chưa đăng nhập -->
             <div id="kiosk-login-section">
-              <div class="kiosk-login-grid">
-                <!-- Cột trái: Form Đăng nhập -->
-                <div class="kiosk-form-col">
-                  <h3 id="flow-title" style="margin:0 0 4px 0;font-size:16px;color:#f8fafc">Đăng nhập tài khoản</h3>
-                  <p id="flow-desc" style="color:#94a3b8;font-size:12px;margin:0 0 12px 0">
-                    Đăng nhập tài khoản khách hàng để thực hiện đổi pin tại trạm.
-                  </p>
+              <div class="kiosk-auth-tabs" role="tablist" aria-label="Phương thức xác thực Kiosk">
+                <button id="tab-auth-qr" type="button" class="kiosk-auth-tab active" data-auth-tab="qr" role="tab" aria-selected="true">📱 Quét mã QR</button>
+                <button id="tab-auth-rfid" type="button" class="kiosk-auth-tab" data-auth-tab="rfid" role="tab" aria-selected="false">🪪 Quẹt thẻ RFID</button>
+                <button id="tab-auth-password" type="button" class="kiosk-auth-tab" data-auth-tab="password" role="tab" aria-selected="false">🔑 Tài khoản / Mật khẩu</button>
+              </div>
 
-                  <form id="login-form">
-                    <label>Tài khoản
-                      <input id="username" autocomplete="username" placeholder="Nhập tên đăng nhập...">
-                    </label>
-                    <label>Mật khẩu
-                      <input id="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu...">
-                    </label>
-                    <button type="submit" style="background:#10b981;font-weight:bold;border:none;color:#ffffff;padding:11px 14px;border-radius:9px;margin-top:6px;width:100%;cursor:pointer">⚡ ĐĂNG NHẬP VÀO KIOSK</button>
-                  </form>
-                </div>
+              <!-- Tab 1: Quét mã QR (Mặc định) -->
+              <div id="auth-panel-qr" class="kiosk-auth-panel" role="tabpanel" aria-labelledby="tab-auth-qr">
+                <div class="kiosk-hw-grid">
+                  <!-- Cột trái: Đầu đọc QR quang học -->
+                  <div class="kiosk-hw-col">
+                    <div id="qr-reader-zone" class="kiosk-reader-dock qr-dock" data-reader-method="QR">
+                      <div class="reader-bezel-top">
+                        <span class="reader-hw-label">OPTICAL QR SCANNER • CAM-01</span>
+                        <span class="reader-led"></span>
+                      </div>
 
-                <!-- Cột phải: Tài khoản mẫu -->
-                <div class="kiosk-demo-col">
-                  <div class="kiosk-demo-box">
-                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                      <span style="font-size:16px">🔑</span>
-                      <strong style="color:#38bdf8;font-size:12px">TÀI KHOẢN MẪU TEST</strong>
+                      <div class="qr-lens-viewport">
+                        <div class="qr-glass-sheen"></div>
+                        <div class="qr-corner tl"></div>
+                        <div class="qr-corner tr"></div>
+                        <div class="qr-corner bl"></div>
+                        <div class="qr-corner br"></div>
+                        <div class="qr-target-ring"></div>
+                        <div class="qr-laser-line"></div>
+                        <div class="reader-center-emblem" aria-hidden="true">
+                          <svg class="emblem-idle" viewBox="0 0 48 48" width="44" height="44" fill="none">
+                            <rect x="6" y="6" width="14" height="14" rx="2.5" stroke="currentColor" stroke-width="2.5"/>
+                            <rect x="10" y="10" width="6" height="6" rx="1" fill="currentColor"/>
+                            <rect x="28" y="6" width="14" height="14" rx="2.5" stroke="currentColor" stroke-width="2.5"/>
+                            <rect x="32" y="10" width="6" height="6" rx="1" fill="currentColor"/>
+                            <rect x="6" y="28" width="14" height="14" rx="2.5" stroke="currentColor" stroke-width="2.5"/>
+                            <rect x="10" y="32" width="6" height="6" rx="1" fill="currentColor"/>
+                            <path d="M28 28h5v5h-5zM37 28h5v5h-5zM28 37h5v5h-5zM37 37h5v5h-5z" fill="currentColor" opacity="0.85"/>
+                          </svg>
+                          <span class="emblem-status-icon emblem-success">✓</span>
+                          <span class="emblem-status-icon emblem-error">✕</span>
+                        </div>
+                      </div>
+
+                      <div class="reader-status-box">
+                        <div id="qr-reader-status" class="reader-status-title">Kéo thẻ QR thả vào đầu đọc</div>
+                        <div class="reader-status-sub">Đưa mã QR vào vùng laser hoặc bấm "⚡ Quét nhanh"</div>
+                      </div>
                     </div>
-                    <p style="font-size:12px;color:#cbd5e1;margin:0 0 10px 0;line-height:1.4">
-                      Sử dụng tài khoản khách hàng có sẵn ví tiền &amp; pin đang thuê để test:
+                  </div>
+
+                  <!-- Cột phải: Thẻ QR kéo thả + Nhập thủ công -->
+                  <div class="kiosk-cards-col">
+                    <div class="kiosk-cards-header">
+                      <span>THẺ QR KHÁCH HÀNG</span>
+                      <span class="drag-pill-hint">🖱️ Kéo &amp; Thả</span>
+                    </div>
+
+                    <div class="kiosk-pass-list">
+                      <div class="kiosk-pass-card qr-pass-card" draggable="true" data-method="QR" data-code="BSS-QR-DRV01-AN">
+                        <div class="pass-visual qr-svg-box" aria-hidden="true">
+                          <svg viewBox="0 0 36 36" width="44" height="44">
+                            <rect width="36" height="36" rx="4" fill="#ffffff"/>
+                            <rect x="3" y="3" width="10" height="10" rx="1.5" fill="#0f172a"/>
+                            <rect x="5" y="5" width="6" height="6" fill="#ffffff"/>
+                            <rect x="6.5" y="6.5" width="3" height="3" fill="#0f172a"/>
+                            <rect x="23" y="3" width="10" height="10" rx="1.5" fill="#0f172a"/>
+                            <rect x="25" y="5" width="6" height="6" fill="#ffffff"/>
+                            <rect x="26.5" y="6.5" width="3" height="3" fill="#0f172a"/>
+                            <rect x="3" y="23" width="10" height="10" rx="1.5" fill="#0f172a"/>
+                            <rect x="5" y="25" width="6" height="6" fill="#ffffff"/>
+                            <rect x="6.5" y="26.5" width="3" height="3" fill="#0f172a"/>
+                            <path d="M16 4h4v3h-4zM15 10h3v5h-3zM20 11h2v4h-2zM4 16h6v3H4zM13 16h5v4h-5zM21 16h5v3h-5zM29 16h4v4h-4zM16 22h4v4h-4zM23 22h4v3h-4zM29 22h4v5h-4zM16 29h6v4h-6zM25 28h3v5h-3zM30 30h3v3h-3z" fill="#0f172a"/>
+                          </svg>
+                        </div>
+                        <div class="pass-info">
+                          <div class="pass-name-row">
+                            <strong>Nguyễn Văn An</strong>
+                            <span class="pass-user-tag">driver01</span>
+                          </div>
+                          <div class="pass-meta">Xe 29A1-12345 • PIN-009 • Ví 150.000 đ</div>
+                          <div class="pass-bottom-row">
+                            <code class="pass-code">BSS-QR-DRV01-AN</code>
+                            <button type="button" class="btn-quick-scan" data-method="QR" data-code="BSS-QR-DRV01-AN">⚡ Quét nhanh</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="kiosk-pass-card qr-pass-card" draggable="true" data-method="QR" data-code="BSS-QR-DRV02-BINH">
+                        <div class="pass-visual qr-svg-box" aria-hidden="true">
+                          <svg viewBox="0 0 36 36" width="44" height="44">
+                            <rect width="36" height="36" rx="4" fill="#ffffff"/>
+                            <rect x="3" y="3" width="10" height="10" rx="1.5" fill="#0f172a"/>
+                            <rect x="5" y="5" width="6" height="6" fill="#ffffff"/>
+                            <rect x="6.5" y="6.5" width="3" height="3" fill="#0284c7"/>
+                            <rect x="23" y="3" width="10" height="10" rx="1.5" fill="#0f172a"/>
+                            <rect x="25" y="5" width="6" height="6" fill="#ffffff"/>
+                            <rect x="26.5" y="6.5" width="3" height="3" fill="#0284c7"/>
+                            <rect x="3" y="23" width="10" height="10" rx="1.5" fill="#0f172a"/>
+                            <rect x="5" y="25" width="6" height="6" fill="#ffffff"/>
+                            <rect x="6.5" y="26.5" width="3" height="3" fill="#0284c7"/>
+                            <path d="M15 4h5v4h-5zM16 11h4v3h-4zM5 16h4v4H5zM12 15h4v5h-4zM19 16h6v3h-6zM28 15h5v4h-5zM16 21h3v5h-3zM21 21h5v4h-5zM28 22h5v3h-5zM15 29h4v4h-4zM22 28h6v5h-6zM30 28h3v5h-3z" fill="#0f172a"/>
+                          </svg>
+                        </div>
+                        <div class="pass-info">
+                          <div class="pass-name-row">
+                            <strong>Trần Thị Bình</strong>
+                            <span class="pass-user-tag">driver02</span>
+                          </div>
+                          <div class="pass-meta">Xe 29B1-67890 • PIN-010 • Ví 50.000 đ</div>
+                          <div class="pass-bottom-row">
+                            <code class="pass-code">BSS-QR-DRV02-BINH</code>
+                            <button type="button" class="btn-quick-scan" data-method="QR" data-code="BSS-QR-DRV02-BINH">⚡ Quét nhanh</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="kiosk-pass-card qr-pass-card is-invalid-demo" draggable="true" data-method="QR" data-code="BSS-QR-INVALID-999">
+                        <div class="pass-visual qr-svg-box invalid-qr" aria-hidden="true">
+                          <svg viewBox="0 0 36 36" width="44" height="44">
+                            <rect width="36" height="36" rx="4" fill="#fef2f2"/>
+                            <rect x="3" y="3" width="10" height="10" rx="1.5" fill="#991b1b"/>
+                            <rect x="5" y="5" width="6" height="6" fill="#fef2f2"/>
+                            <rect x="23" y="3" width="10" height="10" rx="1.5" fill="#991b1b"/>
+                            <rect x="25" y="5" width="6" height="6" fill="#fef2f2"/>
+                            <rect x="3" y="23" width="10" height="10" rx="1.5" fill="#991b1b"/>
+                            <rect x="5" y="25" width="6" height="6" fill="#fef2f2"/>
+                            <path d="M13 13l10 10M23 13L13 23" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>
+                          </svg>
+                        </div>
+                        <div class="pass-info">
+                          <div class="pass-name-row">
+                            <strong>Thẻ lạ (Test lỗi)</strong>
+                            <span class="pass-user-tag invalid-tag">invalid</span>
+                          </div>
+                          <div class="pass-meta">Mã QR không hợp lệ • Mô phỏng từ chối</div>
+                          <div class="pass-bottom-row">
+                            <code class="pass-code">BSS-QR-INVALID-999</code>
+                            <button type="button" class="btn-quick-scan btn-quick-invalid" data-method="QR" data-code="BSS-QR-INVALID-999">⚡ Quét nhanh</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <form id="qr-manual-form" class="kiosk-manual-form">
+                      <input id="qr-manual-code" type="text" placeholder="Nhập mã QR thủ công (vd: BSS-QR-DRV01-AN)..." autocomplete="off">
+                      <button id="qr-manual-submit" type="submit">Quét mã</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tab 2: Quẹt thẻ RFID -->
+              <div id="auth-panel-rfid" class="kiosk-auth-panel" role="tabpanel" aria-labelledby="tab-auth-rfid" hidden>
+                <div class="kiosk-hw-grid">
+                  <!-- Cột trái: Đầu đọc RFID không tiếp xúc -->
+                  <div class="kiosk-hw-col">
+                    <div id="rfid-reader-zone" class="kiosk-reader-dock rfid-dock" data-reader-method="RFID">
+                      <div class="reader-bezel-top">
+                        <span class="reader-hw-label">NFC / RFID PAD 13.56MHz • PAD-01</span>
+                        <span class="reader-led"></span>
+                      </div>
+
+                      <div class="rfid-pad-viewport">
+                        <div class="rfid-wave-ring ring-1"></div>
+                        <div class="rfid-wave-ring ring-2"></div>
+                        <div class="rfid-wave-ring ring-3"></div>
+                        <div class="rfid-pad-core">
+                          <div class="reader-center-emblem" aria-hidden="true">
+                            <svg class="emblem-idle" viewBox="0 0 48 48" width="44" height="44" fill="none">
+                              <rect x="8" y="13" width="32" height="22" rx="4" stroke="currentColor" stroke-width="2.4"/>
+                              <rect x="13" y="19" width="7" height="6" rx="1.2" fill="currentColor" opacity="0.85"/>
+                              <path d="M27 20c2 2 2 6 0 8M31 17c3.5 3.5 3.5 10.5 0 14M35 14c5 5 5 15 0 20" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                            </svg>
+                            <span class="emblem-status-icon emblem-success">✓</span>
+                            <span class="emblem-status-icon emblem-error">✕</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="reader-status-box">
+                        <div id="rfid-reader-status" class="reader-status-title">Kéo thẻ RFID chạm vào đầu đọc</div>
+                        <div class="reader-status-sub">Đưa thẻ từ lại gần vùng sóng NFC hoặc bấm "⚡ Chạm nhanh"</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Cột phải: Thẻ RFID kéo thả + Nhập thủ công -->
+                  <div class="kiosk-cards-col">
+                    <div class="kiosk-cards-header">
+                      <span>THẺ TỪ RFID KHÁCH HÀNG</span>
+                      <span class="drag-pill-hint">🖱️ Kéo &amp; Chạm</span>
+                    </div>
+
+                    <div class="kiosk-pass-list">
+                      <div class="kiosk-pass-card rfid-pass-card" draggable="true" data-method="RFID" data-code="RFID-AN-8801">
+                        <div class="pass-visual rfid-chip-box" aria-hidden="true">
+                          <svg viewBox="0 0 44 32" width="44" height="32" fill="none">
+                            <rect x="1" y="1" width="42" height="30" rx="5" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+                            <rect x="6" y="9" width="12" height="10" rx="2" fill="#f59e0b"/>
+                            <path d="M9 9v10M15 9v10M6 14h12" stroke="#78350f" stroke-width="1"/>
+                            <path d="M26 12c1.8 1.8 1.8 6.2 0 8M30 9.5c3 3 3 10 0 13M34 7c4.2 4.2 4.2 13.8 0 18" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+                          </svg>
+                        </div>
+                        <div class="pass-info">
+                          <div class="pass-name-row">
+                            <strong>Nguyễn Văn An</strong>
+                            <span class="pass-user-tag">driver01</span>
+                          </div>
+                          <div class="pass-meta">Xe 29A1-12345 • PIN-009 • Ví 150.000 đ</div>
+                          <div class="pass-bottom-row">
+                            <code class="pass-code">RFID-AN-8801</code>
+                            <button type="button" class="btn-quick-scan" data-method="RFID" data-code="RFID-AN-8801">⚡ Chạm nhanh</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="kiosk-pass-card rfid-pass-card" draggable="true" data-method="RFID" data-code="RFID-BINH-8802">
+                        <div class="pass-visual rfid-chip-box" aria-hidden="true">
+                          <svg viewBox="0 0 44 32" width="44" height="32" fill="none">
+                            <rect x="1" y="1" width="42" height="30" rx="5" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+                            <rect x="6" y="9" width="12" height="10" rx="2" fill="#f59e0b"/>
+                            <path d="M9 9v10M15 9v10M6 14h12" stroke="#78350f" stroke-width="1"/>
+                            <path d="M26 12c1.8 1.8 1.8 6.2 0 8M30 9.5c3 3 3 10 0 13M34 7c4.2 4.2 4.2 13.8 0 18" stroke="#34d399" stroke-width="1.8" stroke-linecap="round"/>
+                          </svg>
+                        </div>
+                        <div class="pass-info">
+                          <div class="pass-name-row">
+                            <strong>Trần Thị Bình</strong>
+                            <span class="pass-user-tag">driver02</span>
+                          </div>
+                          <div class="pass-meta">Xe 29B1-67890 • PIN-010 • Ví 50.000 đ</div>
+                          <div class="pass-bottom-row">
+                            <code class="pass-code">RFID-BINH-8802</code>
+                            <button type="button" class="btn-quick-scan" data-method="RFID" data-code="RFID-BINH-8802">⚡ Chạm nhanh</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="kiosk-pass-card rfid-pass-card is-invalid-demo" draggable="true" data-method="RFID" data-code="RFID-UNKNOWN-9999">
+                        <div class="pass-visual rfid-chip-box" aria-hidden="true">
+                          <svg viewBox="0 0 44 32" width="44" height="32" fill="none">
+                            <rect x="1" y="1" width="42" height="30" rx="5" fill="#1e1b1d" stroke="#ef4444" stroke-width="1.5"/>
+                            <rect x="6" y="9" width="12" height="10" rx="2" fill="#94a3b8"/>
+                            <path d="M26 11l10 10M36 11L26 21" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round"/>
+                          </svg>
+                        </div>
+                        <div class="pass-info">
+                          <div class="pass-name-row">
+                            <strong>Thẻ lạ (Test lỗi)</strong>
+                            <span class="pass-user-tag invalid-tag">invalid</span>
+                          </div>
+                          <div class="pass-meta">Thẻ RFID chưa đăng ký • Mô phỏng từ chối</div>
+                          <div class="pass-bottom-row">
+                            <code class="pass-code">RFID-UNKNOWN-9999</code>
+                            <button type="button" class="btn-quick-scan btn-quick-invalid" data-method="RFID" data-code="RFID-UNKNOWN-9999">⚡ Chạm nhanh</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <form id="rfid-manual-form" class="kiosk-manual-form">
+                      <input id="rfid-manual-code" type="text" placeholder="Nhập mã RFID thủ công (vd: RFID-AN-8801)..." autocomplete="off">
+                      <button id="rfid-manual-submit" type="submit">Quẹt thẻ</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tab 3: Tài khoản / Mật khẩu -->
+              <div id="auth-panel-password" class="kiosk-auth-panel" role="tabpanel" aria-labelledby="tab-auth-password" hidden>
+                <div class="kiosk-login-grid">
+                  <!-- Cột trái: Form Đăng nhập -->
+                  <div class="kiosk-form-col">
+                    <h3 id="flow-title" style="margin:0 0 4px 0;font-size:16px;color:#f8fafc">Đăng nhập tài khoản</h3>
+                    <p id="flow-desc" style="color:#94a3b8;font-size:12px;margin:0 0 12px 0">
+                      Đăng nhập tài khoản khách hàng để thực hiện đổi pin tại trạm.
                     </p>
 
-                    <div class="demo-acc-card">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-                        <span style="font-size:12px;color:#94a3b8">Tài khoản:</span>
-                        <code style="color:#34d399;font-weight:bold;font-size:13px;background:rgba(6,78,59,0.5);padding:2px 8px;border-radius:4px">driver01</code>
-                      </div>
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                        <span style="font-size:12px;color:#94a3b8">Mật khẩu:</span>
-                        <code style="color:#f8fafc;font-weight:bold;font-size:13px;background:rgba(30,41,59,0.8);padding:2px 8px;border-radius:4px">123456</code>
-                      </div>
-                      <button id="btn-quick-fill-kiosk" type="button" class="btn-quick-fill">
-                        👉 Tự động điền tài khoản này
-                      </button>
-                    </div>
+                    <form id="login-form">
+                      <label>Tài khoản
+                        <input id="username" autocomplete="username" placeholder="Nhập tên đăng nhập...">
+                      </label>
+                      <label>Mật khẩu
+                        <input id="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu...">
+                      </label>
+                      <button type="submit" style="background:#10b981;font-weight:bold;border:none;color:#ffffff;padding:11px 14px;border-radius:9px;margin-top:6px;width:100%;cursor:pointer">⚡ ĐĂNG NHẬP VÀO KIOSK</button>
+                    </form>
+                  </div>
 
-                    <div style="margin-top:10px;font-size:11px;color:#94a3b8;line-height:1.4">
-                      • Ví: <strong style="color:#34d399">150.000 đ</strong> • Đang giữ: <strong>PIN-001</strong><br>
-                      • Tài khoản kỹ thuật / admin dùng trên App Desktop.
+                  <!-- Cột phải: Tài khoản mẫu -->
+                  <div class="kiosk-demo-col">
+                    <div class="kiosk-demo-box">
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                        <span style="font-size:16px">🔑</span>
+                        <strong style="color:#38bdf8;font-size:12px">TÀI KHOẢN MẪU TEST</strong>
+                      </div>
+                      <p style="font-size:12px;color:#cbd5e1;margin:0 0 10px 0;line-height:1.4">
+                        Sử dụng tài khoản khách hàng có sẵn ví tiền &amp; pin đang thuê để test:
+                      </p>
+
+                      <div class="demo-acc-card">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+                          <span style="font-size:12px;color:#94a3b8">Tài khoản:</span>
+                          <code style="color:#34d399;font-weight:bold;font-size:13px;background:rgba(6,78,59,0.5);padding:2px 8px;border-radius:4px">driver01</code>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                          <span style="font-size:12px;color:#94a3b8">Mật khẩu:</span>
+                          <code style="color:#f8fafc;font-weight:bold;font-size:13px;background:rgba(30,41,59,0.8);padding:2px 8px;border-radius:4px">123456</code>
+                        </div>
+                        <button id="btn-quick-fill-kiosk" type="button" class="btn-quick-fill">
+                          👉 Tự động điền tài khoản này
+                        </button>
+                      </div>
+
+                      <div style="margin-top:10px;font-size:11px;color:#94a3b8;line-height:1.4">
+                        • Ví: <strong style="color:#34d399">150.000 đ</strong> • Đang giữ: <strong>PIN-009</strong><br>
+                        • Tài khoản kỹ thuật / admin dùng trên App Desktop.
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -135,7 +403,6 @@
             <div>
               <div id="kiosk-user-name" style="font-weight:bold;font-size:14px;color:#f8fafc">Khách hàng</div>
               <div id="wallet-balance" style="font-size:13px;color:#34d399;font-weight:600">Đang tải số dư ví…</div>
-              <button id="btn-kiosk-topup" type="button" style="margin-top:4px;padding:4px 10px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.35);color:#34d399;border-radius:6px;cursor:pointer;font-weight:600">➕ Nạp nhanh 100.000 đ</button>
             </div>
           </div>
           <button id="logout" type="button" style="padding:5px 12px;font-size:12px;background:rgba(51,65,85,0.6);border:1px solid var(--border-card);border-radius:7px;color:#cbd5e1;cursor:pointer">Đăng xuất</button>
@@ -233,16 +500,16 @@
     </aside>
   </main>
 
-  <script src="js/three.min.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/OrbitControls.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/tween.umd.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/mqtt.min.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/cabinetModel.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/particleSystem.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/bmsModel.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/mqttSync.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/sceneView.js?v=20261124_v7_clean_saas"></script>
-  <script src="js/simulatorController.js?v=20261124_v7_clean_saas"></script>
+  <script src="js/three.min.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/OrbitControls.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/tween.umd.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/mqtt.min.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/cabinetModel.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/particleSystem.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/bmsModel.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/mqttSync.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/sceneView.js?v=20261125_kiosk_qr_rfid"></script>
+  <script src="js/simulatorController.js?v=20261125_kiosk_qr_rfid"></script>
   <script>
     window.addEventListener('DOMContentLoaded', () => SimulatorController.init());
   </script>

@@ -11,6 +11,7 @@ public record SelfTopupRequest(decimal Amount,string RequestId);
 public record MaintenanceRequest(string? NewBatteryId, string Note);
 public record CommandRequest(string Command, int? SlotNumber = null, string? BatteryId = null);
 public record KioskAuthRequest(string Identifier);
+public record KioskScanRequest(string Method, string Code);
 public record SwapEventRequest(string Event);
 public record ErrorResponse(string Error, string Code);
 public class SwapSession
